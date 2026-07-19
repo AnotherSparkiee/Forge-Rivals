@@ -46,20 +46,21 @@ export default function SetupPage() {
   const [nameStatus, setNameStatus] = useState<'idle' | 'checking' | 'taken' | 'available'>('idle');
   const [isUpdating, setIsUpdating] = useState(false);
 
+  const userRef = useMemoFirebase(() => (user?.uid ? doc(db, 'players_v10', user.uid) : null), [db, user?.uid]);
+  const { data: profile } = useDoc(userRef);
+
   useEffect(() => {
     if (!isUserLoading && !user) {
-      router.replace('/');
+      router.replace('/auth/login');
     }
   }, [user, isUserLoading, router]);
 
-  // Pre-fill custom name from display name (which might be TG name)
   useEffect(() => {
     if (displayName && !customClubName && displayName !== "Manager") {
       setCustomClubName(displayName);
     }
-  }, [displayName]);
+  }, [displayName, customClubName]);
 
-  // Name uniqueness validation logic
   useEffect(() => {
     if (step !== 'name' || customClubName.trim().length < 3) {
       setNameStatus('idle');
@@ -75,17 +76,10 @@ export default function SetupPage() {
           limit(1)
         );
         const snap = await getDocs(q);
-        
-        // Filter out current user's existing record if any
         const results = snap.docs.filter(d => d.id !== user?.uid);
-        
-        if (results.length > 0) {
-          setNameStatus('taken');
-        } else {
-          setNameStatus('available');
-        }
+        if (results.length > 0) setNameStatus('taken');
+        else setNameStatus('available');
       } catch (e) {
-        console.error("Name check error:", e);
         setNameStatus('idle');
       }
     };
@@ -94,24 +88,17 @@ export default function SetupPage() {
     return () => clearTimeout(timer);
   }, [customClubName, step, db, user?.uid]);
 
-  /**
-   * Находит первое свободное место (занятое ботом) в иерархии лиги.
-   * Приоритет: Дивизион 1 -> Дивизион 9.
-   */
   const findPlacementClient = async (leagueId: string) => {
     const q = query(collection(db, 'players_v10'), where('selectedLeagueId', '==', leagueId));
     const snap = await getDocs(q);
-    
     const occupiedIndices = new Set<number>();
     
     snap.forEach(d => {
       const data = d.data();
-      // Учитываем только тех, кто прошел сброс v80
       if (Number(data.version || 0) >= 80) {
         const tier = Number(data.leagueLevel);
         const group = Number(data.groupId);
         const rank = Number(data.rank);
-        
         if (tier && group && rank) {
           const groupsBefore = Math.pow(2, tier - 1) - 1;
           const globalIndex = (groupsBefore * 8) + (group - 1) * 8 + (rank - 1);
@@ -121,7 +108,6 @@ export default function SetupPage() {
     });
 
     let foundIndex = 0;
-    // Максимум 4088 слотов в лиге (9 уровней)
     for (let i = 0; i < 4088; i++) {
       if (!occupiedIndices.has(i)) {
         foundIndex = i;
@@ -134,7 +120,6 @@ export default function SetupPage() {
     const groupsBeforeTier = Math.pow(2, tier - 1) - 1;
     const group = (groupIndex - groupsBeforeTier) + 1;
     const rank = (foundIndex % 8) + 1;
-
     return { tier, group, rank };
   };
 
@@ -152,7 +137,6 @@ export default function SetupPage() {
       const batch = writeBatch(db);
       const rootRef = doc(db, 'players_v10', user.uid);
       
-      // Обновляем корневой профиль (сбрасываем старые связи)
       batch.set(rootRef, {
         id: user.uid,
         email: profile?.email || null,
@@ -171,13 +155,12 @@ export default function SetupPage() {
         lastSeenMatchDay: 0,
         createdAt: profile?.createdAt || nowIso,
         version: SETUP_VERSION
-      }, { merge: false }); // Полная перезапись для чистого сброса
+      }, { merge: false });
 
       const seasonId = `season_${activeSeasonNumber || 1}`;
       const prefixedGroupId = `${seasonId}_league_${selectedLeagueId}_group_${placement.group}`;
       const teamRef = doc(db, 'leagues_v2', selectedLeagueId, 'divisions', String(placement.tier), 'groups', prefixedGroupId, 'teams', user.uid);
       
-      // Инициализируем документ команды
       batch.set(teamRef, {
         id: user.uid,
         displayName: customClubName.trim(),
@@ -206,10 +189,7 @@ export default function SetupPage() {
 
       await batch.commit();
       toast({ title: language === 'ru' ? "Профиль настроен!" : "Profile Configured!" });
-      
-      // Мгновенная перезагрузка для подхвата новых данных в store
       window.location.href = '/';
-
     } catch (e: any) {
       console.error("[SETUP v80 ERROR]", e);
       toast({ variant: "destructive", title: "Setup Failed", description: e.message });
@@ -261,8 +241,8 @@ export default function SetupPage() {
           {step !== 'league' && (
             <Button variant="ghost" size="icon" className="absolute left-0 top-0 rounded-full" onClick={() => {
               if (step === 'country') setStep('league');
-              if (step === 'club') setStep('country');
-              if (step === 'name') setStep('club');
+              else if (step === 'club') setStep('country');
+              else if (step === 'name') setStep('club');
             }}>
               <ChevronLeft className="w-6 h-6" />
             </Button>
@@ -359,7 +339,6 @@ export default function SetupPage() {
                         )}
                        />
                      </div>
-                     
                      <div className="min-h-[20px] px-1 transition-all">
                        {nameStatus === 'checking' && (
                          <p className="text-[9px] text-muted-foreground animate-pulse flex items-center gap-1.5 uppercase font-bold">
@@ -383,16 +362,6 @@ export default function SetupPage() {
                    </div>
                  </div>
                </Card>
-
-               <div className="flex items-center gap-4 p-4 bg-accent/5 rounded-2xl border border-accent/20">
-                  <div className="w-12 h-12 bg-secondary/50 rounded-xl flex items-center justify-center border border-white/5 shrink-0 overflow-hidden p-2">
-                    {selectedClubId && <img src={CLUBS.find(c => c.id === selectedClubId)?.logo} alt="" className="w-full h-full object-contain" />}
-                  </div>
-                  <div>
-                    <p className="text-[8px] font-black text-accent uppercase tracking-widest leading-none mb-1">Visual Identity</p>
-                    <p className="text-sm font-headline font-bold text-white uppercase truncate">{customClubName || '—'}</p>
-                  </div>
-               </div>
             </div>
           )}
         </div>
