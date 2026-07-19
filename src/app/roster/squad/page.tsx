@@ -276,6 +276,16 @@ export default function SquadPage() {
     !p.isYouth
   ) : [];
 
+  const rolesRu: Record<string, string> = {
+    'Carry': 'Керри', 'Midlaner': 'Мидер', 'Tank': 'Танк', 'Jungler': 'Лес', 'Support': 'Саппорт'
+  };
+
+  const icons: Record<string, any> = {
+    lastHitting: Target, mapAwareness: Eye, positioning: Map, reflexes: Zap,
+    manaManagement: Sparkles, objectiveControl: Sword, communication: Users,
+    tiltResistance: Brain, versatility: TrendingUp, ganking: Crosshair,
+  };
+
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-20">
       <header className="mb-6 flex items-center justify-between gap-4">
@@ -349,7 +359,7 @@ export default function SquadPage() {
               ) : (
                 <div className="py-12 text-center opacity-30 border border-dashed border-white/5 rounded-2xl flex flex-col items-center gap-4">
                    <Users className="w-8 h-8" />
-                   <p className="text-[9px] font-bold uppercase tracking-widest max-w-[160px] mx-auto">{t.noAvailable}</p>
+                   <p className="text-[9px] font-bold uppercase tracking-widest max-w-[160px] mx-auto">No available units for this slot</p>
                 </div>
               )}
             </section>
@@ -411,12 +421,38 @@ export default function SquadPage() {
                       return (
                         <div key={`skill-${key}`} className="space-y-2 p-3 rounded-xl border border-white/5 bg-secondary/10">
                           <div className="flex justify-between items-center px-0.5">
-                            <div className="flex items-center gap-2"><Icon className="w-4 h-4 text-muted-foreground/60" /><span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{(t.proStatsLabels as any)[key] || key.toUpperCase()}</span></div>
+                            <div className="flex items-center gap-2"><Icon className="w-4 h-4 text-muted-foreground/60" /><span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{(language === 'ru' ? t.proStatsLabels : t.proStatsLabels)[key as keyof typeof t.proStatsLabels] || key.toUpperCase()}</span></div>
                             <div className="flex items-center gap-1.5"><span className="text-xs font-mono font-bold text-white">{displayValue}</span><span className="text-[10px] text-muted-foreground/50">/</span><span className="text-xs font-mono font-bold text-primary/70">{talentLimit}</span></div>
                           </div>
                           <Progress value={(displayValue / talentLimit) * 100} max={100} className="h-1 rounded-full bg-secondary/40" />
                         </div>
                       ); 
+                    })}
+                  </div>
+                </section>
+
+                <section>
+                  <h3 className="text-[9px] font-black text-accent uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
+                    <Zap className="w-3.5 h-3.5" /> {language === 'ru' ? 'ТЕЛЕМЕТРИЯ ТАЛАНТА' : 'TALENT TELEMETRY'}
+                  </h3>
+                  <div className="space-y-2">
+                    {STAT_KEYS.map((key) => {
+                      const talentLimit = normTalent((profilePlayer.proTalents as any)[key]);
+                      const Icon = icons[key] || Info;
+                      return (
+                        <div key={`talent-${key}`} className="p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[48px] flex flex-col justify-center">
+                          <div className="flex justify-between items-center px-0.5">
+                            <div className="flex items-center gap-2">
+                              <Icon className="w-4 h-4 text-accent/50" />
+                              <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{(language === 'ru' ? t.proStatsLabels : t.proStatsLabels)[key as keyof typeof t.proStatsLabels] || key.toUpperCase()}</span>
+                            </div>
+                            <div className="flex items-center gap-3">
+                               {renderStars(talentLimit)}
+                               <span className="text-xs font-mono font-bold text-accent">{talentLimit}</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
                     })}
                   </div>
                 </section>
@@ -430,9 +466,3 @@ export default function SquadPage() {
     </div>
   );
 }
-
-const icons: Record<string, any> = {
-  lastHitting: Target, mapAwareness: Eye, positioning: Map, reflexes: Zap,
-  manaManagement: Sparkles, objectiveControl: Sword, communication: Users,
-  tiltResistance: Brain, versatility: TrendingUp, ganking: Crosshair,
-};

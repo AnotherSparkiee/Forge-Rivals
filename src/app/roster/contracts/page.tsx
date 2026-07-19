@@ -28,6 +28,13 @@ const normTalent = (val: any) => {
   return n < 10 ? Math.round(n * 10) : Math.round(n);
 };
 
+const getStatusColor = (val: number) => {
+  if (val >= 100) return "text-white";
+  if (val >= 75) return "text-green-400";
+  if (val >= 35) return "text-yellow-400";
+  return "text-red-500";
+};
+
 export default function ContractsPage() {
   const { ownedPlayers, language, isLoaded, credits, crystals, updatePlayer, removePlayer, managerSkills, displayName } = useGameState();
   const { user } = useUser();
@@ -81,6 +88,10 @@ export default function ContractsPage() {
     lastHitting: Target, mapAwareness: Eye, positioning: Map, reflexes: Zap,
     manaManagement: Sparkles, objectiveControl: Sword, communication: Users,
     tiltResistance: Brain, versatility: TrendingUp, ganking: Crosshair,
+  };
+
+  const rolesRu: Record<string, string> = {
+    'Carry': 'Керри', 'Midlaner': 'Мидер', 'Tank': 'Танк', 'Jungler': 'Лес', 'Support': 'Саппорт'
   };
 
   const handleAction = async (action: string) => {
@@ -166,7 +177,7 @@ export default function ContractsPage() {
             <div className="space-y-1">
               <h2 className="text-2xl font-headline font-bold uppercase text-white tracking-tight leading-none">{profilePlayer.name}</h2>
               <div className="flex items-center justify-center gap-2 mt-2">
-                <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase px-2 h-5">{profilePlayer.role}</Badge>
+                <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase px-2 h-5">{rolesRu[profilePlayer.role] || profilePlayer.role}</Badge>
               </div>
             </div>
           </div>
@@ -212,8 +223,10 @@ export default function ContractsPage() {
                   </div>
                   <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]">
                      <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Роль' : 'Role'}</span>
-                     <span className="text-[10px] font-bold uppercase">{profilePlayer.role}</span>
+                     <span className="text-[10px] font-bold uppercase">{rolesRu[profilePlayer.role] || profilePlayer.role}</span>
                   </div>
+                  <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]"><span className="text-[9px] font-bold text-muted-foreground uppercase">FRM</span><span className={cn("text-lg font-headline font-bold italic", getStatusColor(profilePlayer.form))}>{profilePlayer.form}</span></div>
+                  <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]"><span className="text-[9px] font-bold text-muted-foreground uppercase">UST</span><span className={cn("text-lg font-headline font-bold italic", getStatusColor(profilePlayer.fatigue))}>{profilePlayer.fatigue}</span></div>
                 </div>
               </section>
 
@@ -257,7 +270,7 @@ export default function ContractsPage() {
 
               <section>
                 <h3 className="text-[9px] font-black text-accent uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
-                  <Zap className="w-3.5 h-3.5" /> {t.talents}
+                  <Zap className="w-3.5 h-3.5" /> {language === 'ru' ? 'ТЕЛЕМЕТРИЯ ТАЛАНТА' : 'TALENT TELEMETRY'}
                 </h3>
                 <div className="space-y-2">
                   {STAT_KEYS.map((key) => {
@@ -326,7 +339,7 @@ export default function ContractsPage() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <h3 className="text-[11px] font-bold truncate uppercase">{player.name}</h3>
-                    <Badge variant="outline" className="text-[6px] h-3 px-1 border-white/10 uppercase opacity-60">{player.role}</Badge>
+                    <Badge variant="outline" className="text-[6px] h-3 px-1 border-white/10 uppercase opacity-60">{rolesRu[player.role] || player.role}</Badge>
                     {onAuction && <Badge className="bg-yellow-500 text-black text-[6px] h-3 px-1 font-black animate-pulse uppercase">Auction</Badge>}
                   </div>
                   <div className="flex items-center gap-2 mt-0.5">

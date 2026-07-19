@@ -37,8 +37,6 @@ export function TransferResolver() {
 
   /**
    * Отправка уведомления с детерминированным ID. 
-   * Это гарантирует, что даже при одновременной обработке несколькими клиентами
-   * создастся ровно одно уведомление.
    */
   const sendNotification = useCallback((targetUserId: string, title: string, description: string, notifId: string) => {
     const notifRef = doc(db, 'notifications_v7', notifId);
@@ -75,20 +73,15 @@ export function TransferResolver() {
               
               addCredits(agent.currentBid);
               removePlayer(playerId, 0);
-              
-              // Уведомление продавцу с уникальным ID сделки
               sendNotification(user.uid, sellerTitle, sellerDesc, `sale_done_${agent.id}`);
             } else {
-              // Возврат в состав если не купили
               updatePlayer(playerId, { onTransferUntil: null, transferMarketId: null });
               const title = language === 'ru' ? "Аукцион завершен" : "Auction Ended";
               const desc = language === 'ru' 
                 ? `${agent.heroData.name} остается в клубе (ставок нет).`
                 : `${agent.heroData.name} remains in club (no bids).`;
-              
               sendNotification(user.uid, title, desc, `sale_fail_${agent.id}`);
             }
-            // Удаляем лот с рынка
             await deleteDoc(doc(db, 'market_v7', agent.id));
           } catch (e) {
             console.error("Failed to resolve auction (sale)", e);
@@ -98,8 +91,7 @@ export function TransferResolver() {
       }
     };
 
-    const interval = setInterval(resolveAuctions, 20000);
-    resolveAuctions();
+    const interval = setInterval(resolveAuctions, 10000);
     return () => clearInterval(interval);
   }, [isLoaded, isUserLoading, user, mySales, addCredits, removePlayer, updatePlayer, language, db, sendNotification]);
 
@@ -117,9 +109,15 @@ export function TransferResolver() {
           processedIds.current.add(agent.id);
           
           try {
-            const playerData = { ...agent.heroData, onTransferUntil: null, transferMarketId: null };
+            // Очищаем временные поля рынка перед зачислением
+            const playerData = { 
+              ...agent.heroData, 
+              onTransferUntil: null, 
+              transferMarketId: null,
+              isPro: agent.isPro || agent.heroData?.isPro || false
+            };
             
-            // Добавляем игрока
+            // Добавляем игрока в коллекцию героев
             if (agent.isYouth) {
               addYouthPlayerDirectly(playerData);
             } else {
@@ -131,10 +129,9 @@ export function TransferResolver() {
               ? `${playerData.name} теперь в вашем распоряжении.` 
               : `${playerData.name} is now under your command.`;
             
-            // Уведомление покупателю с уникальным ID сделки
             sendNotification(user.uid, title, desc, `buy_done_${agent.id}`);
             
-            // Пытаемся удалить документ. 
+            // Удаляем документ лота
             await deleteDoc(doc(db, 'market_v7', agent.id));
           } catch (e) {
             console.error("Failed to claim purchased player", e);
@@ -144,8 +141,7 @@ export function TransferResolver() {
       }
     };
 
-    const interval = setInterval(resolvePurchases, 20000);
-    resolvePurchases();
+    const interval = setInterval(resolvePurchases, 10000);
     return () => clearInterval(interval);
   }, [isLoaded, isUserLoading, user, myPurchases, addPlayerDirectly, addYouthPlayerDirectly, language, sendNotification, db]);
 
