@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Ядро MMO-синхронизации v83 (Resilient Sync).
- * Оптимизировано для мгновенного доступа и надежного создания мира.
+ * @fileOverview Ядро MMO-синхронизации v85 (Resilient Season Sync).
+ * Оптимизировано для мгновенного доступа и предотвращения исчезновения данных групп.
  */
 
 import { useEffect, useRef } from 'react';
@@ -16,7 +16,7 @@ import { getStableGroupTeams, generateSeasonCalendar, getMatchResult } from '@/a
 import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
 import { generateBotSquad } from '@/app/lib/moba-data';
 
-const SYNC_VERSION = 83; 
+const SYNC_VERSION = 85; 
 
 export function AutoMatchManager() {
   const { user, isUserLoading } = useUser();
@@ -30,7 +30,7 @@ export function AutoMatchManager() {
   const syncInProgressRef = useRef<string | null>(null);
 
   useEffect(() => {
-    // Ждем базовую информацию из профиля.
+    // Ждем базовую информацию из профиля. Менеджер работает автономно от загрузки команды.
     if (isUserLoading || !user?.uid || !isLoaded || !selectedLeagueId) return;
 
     const syncSharedWorld = async () => {
@@ -54,6 +54,7 @@ export function AutoMatchManager() {
         let tableSnap = await getDoc(tableRef);
         let teamData = [];
 
+        // 1. ПРОВЕРКА/СОЗДАНИЕ ТАБЛИЦЫ ЛИГИ
         if (!tableSnap.exists()) {
           teamData = getStableGroupTeams(tier, groupNum, lId, [{
             id: userId,
@@ -74,6 +75,7 @@ export function AutoMatchManager() {
           const mySlotIndex = Math.max(0, myRank - 1);
           const mySlot = teamData[mySlotIndex];
           
+          // Если я не в таблице (напр. после сброса), вписываю себя
           if (!mySlot || mySlot.id !== userId) {
             teamData[mySlotIndex] = {
               id: userId,
@@ -86,6 +88,7 @@ export function AutoMatchManager() {
           }
         }
 
+        // 2. ГЕНЕРАЦИЯ КАЛЕНДАРЯ (если пуст)
         const matchesQuery = query(collection(db, 'matches_v1'), where('tableId', '==', tableId));
         const matchesSnap = await getDocs(matchesQuery);
 
@@ -108,10 +111,10 @@ export function AutoMatchManager() {
           await batch.commit();
         }
 
-        // МГНОВЕННОЕ ПОДТВЕРЖДЕНИЕ
+        // РАЗБЛОКИРОВКА МИРА
         setWorldReady(true);
 
-        // ПРОВЕРКА И ПРОВЕДЕНИЕ МАТЧЕЙ (фон)
+        // 3. ФОНОВАЯ СИМУЛЯЦИЯ (только если загружена команда)
         if (isTeamLoaded) {
           const pendingQuery = query(
             collection(db, 'matches_v1'),

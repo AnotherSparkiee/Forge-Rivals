@@ -1,7 +1,7 @@
 /**
- * @fileOverview Ядро времени v67 (Infinite Season Engine). 
+ * @fileOverview Ядро времени v70 (Stable Infinite Season Engine). 
  * Глобальная синхронизация цикла (15 дней).
- * Начало времен: 29 июня 2026 года (День 1).
+ * Начало времен: 1 января 2025 года (Стабильная эпоха).
  */
 
 let syncPoint = {
@@ -10,8 +10,8 @@ let syncPoint = {
 };
 
 const MSK_OFFSET = 3 * 60 * 60 * 1000;
-// Начало времен: 29 июня 2026 00:00 MSK (Воскресенье 21:00 UTC)
-export const GLOBAL_EPOCH_ISO = '2026-06-28T21:00:00Z'; 
+// Начало времен: 1 января 2025 00:00 MSK (31 дек 2024 21:00 UTC)
+export const GLOBAL_EPOCH_ISO = '2024-12-31T21:00:00Z'; 
 
 export function setServerTime(serverMs: number) {
   if (typeof performance !== 'undefined') {
@@ -24,7 +24,7 @@ export function setServerTime(serverMs: number) {
 export function getMoscowTime(): Date {
   const isBrowser = typeof window !== 'undefined';
   let currentUtcMs;
-  if (isBrowser && performance) {
+  if (isBrowser && performance && syncPoint.perfMs > 0) {
     const elapsed = performance.now() - syncPoint.perfMs;
     currentUtcMs = syncPoint.serverMs + elapsed;
   } else {

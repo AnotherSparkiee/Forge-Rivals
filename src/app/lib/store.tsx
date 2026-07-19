@@ -1,8 +1,9 @@
 'use client';
 
 /**
- * Глобальное хранилище v85.5 (Fast UI Unlock Protocol).
- * Интерфейс разблокируется сразу после загрузки профиля, не дожидаясь синхронизации мира.
+ * Глобальное хранилище v86 (Robust Sync Protocol).
+ * Интерфейс разблокируется сразу после загрузки профиля.
+ * Исправлена проблема мерцания и исчезновения групп за счет стабильного расчета сезона.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
@@ -139,6 +140,9 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const stateRef = useRef(state);
   useEffect(() => { stateRef.current = state; }, [state]);
 
+  // Стабильный расчет сезона при загрузке
+  const staticSeasonInfo = useMemo(() => getGlobalSeasonInfo(), []);
+
   // Profile Listener
   useEffect(() => {
     if (isUserLoading || !user?.uid) return;
@@ -147,15 +151,14 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const unsub = onSnapshot(rootRef, (snap) => {
       if (!snap.exists() || !active) return;
       const data = snap.data();
-      const info = getGlobalSeasonInfo();
       setState(s => ({
         ...s, id: user.uid, displayName: data.displayName || "Manager",
         selectedLeagueId: data.selectedLeagueId || null, leagueLevel: Number(data.leagueLevel || 9),
         groupId: Number(data.groupId || 1), country: data.country || null,
         clubName: data.clubName || null, clubLogo: data.clubLogo || null,
         lastSeenMatchDay: Number(data.lastSeenMatchDay || 0),
-        activeSeasonNumber: Number(info.activeSeasonNumber),
-        seasonNumber: Number(info.seasonNumber), seasonDay: Number(info.seasonDay),
+        activeSeasonNumber: Number(staticSeasonInfo.activeSeasonNumber),
+        seasonNumber: Number(staticSeasonInfo.seasonNumber), seasonDay: Number(staticSeasonInfo.seasonDay),
         lastProcessedSeason: Number(data.lastProcessedSeason || 0),
         trophies: data.trophies || [],
         version: Number(data.version || 0),
@@ -164,13 +167,13 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       }));
     });
     return () => { active = false; unsub(); };
-  }, [user?.uid, isUserLoading, db]);
+  }, [user?.uid, isUserLoading, db, staticSeasonInfo]);
 
   // Team Details Listener
   useEffect(() => {
     if (isUserLoading || !user?.uid || !state.id || !state.selectedLeagueId) return;
-    const info = getGlobalSeasonInfo();
-    const seasonId = `season_${info.activeSeasonNumber}`;
+    
+    const seasonId = `season_${staticSeasonInfo.activeSeasonNumber}`;
     const prefixedGroupId = `${seasonId}_league_${state.selectedLeagueId}_group_${state.groupId}`;
     const teamRef = doc(db, 'leagues_v2', state.selectedLeagueId, 'divisions', String(state.leagueLevel), 'groups', prefixedGroupId, 'teams', state.id);
 
@@ -227,14 +230,13 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     });
 
     return () => { active = false; unsubTeam(); playersUnsub(); unsubStaff(); };
-  }, [db, state.id, state.selectedLeagueId, state.leagueLevel, state.groupId, isUserLoading, user?.uid]);
+  }, [db, state.id, state.selectedLeagueId, state.leagueLevel, state.groupId, isUserLoading, user?.uid, staticSeasonInfo.activeSeasonNumber]);
 
-  // Global Matches Listener (League + Universal Personal)
+  // Global Matches Listener
   useEffect(() => {
-    if (isUserLoading || !user?.uid || !state.isLoaded || !state.id) return;
+    if (isUserLoading || !user?.uid || !state.isLoaded || !state.id || !state.selectedLeagueId) return;
     
-    const info = getGlobalSeasonInfo();
-    const currentTableId = `s${info.activeSeasonNumber}_l${state.selectedLeagueId}_t${state.leagueLevel}_g${state.groupId}`;
+    const currentTableId = `s${staticSeasonInfo.activeSeasonNumber}_l${state.selectedLeagueId}_t${state.leagueLevel}_g${state.groupId}`;
     
     const qGroup = query(collection(db, 'matches_v1'), where('tableId', '==', currentTableId));
     const qPersonal = query(collection(db, 'matches_v1'), where('participants', 'array-contains', user.uid));
@@ -255,20 +257,19 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     });
 
     return () => { active = false; unsubGroup(); unsubPersonal(); };
-  }, [db, state.id, state.selectedLeagueId, state.groupId, state.leagueLevel, state.isLoaded, isUserLoading, user?.uid]);
+  }, [db, state.id, state.selectedLeagueId, state.groupId, state.leagueLevel, state.isLoaded, isUserLoading, user?.uid, staticSeasonInfo.activeSeasonNumber]);
 
   const getRefs = useCallback(() => {
     const s = stateRef.current;
     if (!user?.uid || !s.selectedLeagueId) return null;
-    const info = getGlobalSeasonInfo();
-    const seasonId = `season_${info.activeSeasonNumber}`;
+    const seasonId = `season_${staticSeasonInfo.activeSeasonNumber}`;
     const prefixedGroupId = `${seasonId}_league_${s.selectedLeagueId}_group_${s.groupId}`;
     return { 
       team: doc(db, 'leagues_v2', s.selectedLeagueId, 'divisions', String(s.leagueLevel), 'groups', prefixedGroupId, 'teams', user.uid),
       root: doc(db, 'players_v10', user.uid),
-      table: doc(db, 'league_tables_v1', `s${info.activeSeasonNumber}_l${s.selectedLeagueId}_t${s.leagueLevel}_g${s.groupId}`)
+      table: doc(db, 'league_tables_v1', `s${staticSeasonInfo.activeSeasonNumber}_l${s.selectedLeagueId}_t${s.leagueLevel}_g${s.groupId}`)
     };
-  }, [user?.uid, db]);
+  }, [user?.uid, db, staticSeasonInfo.activeSeasonNumber]);
 
   const addCrystals = useCallback((amount: number) => { const r = getRefs(); if (r) setDoc(r.team, { crystals: increment(amount) }, { merge: true }); }, [getRefs]);
   const addCredits = useCallback((amount: number) => { const r = getRefs(); if (r) setDoc(r.team, { credits: increment(amount) }, { merge: true }); }, [getRefs]);
@@ -554,8 +555,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo(() => ({
     ...state, 
-    // ГЛАВНОЕ ИСПРАВЛЕНИЕ: Разблокируем интерфейс сразу после загрузки профиля (isLoaded).
-    // Все остальные данные (команда, мир) подгрузятся в процессе.
     isDataReady: state.isLoaded, 
     isTeamLoaded: state.isTeamLoaded, 
     allSeasonMatches: allMatches, 

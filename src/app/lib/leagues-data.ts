@@ -1,5 +1,5 @@
 /**
- * @fileOverview Ядро лиг v50: Канонический генератор FMO.
+ * @fileOverview Ядро лиг v51: Канонический генератор FMO с фиксированной эпохой.
  */
 
 import { GLOBAL_EPOCH_ISO } from './time-utils';
