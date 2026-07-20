@@ -11,7 +11,7 @@ import {
   Loader2, Info, Sparkles, ShoppingCart,
   ArrowRightLeft, Target, Calendar, User, ScrollText, ShieldCheck, Lock,
   Crown, Award, Zap, Users, TrendingUp, CheckCircle2, ShieldAlert,
-  Swords
+  Swords, Trophy
 } from 'lucide-react';
 import { cn, formatCurrency } from '@/lib/utils';
 import Link from 'next/link';
