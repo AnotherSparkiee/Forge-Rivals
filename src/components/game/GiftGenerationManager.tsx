@@ -32,25 +32,27 @@ export function GiftGenerationManager() {
 
     const today = getMoscowDateString();
     
-    // Check if we need to generate or prune
+    // Проверка необходимости обновления
     const needsRefresh = lastGiftGenDate !== today && lastProcessedDateRef.current !== today;
-    const needsPruning = (availableGiftsToSend?.length || 0) > 1;
+    // Проверка наличия излишков (более 1 подарка)
+    const hasExcess = (availableGiftsToSend?.length || 0) > 1;
 
     if (needsRefresh) {
       lastProcessedDateRef.current = today;
       const random = GIFT_POOL[Math.floor(Math.random() * GIFT_POOL.length)];
       const generated: Gift = {
-        id: `g_${Date.now()}_0`,
+        id: `g_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
         type: random.type as any,
         value: random.value,
         label: language === 'ru' ? random.labelRu : random.labelEn,
         createdAt: new Date().toISOString(),
         claimed: false
       };
+      // Устанавливаем ровно ОДИН подарок
       generateDailyGifts([generated]);
     } 
-    else if (needsPruning) {
-      // Force strictly 1 gift if legacy data exists
+    else if (hasExcess) {
+      // Если есть излишки от старой версии, оставляем только первый
       generateDailyGifts([availableGiftsToSend[0]]);
     }
   }, [isLoaded, activeLicenseTier, lastGiftGenDate, generateDailyGifts, language, availableGiftsToSend]);

@@ -1,9 +1,9 @@
 'use client';
 
 /**
- * Глобальное хранилище v89 (Gifting Transaction Protocol).
+ * Глобальное хранилище v90 (Transactional Gifting Protocol).
  * Внедрена транзакционная отправка подарков для S-tier лицензий.
- * Исправлена ошибка ReferenceError: language.
+ * Исправлена логика удаления и зачисления подарков.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
@@ -165,7 +165,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const [allMatches, setAllMatches] = useState<any[]>([]);
   const [isWorldReady, setIsWorldReady] = useState(false);
   
-  // FIX: Destructure language here so it's defined in the closure
   const { language } = state;
 
   const stateRef = useRef(state);
@@ -597,46 +596,48 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     });
   }, [getRefs]);
 
-  // IMPROVED TRANSACTIONAL GIFT SENDING
   const sendGift = useCallback(async (giftId: string, friendId: string, friendName: string) => {
     if (!user) return false;
     const myRootRef = doc(db, 'players_v10', user.uid);
     const friendRootRef = doc(db, 'players_v10', friendId);
+    
+    // Генерируем ссылки заранее
+    const friendGiftRef = doc(collection(friendRootRef, 'received_gifts'));
+    const notifRef = doc(collection(db, 'notifications_v7'));
     
     try {
       return await runTransaction(db, async (transaction) => {
         const myRootSnap = await transaction.get(myRootRef);
         if (!myRootSnap.exists()) return false;
         
-        const currentAvailable = myRootSnap.data().availableGiftsToSend || [];
-        const giftIndex = currentAvailable.findIndex((g: any) => g.id === giftId);
-        if (giftIndex === -1) return false;
-        const gift = currentAvailable[giftIndex];
+        const myData = myRootSnap.data();
+        const currentAvailable = myData.availableGiftsToSend || [];
+        const gift = currentAvailable.find((g: any) => g.id === giftId);
         
-        // 1. Add to friend's received_gifts
-        const friendGiftRef = doc(collection(friendRootRef, 'received_gifts'));
+        if (!gift) return false;
+        
+        // 1. Зачисляем другу
         transaction.set(friendGiftRef, {
           ...gift,
           id: friendGiftRef.id,
           senderId: user.uid,
-          senderName: stateRef.current.displayName || "Manager",
+          senderName: myData.displayName || myData.clubName || "Manager",
           createdAt: new Date().toISOString(),
           claimed: false
         });
         
-        // 2. Remove from my available list
+        // 2. Списываем у себя
         const newAvailable = currentAvailable.filter((g: any) => g.id !== giftId);
         transaction.update(myRootRef, { availableGiftsToSend: newAvailable });
         
-        // 3. Notify friend
-        const notifRef = doc(collection(db, 'notifications_v7'));
+        // 3. Уведомляем
         transaction.set(notifRef, {
           id: notifRef.id,
           userId: friendId,
           title: language === 'ru' ? "Получен подарок!" : "Gift Received!",
           description: language === 'ru' 
-            ? `Менеджер ${stateRef.current.displayName} прислал вам: ${gift.label}`
-            : `Manager ${stateRef.current.displayName} sent you: ${gift.label}`,
+            ? `Менеджер ${myData.displayName || myData.clubName} прислал вам: ${gift.label}`
+            : `Manager ${myData.displayName || myData.clubName} sent you: ${gift.label}`,
           type: 'social',
           read: false,
           createdAt: new Date().toISOString()
