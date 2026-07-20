@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc, addDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase';
 import { useGameState } from '@/app/lib/store';
@@ -9,10 +9,10 @@ import { Input } from '@/components/ui/input';
 import { 
   ChevronLeft, Send, Loader2, MessageSquare, 
   User, Mail, Shield, History, AlertTriangle, 
-  CornerUpLeft, ChevronRight, UserPlus, Crown
+  CornerUpLeft, ChevronRight, UserPlus, Crown, UserMinus
 } from 'lucide-react';
 import Link from 'next/link';
-import { collection, query, orderBy, limit, doc } from 'firebase/firestore';
+import { collection, query, orderBy, limit, doc, where, getDocs, writeBatch } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { cn } from '@/lib/utils';
 import {
@@ -49,6 +49,35 @@ export default function GlobalChatPage() {
   }, [db]);
 
   const { data: messages, isLoading: isChatLoading } = useCollection(chatQuery);
+
+  // Load friends to identify status
+  const outgoingFriendsQuery = useMemoFirebase(() => {
+    if (!user?.uid) return null;
+    return query(
+      collection(db, 'friend_requests_v4'),
+      where('fromId', '==', user.uid),
+      where('status', '==', 'accepted')
+    );
+  }, [db, user?.uid]);
+
+  const incomingFriendsQuery = useMemoFirebase(() => {
+    if (!user?.uid) return null;
+    return query(
+      collection(db, 'friend_requests_v4'),
+      where('toId', '==', user.uid),
+      where('status', '==', 'accepted')
+    );
+  }, [db, user?.uid]);
+
+  const { data: outFriends } = useCollection(outgoingFriendsQuery);
+  const { data: inFriends } = useCollection(incomingFriendsQuery);
+
+  const friendsIds = useMemo(() => {
+    const ids = new Set<string>();
+    outFriends?.forEach(f => ids.add(f.toId));
+    inFriends?.forEach(f => ids.add(f.fromId));
+    return ids;
+  }, [outFriends, inFriends]);
 
   useEffect(() => {
     if (!userIsLoading && !user) {
@@ -133,6 +162,33 @@ export default function GlobalChatPage() {
     }
   };
 
+  const handleRemoveFriend = async () => {
+    if (!selectedUser || !user || isActionProcessing) return;
+    
+    setIsActionProcessing(true);
+    try {
+      const q1 = query(collection(db, 'friend_requests_v4'), where('fromId', '==', user.uid), where('toId', '==', selectedUser.id));
+      const q2 = query(collection(db, 'friend_requests_v4'), where('fromId', '==', selectedUser.id), where('toId', '==', user.uid));
+      
+      const [s1, s2] = await Promise.all([getDocs(q1), getDocs(q2)]);
+      const batch = writeBatch(db);
+      s1.docs.forEach(d => batch.delete(d.ref));
+      s2.docs.forEach(d => batch.delete(d.ref));
+      await batch.commit();
+
+      toast({ 
+        title: language === 'ru' ? "Удален из друзей" : "Friend Removed",
+        description: language === 'ru' ? `${selectedUser.clubName || selectedUser.name} удален из списка.` : `${selectedUser.clubName || selectedUser.name} removed from your list.`
+      });
+      setSelectedUser(null);
+    } catch (e: any) {
+      console.error("Failed to remove friend from chat:", e);
+      toast({ variant: "destructive", title: "Error", description: e.message });
+    } finally {
+      setIsActionProcessing(false);
+    }
+  };
+
   if (userIsLoading || !isLoaded || !user) {
     return <LoadingScreen />;
   }
@@ -147,15 +203,14 @@ export default function GlobalChatPage() {
       noTransmissions: "No transmissions detected on this frequency.",
       userMenu: "Operational Dossier",
       userMenuDesc: "Direct command options for",
-      actions: [
-        { label: 'Add Friend', desc: 'Send friendship request', icon: UserPlus, action: handleAddFriend, color: 'text-green-400' },
-        { label: 'Reply', desc: 'Direct mention in public chat', icon: CornerUpLeft, action: handleReply },
-        { label: 'Private Messages', desc: 'Direct encrypted transmission', icon: Mail, action: handlePrivateMessage },
-        { label: 'Player Page', desc: 'Detailed manager statistics', icon: User, disabled: true },
-        { label: 'Club Page', desc: 'Team history and roster', icon: Shield, disabled: true },
-        { label: 'Ban History', desc: 'Operational conduct record', icon: History, disabled: true },
-        { label: 'Report', desc: 'Notify HQ of misconduct', icon: AlertTriangle, disabled: true, color: 'text-red-400' },
-      ]
+      addFriend: "Add Friend",
+      addFriendDesc: "Send friendship request",
+      removeFriend: "Remove Friend",
+      removeFriendDesc: "Terminate tactical alliance",
+      reply: "Reply",
+      replyDesc: "Direct mention in public chat",
+      pm: "Private Messages",
+      pmDesc: "Direct encrypted transmission"
     },
     ru: {
       title: "ОБЩИЙ ЧАТ",
@@ -166,15 +221,14 @@ export default function GlobalChatPage() {
       noTransmissions: "Сигналов на данной частоте не обнаружено.",
       userMenu: "Оперативное досье",
       userMenuDesc: "Команды взаимодействия с",
-      actions: [
-        { label: 'Добавить в друзья', desc: 'Отправить запрос на дружбу', icon: UserPlus, action: handleAddFriend, color: 'text-green-400' },
-        { label: 'Ответить', desc: 'Упомянуть в общем канале', icon: CornerUpLeft, action: handleReply },
-        { label: 'Личные сообщения', desc: 'Прямая зашифрованная связь', icon: Mail, action: handlePrivateMessage },
-        { label: 'Страница игрока', desc: 'Детальная статистика менеджера', icon: User, disabled: true },
-        { label: 'Страница клуба', desc: 'История и ростер команды', icon: Shield, disabled: true },
-        { label: 'История банов', desc: 'Записи о нарушениях', icon: History, disabled: true },
-        { label: 'Репорт', desc: 'Сообщить в штаб о нарушении', icon: AlertTriangle, disabled: true, color: 'text-red-400' },
-      ]
+      addFriend: "Добавить в друзья",
+      addFriendDesc: "Отправить запрос на дружбу",
+      removeFriend: "Удалить из друзей",
+      removeFriendDesc: "Разорвать тактический альянс",
+      reply: "Ответить",
+      replyDesc: "Упомянуть в общем канале",
+      pm: "Личные сообщения",
+      pmDesc: "Прямая зашифрованная связь"
     }
   };
 
@@ -185,6 +239,24 @@ export default function GlobalChatPage() {
     const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
     return timeA - timeB;
   }) : [];
+
+  const isSelectedFriend = friendsIds.has(selectedUser?.id || '');
+
+  const actions = [
+    { 
+      label: isSelectedFriend ? t.removeFriend : t.addFriend, 
+      desc: isSelectedFriend ? t.removeFriendDesc : t.addFriendDesc, 
+      icon: isSelectedFriend ? UserMinus : UserPlus, 
+      action: isSelectedFriend ? handleRemoveFriend : handleAddFriend, 
+      color: isSelectedFriend ? 'text-destructive' : 'text-green-400' 
+    },
+    { label: t.reply, desc: t.replyDesc, icon: CornerUpLeft, action: handleReply },
+    { label: t.pm, desc: t.pmDesc, icon: Mail, action: handlePrivateMessage },
+    { label: language === 'ru' ? 'Страница игрока' : 'Player Page', desc: 'Detailed manager statistics', icon: User, disabled: true },
+    { label: language === 'ru' ? 'Страница клуба' : 'Club Page', desc: 'Team history and roster', icon: Shield, disabled: true },
+    { label: language === 'ru' ? 'История банов' : 'Ban History', desc: 'Operational conduct record', icon: History, disabled: true },
+    { label: language === 'ru' ? 'Репорт' : 'Report', desc: 'Notify HQ of misconduct', icon: AlertTriangle, disabled: true, color: 'text-red-400' },
+  ];
 
   return (
     <div className="max-w-md mx-auto h-[calc(100dvh-3.5rem-4rem)] flex flex-col overflow-hidden relative">
@@ -296,7 +368,7 @@ export default function GlobalChatPage() {
           </DialogHeader>
 
           <div className="p-4 space-y-2 max-h-[60vh] overflow-y-auto scrollbar-hide">
-            {t.actions.map((item, idx) => (
+            {actions.map((item, idx) => (
               <Card 
                 key={idx}
                 className={cn(
@@ -308,7 +380,7 @@ export default function GlobalChatPage() {
                 <CardContent className="p-3 flex items-center justify-between">
                   <div className="flex items-center gap-4">
                     <div className="p-2 rounded-lg bg-secondary/50">
-                      {isActionProcessing && item.label === t.actions[0].label ? (
+                      {isActionProcessing && (item.label === t.addFriend || item.label === t.removeFriend) ? (
                         <Loader2 className="w-5 h-5 animate-spin text-primary" />
                       ) : (
                         <item.icon className={cn("w-5 h-5", item.color || "text-primary")} />

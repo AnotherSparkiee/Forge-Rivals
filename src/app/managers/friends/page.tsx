@@ -1,11 +1,10 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
 import { useGameState, Gift } from '@/app/lib/store';
-import { collection, query, where, doc, onSnapshot, limit } from 'firebase/firestore';
+import { collection, query, where, doc, onSnapshot, limit, getDocs, writeBatch } from 'firebase/firestore';
 import { 
   ChevronLeft, UserCheck, Shield, User,
   Mail, MessageSquare, ChevronRight, Loader2,
@@ -35,6 +34,7 @@ export default function FriendsListPage() {
   const [selectedFriend, setSelectedFriend] = useState<{id: string, name: string} | null>(null);
   const [showGiftModal, setShowGiftModal] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [isActionProcessing, setIsActionProcessing] = useState(false);
 
   const isSTier = activeLicenseTier === 1;
 
@@ -91,6 +91,33 @@ export default function FriendsListPage() {
     }
   };
 
+  const handleRemoveFriend = async () => {
+    if (!selectedFriend || !user || isActionProcessing) return;
+    
+    setIsActionProcessing(true);
+    try {
+      const q1 = query(collection(db, 'friend_requests_v4'), where('fromId', '==', user.uid), where('toId', '==', selectedFriend.id));
+      const q2 = query(collection(db, 'friend_requests_v4'), where('fromId', '==', selectedFriend.id), where('toId', '==', user.uid));
+      
+      const [s1, s2] = await Promise.all([getDocs(q1), getDocs(q2)]);
+      const batch = writeBatch(db);
+      s1.docs.forEach(d => batch.delete(d.ref));
+      s2.docs.forEach(d => batch.delete(d.ref));
+      await batch.commit();
+
+      toast({ 
+        title: language === 'ru' ? "Удален из друзей" : "Friend Removed",
+        description: language === 'ru' ? `${selectedFriend.name} удален из списка.` : `${selectedFriend.name} removed from your list.`
+      });
+      setSelectedFriend(null);
+    } catch (e: any) {
+      console.error("Failed to remove friend:", e);
+      toast({ variant: "destructive", title: "Error", description: e.message });
+    } finally {
+      setIsActionProcessing(false);
+    }
+  };
+
   const handlePrivateMessage = () => {
     if (selectedFriend) {
       router.push(`/chats/private?uid=${selectedFriend.id}&name=${encodeURIComponent(selectedFriend.name)}`);
@@ -113,6 +140,8 @@ export default function FriendsListPage() {
       pmDesc: "Direct encrypted transmission",
       gift: "Send Gift",
       giftDesc: "S-Tier exclusive diplomat cargo",
+      remove: "Remove Friend",
+      removeDesc: "Terminate tactical alliance",
       profile: "Manager Profile",
       profileDesc: "Operational statistics",
       close: "CLOSE",
@@ -132,6 +161,8 @@ export default function FriendsListPage() {
       pmDesc: "Прямая зашифрованная связь",
       gift: "Отправить подарок",
       giftDesc: "Дипломатический груз S-Tier",
+      remove: "Удалить из друзей",
+      removeDesc: "Разорвать тактический альянс",
       profile: "Профиль менеджера",
       profileDesc: "Оперативная статистика",
       close: "ЗАКРЫТЬ",
@@ -255,6 +286,24 @@ export default function FriendsListPage() {
                   <div>
                     <h3 className="text-xs font-bold uppercase text-white">{t.pm}</h3>
                     <p className="text-[9px] text-muted-foreground leading-tight">{t.pmDesc}</p>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-muted-foreground" />
+              </CardContent>
+            </Card>
+
+            <Card 
+              className="glass-card border-white/5 hover:bg-white/5 cursor-pointer transition-all active:scale-[0.98]"
+              onClick={handleRemoveFriend}
+            >
+              <CardContent className="p-3 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="p-2 rounded-lg bg-secondary/50">
+                    {isActionProcessing ? <Loader2 className="w-5 h-5 animate-spin text-destructive" /> : <UserMinus className="w-5 h-5 text-destructive" />}
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-bold uppercase text-destructive">{t.remove}</h3>
+                    <p className="text-[9px] text-muted-foreground leading-tight">{t.removeDesc}</p>
                   </div>
                 </div>
                 <ChevronRight className="w-4 h-4 text-muted-foreground" />

@@ -1,15 +1,14 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc, setDocumentNonBlocking } from '@/firebase';
 import { useGameState } from '@/app/lib/store';
-import { collection, query, orderBy, limit, where, doc, onSnapshot } from 'firebase/firestore';
+import { collection, query, orderBy, limit, where, doc, onSnapshot, getDocs, writeBatch } from 'firebase/firestore';
 import { 
   ChevronLeft, Users, Search, Shield, Calendar,
   Loader2, UserPlus, User, Mail, ChevronRight, Info,
-  SlidersHorizontal, ArrowUpDown, Filter
+  SlidersHorizontal, ArrowUpDown, Filter, UserMinus
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -71,6 +70,35 @@ export default function AllManagersPage() {
   const assocsQuery = useMemoFirebase(() => query(collection(db, 'associations_v4')), [db]);
   const { data: allAssocs } = useCollection(assocsQuery);
 
+  // Load friends to identify status
+  const outgoingFriendsQuery = useMemoFirebase(() => {
+    if (!user?.uid) return null;
+    return query(
+      collection(db, 'friend_requests_v4'),
+      where('fromId', '==', user.uid),
+      where('status', '==', 'accepted')
+    );
+  }, [db, user?.uid]);
+
+  const incomingFriendsQuery = useMemoFirebase(() => {
+    if (!user?.uid) return null;
+    return query(
+      collection(db, 'friend_requests_v4'),
+      where('toId', '==', user.uid),
+      where('status', '==', 'accepted')
+    );
+  }, [db, user?.uid]);
+
+  const { data: outFriends } = useCollection(outgoingFriendsQuery);
+  const { data: inFriends } = useCollection(incomingFriendsQuery);
+
+  const friendsIds = useMemo(() => {
+    const ids = new Set<string>();
+    outFriends?.forEach(f => ids.add(f.toId));
+    inFriends?.forEach(f => ids.add(f.fromId));
+    return ids;
+  }, [outFriends, inFriends]);
+
   const assocMap = useMemo(() => {
     const map: Record<string, string> = {};
     if (allAssocs) {
@@ -98,7 +126,7 @@ export default function AllManagersPage() {
 
       const requestData = {
         fromId: String(user.uid),
-        fromName: String(profile.displayName || "Manager"),
+        fromName: String(profile.clubName || profile.displayName || "Manager"),
         toId: String(selectedManager.id),
         toName: String(selectedManager.name),
         status: 'pending',
@@ -115,6 +143,33 @@ export default function AllManagersPage() {
       setSelectedManager(null);
     } catch (e: any) {
       console.error("Failed to add friend:", e);
+      toast({ variant: "destructive", title: "Error", description: e.message });
+    } finally {
+      setIsActionProcessing(false);
+    }
+  };
+
+  const handleRemoveFriend = async () => {
+    if (!selectedManager || !user || isActionProcessing) return;
+    
+    setIsActionProcessing(true);
+    try {
+      const q1 = query(collection(db, 'friend_requests_v4'), where('fromId', '==', user.uid), where('toId', '==', selectedManager.id));
+      const q2 = query(collection(db, 'friend_requests_v4'), where('fromId', '==', selectedManager.id), where('toId', '==', user.uid));
+      
+      const [s1, s2] = await Promise.all([getDocs(q1), getDocs(q2)]);
+      const batch = writeBatch(db);
+      s1.docs.forEach(d => batch.delete(d.ref));
+      s2.docs.forEach(d => batch.delete(d.ref));
+      await batch.commit();
+
+      toast({ 
+        title: language === 'ru' ? "Удален из друзей" : "Friend Removed",
+        description: language === 'ru' ? `${selectedManager.name} больше не в вашем списке друзей.` : `${selectedManager.name} is no longer in your friends list.`
+      });
+      setSelectedManager(null);
+    } catch (e: any) {
+      console.error("Failed to remove friend:", e);
       toast({ variant: "destructive", title: "Error", description: e.message });
     } finally {
       setIsActionProcessing(false);
@@ -147,6 +202,8 @@ export default function AllManagersPage() {
       userMenuDesc: "Direct command options for",
       addFriend: "Add Friend",
       addFriendDesc: "Send friendship request",
+      removeFriend: "Remove Friend",
+      removeFriendDesc: "Terminate tactical alliance",
       pm: "Private Messages",
       pmDesc: "Direct encrypted transmission",
       close: "CLOSE",
@@ -171,6 +228,8 @@ export default function AllManagersPage() {
       userMenuDesc: "Команды взаимодействия с",
       addFriend: "Добавить в друзья",
       addFriendDesc: "Отправить запрос на дружбу",
+      removeFriend: "Удалить из друзей",
+      removeFriendDesc: "Разорвать тактический альянс",
       pm: "Личные сообщения",
       pmDesc: "Прямая зашифрованная связь",
       close: "ЗАКРЫТЬ",
@@ -224,6 +283,8 @@ export default function AllManagersPage() {
   if (isUserLoading || !isLoaded || !user) {
     return <LoadingScreen />;
   }
+
+  const isSelectedFriend = friendsIds.has(selectedManager?.id || '');
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-6">
@@ -377,7 +438,7 @@ export default function AllManagersPage() {
             {selectedManager?.id !== user.uid && (
               <Card 
                 className="glass-card border-white/5 hover:bg-white/5 cursor-pointer transition-all active:scale-[0.98]"
-                onClick={handleAddFriend}
+                onClick={isSelectedFriend ? handleRemoveFriend : handleAddFriend}
               >
                 <CardContent className="p-3 flex items-center justify-between">
                   <div className="flex items-center gap-4">
@@ -385,12 +446,16 @@ export default function AllManagersPage() {
                       {isActionProcessing ? (
                         <Loader2 className="w-5 h-5 animate-spin text-primary" />
                       ) : (
-                        <UserPlus className="w-5 h-5 text-green-400" />
+                        isSelectedFriend ? <UserMinus className="w-5 h-5 text-destructive" /> : <UserPlus className="w-5 h-5 text-green-400" />
                       )}
                     </div>
                     <div>
-                      <h3 className="text-xs font-bold uppercase text-green-400">{t.addFriend}</h3>
-                      <p className="text-[9px] text-muted-foreground leading-tight">{t.addFriendDesc}</p>
+                      <h3 className={cn("text-xs font-bold uppercase", isSelectedFriend ? "text-destructive" : "text-green-400")}>
+                        {isSelectedFriend ? t.removeFriend : t.addFriend}
+                      </h3>
+                      <p className="text-[9px] text-muted-foreground leading-tight">
+                        {isSelectedFriend ? t.removeFriendDesc : t.addFriendDesc}
+                      </p>
                     </div>
                   </div>
                   <ChevronRight className="w-4 h-4 text-muted-foreground" />
