@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useGameState, Gift } from '@/app/lib/store';
 import { getMoscowDateString } from '@/app/lib/time-utils';
 
@@ -25,14 +25,19 @@ const GIFT_POOL = [
 
 export function GiftGenerationManager() {
   const { isLoaded, activeLicenseTier, lastGiftGenDate, generateDailyGifts, language, availableGiftsToSend = [] } = useGameState();
+  const lastProcessedDateRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!isLoaded || activeLicenseTier !== 1) return;
 
     const today = getMoscowDateString();
     
-    // Case 1: Daily refresh (or first time)
-    if (lastGiftGenDate !== today) {
+    // Check if we need to generate or prune
+    const needsRefresh = lastGiftGenDate !== today && lastProcessedDateRef.current !== today;
+    const needsPruning = (availableGiftsToSend?.length || 0) > 1;
+
+    if (needsRefresh) {
+      lastProcessedDateRef.current = today;
       const random = GIFT_POOL[Math.floor(Math.random() * GIFT_POOL.length)];
       const generated: Gift = {
         id: `g_${Date.now()}_0`,
@@ -44,11 +49,11 @@ export function GiftGenerationManager() {
       };
       generateDailyGifts([generated]);
     } 
-    // Case 2: Stale data enforcement (ensure strictly 1 gift max)
-    else if (availableGiftsToSend.length > 1) {
+    else if (needsPruning) {
+      // Force strictly 1 gift if legacy data exists
       generateDailyGifts([availableGiftsToSend[0]]);
     }
-  }, [isLoaded, activeLicenseTier, lastGiftGenDate, generateDailyGifts, language, availableGiftsToSend.length]);
+  }, [isLoaded, activeLicenseTier, lastGiftGenDate, generateDailyGifts, language, availableGiftsToSend]);
 
   return null;
 }
