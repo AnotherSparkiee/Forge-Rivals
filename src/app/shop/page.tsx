@@ -138,7 +138,7 @@ export default function ShopPage() {
               { icon: Zap, label: "3x XP Multiplier", desc: "Rapid experience gain" },
               { icon: TrendingUp, label: "Market", desc: "Max bid: +100% market value" },
               { icon: Users, label: "Squad", desc: "Squad limit: 10 heroes" },
-              { icon: Coins, label: "Finance", desc: "+50% Sponsor Bonus (Total 150%)" }
+              { icon: Coins, label: "Bonus", desc: "+50% Sponsor Bonus (Total 150%)" }
             ] 
           },
           { 

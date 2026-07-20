@@ -2,8 +2,8 @@
 'use client';
 
 /**
- * Глобальное хранилище v91 (Transactional Gifting Protocol).
- * Внедрена транзакционная отправка подарков для S-tier лицензий.
+ * Глобальное хранилище v92 (Transactional Gifting Protocol).
+ * Внедрена строгая транзакционная отправка подарков (Read-before-Write).
  * Исправлена логика удаления и зачисления подарков.
  */
 
@@ -16,7 +16,6 @@ import {
   query, where, serverTimestamp, arrayUnion, getDoc, updateDoc, 
   runTransaction, increment, getDocs, orderBy, limit 
 } from 'firebase/firestore';
-import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 
 export { getLevelThreshold };
 
@@ -136,7 +135,7 @@ const DEFAULT_STATE: GameState = {
   strategy: 'Balanced Play', lineSettings: { carry: 'standard', mid: 'standard', offlane: 'standard' },
   rewardDay: 1, lastRewardClaimDate: null, matchHistory: [], lastSeenMatchDay: 0,
   managerSkills: { sponsors: 0, agents: 0, training: 0, medical: 0 },
-  skillPoints: 0, arena: { capacity: 5000 }, hq: {}, bootcamp: {}, academy: {}, medical: {},
+  arena: { capacity: 5000 }, hq: {}, bootcamp: {}, academy: {}, medical: {},
   country: null, isPremium: false, premiumUntil: null, activeSeasonNumber: 1, seasonNumber: 1, seasonDay: 1, isSyncing: false, language: 'ru',
   isDataReady: false, allSeasonMatches: [], nextMatch: null, isMatchesLoading: true,
   lastProcessedSeason: 0, trophies: [], version: 0,
@@ -607,67 +606,70 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   const sendGift = useCallback(async (giftId: string, friendId: string, friendName: string) => {
     if (!user) return false;
-    const dbInstance = db;
-    const myRootRef = doc(dbInstance, 'players_v10', user.uid);
-    const friendRootRef = doc(dbInstance, 'players_v10', friendId);
     
+    // ПРЕДВАРИТЕЛЬНЫЕ ДАННЫЕ ВНЕ ТРАНЗАКЦИИ
+    const dbInstance = db;
+    const senderRef = doc(dbInstance, 'players_v10', user.uid);
+    const receiverRef = doc(dbInstance, 'players_v10', friendId);
+    
+    // Генерируем ID для новых доков заранее
+    const newGiftId = `gift_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+    const newNotifId = `notif_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+    const friendGiftRef = doc(receiverRef, 'received_gifts', newGiftId);
+    const friendNotifRef = doc(dbInstance, 'notifications_v7', newNotifId);
+
     try {
       return await runTransaction(dbInstance, async (transaction) => {
-        const myRootSnap = await transaction.get(myRootRef);
-        if (!myRootSnap.exists()) throw new Error("My profile not found");
+        // 1. Сначала ВСЕ операции чтения (GET)
+        const senderSnap = await transaction.get(senderRef);
+        if (!senderSnap.exists()) throw new Error("Sender profile missing");
         
-        const myData = myRootSnap.data();
-        const currentAvailable = myData.availableGiftsToSend || [];
-        const giftIndex = currentAvailable.findIndex((g: any) => g.id === giftId);
+        const senderData = senderSnap.data();
+        const available = senderData.availableGiftsToSend || [];
+        const giftIdx = available.findIndex((g: any) => g.id === giftId);
         
-        if (giftIndex === -1) throw new Error("Gift not found in inventory");
+        if (giftIdx === -1) throw new Error("Gift not in inventory");
         
-        const giftToTransfer = currentAvailable[giftIndex];
-        
-        // Prepare target refs
-        const friendGiftCollectionRef = collection(friendRootRef, 'received_gifts');
-        const friendGiftDocRef = doc(friendGiftCollectionRef);
-        const notifCollectionRef = collection(dbInstance, 'notifications_v7');
-        const notifDocRef = doc(notifCollectionRef);
-        
-        const cleanGiftData = JSON.parse(JSON.stringify({
+        const giftToTransfer = available[giftIdx];
+
+        // 2. Затем ВСЕ операции записи (SET/UPDATE)
+        // Обновляем инвентарь отправителя
+        const updatedAvailable = [...available];
+        updatedAvailable.splice(giftIdx, 1);
+        transaction.update(senderRef, { availableGiftsToSend: updatedAvailable });
+
+        // Создаем подарок у друга
+        const finalGiftData = {
           ...giftToTransfer,
-          id: friendGiftDocRef.id,
+          id: newGiftId,
           senderId: user.uid,
-          senderName: myData.clubName || myData.displayName || "Manager",
+          senderName: senderData.clubName || senderData.displayName || "Manager",
           createdAt: new Date().toISOString(),
           claimed: false
-        }));
+        };
+        transaction.set(friendGiftRef, JSON.parse(JSON.stringify(finalGiftData)));
 
-        // 1. Deliver to friend
-        transaction.set(friendGiftDocRef, cleanGiftData);
-        
-        // 2. Remove from my inventory
-        const newAvailable = [...currentAvailable];
-        newAvailable.splice(giftIndex, 1);
-        transaction.update(myRootRef, { availableGiftsToSend: newAvailable });
-        
-        // 3. Notify friend
-        const notifData = JSON.parse(JSON.stringify({
-          id: notifDocRef.id,
+        // Создаем уведомление у друга
+        const notifData = {
+          id: newNotifId,
           userId: friendId,
-          title: language === 'ru' ? "Получен подарок!" : "Gift Received!",
-          description: language === 'ru' 
-            ? `Менеджер ${myData.clubName || myData.displayName} прислал вам: ${giftToTransfer.label}`
-            : `Manager ${myData.clubName || myData.displayName} sent you: ${giftToTransfer.label}`,
+          title: stateRef.current.language === 'ru' ? "Получен подарок!" : "Gift Received!",
+          description: stateRef.current.language === 'ru' 
+            ? `Менеджер ${senderData.clubName || senderData.displayName} прислал вам: ${giftToTransfer.label}`
+            : `Manager ${senderData.clubName || senderData.displayName} sent you: ${giftToTransfer.label}`,
           type: 'social',
           read: false,
           createdAt: new Date().toISOString()
-        }));
-        transaction.set(notifDocRef, notifData);
-        
+        };
+        transaction.set(friendNotifRef, JSON.parse(JSON.stringify(notifData)));
+
         return true;
       });
     } catch (e) {
-      console.error("Critical: Send gift transaction failed", e);
+      console.error("Critical: sendGift transaction failed", e);
       return false;
     }
-  }, [user, db, language]);
+  }, [user, db]);
 
   const claimGift = useCallback(async (gift: Gift) => {
     if (!user) return false;

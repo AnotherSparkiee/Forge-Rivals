@@ -312,7 +312,7 @@ export default function FriendsListPage() {
                       </div>
                       <div>
                         <h4 className="text-xs font-bold uppercase text-white">{gift.label}</h4>
-                        <p className="text-[8px] text-muted-foreground uppercase font-black mt-0.5">READY FOR SHIPMENT</p>
+                        <p className="text-[8px] text-muted-foreground uppercase font-black mt-1">READY FOR SHIPMENT</p>
                       </div>
                    </div>
                    {isSending ? <Loader2 className="w-4 h-4 animate-spin text-accent" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
