@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -228,7 +229,7 @@ export default function ShopPage() {
             tier: 1, label: "Лицензия S-Tier", cost: 3000, 
             benefits: [
               { icon: Star, label: "Подарки", desc: "Дарить подарки друзьям ежедневно" },
-              { icon: Award, label: "Ассоциации", desc: "Создание собственных ассоциаций" },
+              { icon: Award, label: "Alliance", desc: "Создание собственных ассоциаций" },
               { icon: Gem, label: "Алмазы", desc: "10 алмазов ежедневно" },
               { icon: Zap, label: "4x Опыт", desc: "Элитная прокачка уровня" },
               { icon: TrendingUp, label: "Рынок", desc: "Ставка: до +300% от цены" },

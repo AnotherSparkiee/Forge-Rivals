@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -79,12 +80,15 @@ export default function FriendsListPage() {
   const handleSendGiftToFriend = async (giftId: string) => {
     if (!selectedFriend || isSending) return;
     setIsSending(true);
-    const success = await sendGift(giftId, selectedFriend.id, selectedFriend.name);
-    if (success) {
-      setShowGiftModal(false);
-      setSelectedFriend(null);
+    try {
+      const success = await sendGift(giftId, selectedFriend.id, selectedFriend.name);
+      if (success) {
+        setShowGiftModal(false);
+        setSelectedFriend(null);
+      }
+    } finally {
+      setIsSending(false);
     }
-    setIsSending(false);
   };
 
   const handlePrivateMessage = () => {

@@ -1,7 +1,8 @@
+
 'use client';
 
 /**
- * Глобальное хранилище v90 (Transactional Gifting Protocol).
+ * Глобальное хранилище v91 (Transactional Gifting Protocol).
  * Внедрена транзакционная отправка подарков для S-tier лицензий.
  * Исправлена логика удаления и зачисления подарков.
  */
@@ -90,6 +91,7 @@ interface GameState {
   recoverAllFatigue: (type: 'credits' | 'crystals') => boolean;
   hireStaffMember: (member: StaffMember) => void;
   trainStaffSkill: (role: StaffRole, skillKey: 'primary' | 'secondary', cost: number) => boolean;
+  trainHeroSkill: (heroId: string, skillKey: string, amount: number) => Promise<boolean>;
   addPlayerDirectly: (player: Player) => void;
   addYouthPlayerDirectly: (player: Player) => void;
   promoteYouthPlayer: (playerId: string) => void;
@@ -142,7 +144,7 @@ const DEFAULT_STATE: GameState = {
   addCrystals: () => {}, addCredits: () => {}, updatePlayer: () => {}, removePlayer: () => {}, assignToRole: () => {}, updateLineup: () => {}, updateTactics: () => {},
   claimReward: () => {}, setLanguage: () => {}, purchaseLicense: () => false, purchasePremium: () => false,
   setTrainingFocus: () => {}, startDailyPlayerTraining: () => {}, claimDailyPlayerTraining: () => {},
-  recoverAllFatigue: () => false, hireStaffMember: () => {}, trainStaffSkill: () => false,
+  recoverAllFatigue: () => false, hireStaffMember: () => {}, trainStaffSkill: () => false, trainHeroSkill: async () => false,
   addPlayerDirectly: () => {}, addYouthPlayerDirectly: () => {}, promoteYouthPlayer: () => {},
   updateProfileName: () => {}, updateProfileCountry: () => {}, recordMatch: () => {},
   markMatchIdAsSeen: () => {}, deleteMatchHistoryEntry: () => {}, clearMatchHistory: () => {},
@@ -165,7 +167,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const [allMatches, setAllMatches] = useState<any[]>([]);
   const [isWorldReady, setIsWorldReady] = useState(false);
   
-  const { language } = state;
+  const language = state.language;
 
   const stateRef = useRef(state);
   useEffect(() => { stateRef.current = state; }, [state]);
@@ -406,6 +408,13 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     return true;
   }, [getRefs]);
 
+  const trainHeroSkill = useCallback(async (heroId: string, skillKey: string, amount: number) => {
+    const r = getRefs(); if (!r) return false;
+    const heroRef = doc(collection(r.team, 'heroes'), heroId);
+    await updateDoc(heroRef, { [`proStats.${skillKey}`]: increment(amount) });
+    return true;
+  }, [getRefs]);
+
   const addPlayerDirectly = useCallback((player: Player) => {
     const r = getRefs(); if (!r) return;
     setDoc(doc(collection(r.team, 'heroes'), player.id), player);
@@ -598,50 +607,59 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   const sendGift = useCallback(async (giftId: string, friendId: string, friendName: string) => {
     if (!user) return false;
-    const myRootRef = doc(db, 'players_v10', user.uid);
-    const friendRootRef = doc(db, 'players_v10', friendId);
-    
-    // Генерируем ссылки заранее
-    const friendGiftRef = doc(collection(friendRootRef, 'received_gifts'));
-    const notifRef = doc(collection(db, 'notifications_v7'));
+    const dbInstance = db;
+    const myRootRef = doc(dbInstance, 'players_v10', user.uid);
+    const friendRootRef = doc(dbInstance, 'players_v10', friendId);
     
     try {
-      return await runTransaction(db, async (transaction) => {
+      return await runTransaction(dbInstance, async (transaction) => {
         const myRootSnap = await transaction.get(myRootRef);
-        if (!myRootSnap.exists()) return false;
+        if (!myRootSnap.exists()) throw new Error("My profile not found");
         
         const myData = myRootSnap.data();
         const currentAvailable = myData.availableGiftsToSend || [];
-        const gift = currentAvailable.find((g: any) => g.id === giftId);
+        const giftIndex = currentAvailable.findIndex((g: any) => g.id === giftId);
         
-        if (!gift) return false;
+        if (giftIndex === -1) throw new Error("Gift not found in inventory");
         
-        // 1. Зачисляем другу
-        transaction.set(friendGiftRef, {
-          ...gift,
-          id: friendGiftRef.id,
+        const giftToTransfer = currentAvailable[giftIndex];
+        
+        // Prepare target refs
+        const friendGiftCollectionRef = collection(friendRootRef, 'received_gifts');
+        const friendGiftDocRef = doc(friendGiftCollectionRef);
+        const notifCollectionRef = collection(dbInstance, 'notifications_v7');
+        const notifDocRef = doc(notifCollectionRef);
+        
+        const cleanGiftData = JSON.parse(JSON.stringify({
+          ...giftToTransfer,
+          id: friendGiftDocRef.id,
           senderId: user.uid,
-          senderName: myData.displayName || myData.clubName || "Manager",
+          senderName: myData.clubName || myData.displayName || "Manager",
           createdAt: new Date().toISOString(),
           claimed: false
-        });
+        }));
+
+        // 1. Deliver to friend
+        transaction.set(friendGiftDocRef, cleanGiftData);
         
-        // 2. Списываем у себя
-        const newAvailable = currentAvailable.filter((g: any) => g.id !== giftId);
+        // 2. Remove from my inventory
+        const newAvailable = [...currentAvailable];
+        newAvailable.splice(giftIndex, 1);
         transaction.update(myRootRef, { availableGiftsToSend: newAvailable });
         
-        // 3. Уведомляем
-        transaction.set(notifRef, {
-          id: notifRef.id,
+        // 3. Notify friend
+        const notifData = JSON.parse(JSON.stringify({
+          id: notifDocRef.id,
           userId: friendId,
           title: language === 'ru' ? "Получен подарок!" : "Gift Received!",
           description: language === 'ru' 
-            ? `Менеджер ${myData.displayName || myData.clubName} прислал вам: ${gift.label}`
-            : `Manager ${myData.displayName || myData.clubName} sent you: ${gift.label}`,
+            ? `Менеджер ${myData.clubName || myData.displayName} прислал вам: ${giftToTransfer.label}`
+            : `Manager ${myData.clubName || myData.displayName} sent you: ${giftToTransfer.label}`,
           type: 'social',
           read: false,
           createdAt: new Date().toISOString()
-        });
+        }));
+        transaction.set(notifDocRef, notifData);
         
         return true;
       });
@@ -718,9 +736,9 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     allSeasonMatches: allMatches, 
     nextMatch: nextMatchInfo, 
     isMatchesLoading: !isWorldReady || allMatches.length === 0, 
-    addCrystals, addCredits, updatePlayer, removePlayer, assignToRole, updateLineup, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage, setTrainingFocus, startDailyPlayerTraining, claimDailyPlayerTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, addPlayerDirectly, addYouthPlayerDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, healPlayer, launchFanCampaign, payStaffSalaries, scoutCandidates, recruitCandidate, clearScoutingReport, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, accelerateConstruction, checkConstructions, recordMatch, markMatchIdAsSeen, deleteMatchHistoryEntry, clearMatchHistory, setWorldReady, resetProfile, addTrophy,
+    addCrystals, addCredits, updatePlayer, removePlayer, assignToRole, updateLineup, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage, setTrainingFocus, startDailyPlayerTraining, claimDailyPlayerTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, trainHeroSkill, addPlayerDirectly, addYouthPlayerDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, healPlayer, launchFanCampaign, payStaffSalaries, scoutCandidates, recruitCandidate, clearScoutingReport, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, accelerateConstruction, checkConstructions, recordMatch, markMatchIdAsSeen, deleteMatchHistoryEntry, clearMatchHistory, setWorldReady, resetProfile, addTrophy,
     sendGift, claimGift, generateDailyGifts
-  }), [state, isWorldReady, allMatches, nextMatchInfo, addCrystals, addCredits, updatePlayer, removePlayer, assignToRole, updateLineup, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage, setTrainingFocus, startDailyPlayerTraining, claimDailyPlayerTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, addPlayerDirectly, addYouthPlayerDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, healPlayer, launchFanCampaign, payStaffSalaries, scoutCandidates, recruitCandidate, clearScoutingReport, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, accelerateConstruction, checkConstructions, recordMatch, markMatchIdAsSeen, deleteMatchHistoryEntry, clearMatchHistory, setWorldReady, resetProfile, addTrophy, sendGift, claimGift, generateDailyGifts]);
+  }), [state, isWorldReady, allMatches, nextMatchInfo, addCrystals, addCredits, updatePlayer, removePlayer, assignToRole, updateLineup, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage, setTrainingFocus, startDailyPlayerTraining, claimDailyPlayerTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, trainHeroSkill, addPlayerDirectly, addYouthPlayerDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, healPlayer, launchFanCampaign, payStaffSalaries, scoutCandidates, recruitCandidate, clearScoutingReport, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, accelerateConstruction, checkConstructions, recordMatch, markMatchIdAsSeen, deleteMatchHistoryEntry, clearMatchHistory, setWorldReady, resetProfile, addTrophy, sendGift, claimGift, generateDailyGifts]);
 
   return <GameStateContext.Provider value={value}>{children}</GameStateContext.Provider>;
 }
