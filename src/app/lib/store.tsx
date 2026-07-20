@@ -2,9 +2,9 @@
 'use client';
 
 /**
- * Глобальное хранилище v92 (Transactional Gifting Protocol).
- * Внедрена строгая транзакционная отправка подарков (Read-before-Write).
- * Исправлена логика удаления и зачисления подарков.
+ * Глобальное хранилище v93 (Resilient Gifting Protocol).
+ * Переход на writeBatch для повышения надежности отправки подарков.
+ * Исправлены ошибки области видимости переменных.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
@@ -13,7 +13,7 @@ import { getMoscowTime, getGlobalSeasonInfo, getMoscowDateString, getLevelThresh
 import { useUser, useFirestore } from '@/firebase';
 import { 
   doc, onSnapshot, collection, setDoc, deleteDoc, writeBatch, 
-  query, where, serverTimestamp, arrayUnion, getDoc, updateDoc, 
+  query, where, serverTimestamp, arrayUnion, arrayRemove, getDoc, updateDoc, 
   runTransaction, increment, getDocs, orderBy, limit 
 } from 'firebase/firestore';
 
@@ -607,66 +607,56 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const sendGift = useCallback(async (giftId: string, friendId: string, friendName: string) => {
     if (!user) return false;
     
-    // ПРЕДВАРИТЕЛЬНЫЕ ДАННЫЕ ВНЕ ТРАНЗАКЦИИ
-    const dbInstance = db;
-    const senderRef = doc(dbInstance, 'players_v10', user.uid);
-    const receiverRef = doc(dbInstance, 'players_v10', friendId);
+    // ПРЕДВАРИТЕЛЬНЫЕ ДАННЫЕ
+    const giftToTransfer = stateRef.current.availableGiftsToSend.find(g => g.id === giftId);
+    if (!giftToTransfer) return false;
+
+    const senderRef = doc(db, 'players_v10', user.uid);
+    const receiverRef = doc(db, 'players_v10', friendId);
     
     // Генерируем ID для новых доков заранее
     const newGiftId = `gift_${Date.now()}_${Math.random().toString(36).substring(7)}`;
     const newNotifId = `notif_${Date.now()}_${Math.random().toString(36).substring(7)}`;
     const friendGiftRef = doc(receiverRef, 'received_gifts', newGiftId);
-    const friendNotifRef = doc(dbInstance, 'notifications_v7', newNotifId);
+    const friendNotifRef = doc(db, 'notifications_v7', newNotifId);
+
+    const batch = writeBatch(db);
+
+    // 1. Удаляем у отправителя (используем arrayRemove для надежности)
+    batch.update(senderRef, {
+      availableGiftsToSend: arrayRemove(giftToTransfer)
+    });
+
+    // 2. Создаем подарок у друга
+    const finalGiftData = {
+      ...giftToTransfer,
+      id: newGiftId,
+      senderId: user.uid,
+      senderName: stateRef.current.clubName || stateRef.current.displayName || "Manager",
+      createdAt: new Date().toISOString(),
+      claimed: false
+    };
+    batch.set(friendGiftRef, JSON.parse(JSON.stringify(finalGiftData)));
+
+    // 3. Создаем уведомление у друга
+    const notifData = {
+      id: newNotifId,
+      userId: friendId,
+      title: stateRef.current.language === 'ru' ? "Получен подарок!" : "Gift Received!",
+      description: stateRef.current.language === 'ru' 
+        ? `Менеджер ${stateRef.current.clubName || stateRef.current.displayName} прислал вам: ${giftToTransfer.label}`
+        : `Manager ${stateRef.current.clubName || stateRef.current.displayName} sent you: ${giftToTransfer.label}`,
+      type: 'social',
+      read: false,
+      createdAt: new Date().toISOString()
+    };
+    batch.set(friendNotifRef, JSON.parse(JSON.stringify(notifData)));
 
     try {
-      return await runTransaction(dbInstance, async (transaction) => {
-        // 1. Сначала ВСЕ операции чтения (GET)
-        const senderSnap = await transaction.get(senderRef);
-        if (!senderSnap.exists()) throw new Error("Sender profile missing");
-        
-        const senderData = senderSnap.data();
-        const available = senderData.availableGiftsToSend || [];
-        const giftIdx = available.findIndex((g: any) => g.id === giftId);
-        
-        if (giftIdx === -1) throw new Error("Gift not in inventory");
-        
-        const giftToTransfer = available[giftIdx];
-
-        // 2. Затем ВСЕ операции записи (SET/UPDATE)
-        // Обновляем инвентарь отправителя
-        const updatedAvailable = [...available];
-        updatedAvailable.splice(giftIdx, 1);
-        transaction.update(senderRef, { availableGiftsToSend: updatedAvailable });
-
-        // Создаем подарок у друга
-        const finalGiftData = {
-          ...giftToTransfer,
-          id: newGiftId,
-          senderId: user.uid,
-          senderName: senderData.clubName || senderData.displayName || "Manager",
-          createdAt: new Date().toISOString(),
-          claimed: false
-        };
-        transaction.set(friendGiftRef, JSON.parse(JSON.stringify(finalGiftData)));
-
-        // Создаем уведомление у друга
-        const notifData = {
-          id: newNotifId,
-          userId: friendId,
-          title: stateRef.current.language === 'ru' ? "Получен подарок!" : "Gift Received!",
-          description: stateRef.current.language === 'ru' 
-            ? `Менеджер ${senderData.clubName || senderData.displayName} прислал вам: ${giftToTransfer.label}`
-            : `Manager ${senderData.clubName || senderData.displayName} sent you: ${giftToTransfer.label}`,
-          type: 'social',
-          read: false,
-          createdAt: new Date().toISOString()
-        };
-        transaction.set(friendNotifRef, JSON.parse(JSON.stringify(notifData)));
-
-        return true;
-      });
+      await batch.commit();
+      return true;
     } catch (e) {
-      console.error("Critical: sendGift transaction failed", e);
+      console.error("Critical: sendGift batch failed", e);
       return false;
     }
   }, [user, db]);
