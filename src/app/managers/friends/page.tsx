@@ -4,11 +4,11 @@ import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
 import { useGameState, Gift } from '@/app/lib/store';
-import { collection, query, where, doc, onSnapshot, limit, getDocs, writeBatch } from 'firebase/firestore';
+import { collection, query, where, doc, getDocs, writeBatch } from 'firebase/firestore';
 import { 
   ChevronLeft, UserCheck, Shield, User,
   Mail, MessageSquare, ChevronRight, Loader2,
-  UserMinus, History, Search, Filter, Gift as GiftIcon
+  UserMinus, History, Search, Filter, Gift as GiftIcon, X
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -40,7 +40,7 @@ export default function FriendsListPage() {
 
   const isSTier = activeLicenseTier === 1;
 
-  // Query for accepted requests where current user is a participant
+  // Query for accepted requests
   const outgoingQuery = useMemoFirebase(() => {
     if (!user?.uid) return null;
     return query(
@@ -79,11 +79,11 @@ export default function FriendsListPage() {
     }
   }, [user, isUserLoading, router]);
 
-  const handleSendGiftToFriend = async (giftId: string) => {
+  const handleSendGiftToFriend = async (gift: Gift) => {
     if (!selectedFriend || isSending) return;
     setIsSending(true);
     try {
-      const success = await sendGift(giftId, selectedFriend.id, selectedFriend.name);
+      const success = await sendGift(gift, selectedFriend.id, selectedFriend.name);
       if (success) {
         toast({ title: language === 'ru' ? "Подарок отправлен!" : "Gift Sent!" });
         setShowGiftModal(false);
@@ -314,20 +314,6 @@ export default function FriendsListPage() {
                 <ChevronRight className="w-4 h-4 text-muted-foreground" />
               </CardContent>
             </Card>
-
-            <Card className="glass-card border-white/5 opacity-50 cursor-not-allowed">
-              <CardContent className="p-3 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="p-2 rounded-lg bg-secondary/50">
-                    <Shield className="w-5 h-5 text-muted-foreground" />
-                  </div>
-                  <div>
-                    <h3 className="text-xs font-bold uppercase">{t.profile}</h3>
-                    <p className="text-[9px] text-muted-foreground leading-tight">{t.profileDesc}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
           </div>
 
           <div className="p-4 bg-secondary/20 border-t border-white/5">
@@ -357,7 +343,7 @@ export default function FriendsListPage() {
               <Card 
                 key={gift.id} 
                 className="glass-card border-white/5 hover:bg-white/5 cursor-pointer transition-all active:scale-[0.98]"
-                onClick={() => handleSendGiftToFriend(gift.id)}
+                onClick={() => handleSendGiftToFriend(gift)}
               >
                 <CardContent className="p-4 flex items-center justify-between">
                    <div className="flex items-center gap-4">

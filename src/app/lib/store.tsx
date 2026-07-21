@@ -1,9 +1,9 @@
 'use client';
 
 /**
- * Глобальное хранилище v94 (Resilient Transactional Gifting).
- * Переход на runTransaction для обеспечения целостности отправки подарков.
+ * Глобальное хранилище v95 (Resilient Transactional Gifting).
  * Исправлены ошибки области видимости и синхронизации языка.
+ * Улучшена надежность отправки подарков через транзакции.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
@@ -62,7 +62,7 @@ interface GameState {
   country: string | null; isPremium: boolean; premiumUntil: string | null;
   activeSeasonNumber: number; activeLicenseTier: number | null;
   rank: number; seasonDay: number; seasonNumber: number;
-  isSyncing: boolean; language: string; languageSet: (lang: string) => void; 
+  isSyncing: boolean; language: string;
   isDataReady: boolean; isTeamLoaded: boolean; allSeasonMatches: any[]; nextMatch: any | null; isMatchesLoading: boolean;
   lastProcessedSeason: number;
   trophies: TrophyRecord[];
@@ -118,7 +118,7 @@ interface GameState {
   setWorldReady: (isReady: boolean) => void;
   resetProfile: () => Promise<void>;
   
-  sendGift: (giftId: string, friendId: string, friendName: string) => Promise<boolean>;
+  sendGift: (gift: Gift, friendId: string, friendName: string) => Promise<boolean>;
   claimGift: (gift: Gift) => Promise<boolean>;
   generateDailyGifts: (gifts: Gift[]) => void;
 }
@@ -603,8 +603,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     });
   }, [getRefs]);
 
-  const sendGift = useCallback(async (giftId: string, friendId: string, friendName: string) => {
-    if (!user) return false;
+  const sendGift = useCallback(async (gift: Gift, friendId: string, friendName: string) => {
+    if (!user || !gift || !friendId) return false;
     
     const senderName = stateRef.current.clubName || stateRef.current.displayName || "Manager";
     const currentLang = stateRef.current.language || 'ru';
@@ -617,13 +617,11 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         if (!senderSnap.exists()) throw new Error("Sender not found");
         
         const gifts = senderSnap.data().availableGiftsToSend || [];
-        const giftIndex = gifts.findIndex((g: any) => g.id === giftId);
+        const giftToTransfer = gifts.find((g: any) => g.id === gift.id);
         
-        if (giftIndex === -1) throw new Error("Gift not found in remote storage");
+        if (!giftToTransfer) throw new Error("Gift not found in remote storage");
         
-        const giftToTransfer = gifts[giftIndex];
-        const updatedGifts = [...gifts];
-        updatedGifts.splice(giftIndex, 1);
+        const updatedGifts = gifts.filter((g: any) => g.id !== gift.id);
 
         const newGiftId = `gift_${Date.now()}_${Math.random().toString(36).substring(7)}`;
         const newNotifId = `notif_${Date.now()}_${Math.random().toString(36).substring(7)}`;
