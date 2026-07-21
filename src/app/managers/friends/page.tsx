@@ -17,6 +17,7 @@ import Link from 'next/link';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { cn } from '@/lib/utils';
 import { getMoscowTime } from '@/app/lib/time-utils';
+import { useToast } from '@/hooks/use-toast';
 import {
   Dialog,
   DialogContent,
@@ -30,6 +31,7 @@ export default function FriendsListPage() {
   const { user, isUserLoading } = useUser();
   const router = useRouter();
   const db = useFirestore();
+  const { toast } = useToast();
   const { language, isLoaded, activeLicenseTier, availableGiftsToSend = [], sendGift } = useGameState();
   const [selectedFriend, setSelectedFriend] = useState<{id: string, name: string} | null>(null);
   const [showGiftModal, setShowGiftModal] = useState(false);
@@ -83,8 +85,11 @@ export default function FriendsListPage() {
     try {
       const success = await sendGift(giftId, selectedFriend.id, selectedFriend.name);
       if (success) {
+        toast({ title: language === 'ru' ? "Подарок отправлен!" : "Gift Sent!" });
         setShowGiftModal(false);
         setSelectedFriend(null);
+      } else {
+        toast({ variant: "destructive", title: language === 'ru' ? "Ошибка отправки" : "Sending Failed" });
       }
     } finally {
       setIsSending(false);
