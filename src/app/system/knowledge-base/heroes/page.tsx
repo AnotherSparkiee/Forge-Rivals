@@ -6,6 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { ChevronLeft, Sword, Zap, Shield, Target, HeartPulse, Sparkles, Crosshair } from 'lucide-react';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 
 export default function HeroesKnowledgePage() {
   const { language } = useGameState();
