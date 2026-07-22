@@ -48,8 +48,8 @@ export default function SystemPage() {
       online: "Игроков онлайн",
       registered: "Зарегистрировано",
       knowledge: "База знаний",
-      heroes: "Герои",
-      heroesDesc: "Реестр специализаций и ролей",
+      roles: "Роли",
+      rolesDesc: "Реестр специализаций и позиций",
       items: "Предметы",
       itemsDesc: "Каталог артефактов и бонусов",
       config: "Глобальная конфигурация",
@@ -68,8 +68,8 @@ export default function SystemPage() {
       online: "Online Managers",
       registered: "Total Registered",
       knowledge: "Knowledge Base",
-      heroes: "Heroes",
-      heroesDesc: "Specializations and roles",
+      roles: "Roles",
+      rolesDesc: "Specializations and roles",
       items: "Items",
       itemsDesc: "Artifact and bonus catalog",
       config: "Global Config",
@@ -133,7 +133,6 @@ export default function SystemPage() {
           </div>
         </section>
 
-        {/* KNOWLEDGE BASE SECTION */}
         <section className="space-y-2">
           <h2 className="text-[10px] font-black uppercase tracking-widest text-accent px-1">{t.knowledge}</h2>
           <Link href="/system/knowledge-base/heroes" className="block">
@@ -144,8 +143,8 @@ export default function SystemPage() {
                     <Sword className="w-5 h-5 text-red-400" />
                   </div>
                   <div>
-                    <h3 className="text-xs font-bold uppercase">{t.heroes}</h3>
-                    <p className="text-[9px] text-muted-foreground uppercase">{t.heroesDesc}</p>
+                    <h3 className="text-xs font-bold uppercase">{t.roles}</h3>
+                    <p className="text-[9px] text-muted-foreground uppercase">{t.rolesDesc}</p>
                   </div>
                 </div>
                 <ChevronRight className="w-4 h-4 text-muted-foreground" />

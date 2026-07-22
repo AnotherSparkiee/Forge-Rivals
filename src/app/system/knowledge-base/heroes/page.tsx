@@ -13,7 +13,7 @@ export default function HeroesKnowledgePage() {
 
   const t = {
     ru: {
-      title: "РЕЕСТР ГЕРОЕВ",
+      title: "РЕЕСТР РОЛЕЙ",
       subtitle: "Справочник игровых специализаций",
       roles: [
         {
@@ -59,7 +59,7 @@ export default function HeroesKnowledgePage() {
       ]
     },
     en: {
-      title: "HERO REGISTRY",
+      title: "ROLE REGISTRY",
       subtitle: "Game specialization guide",
       roles: [
         {
