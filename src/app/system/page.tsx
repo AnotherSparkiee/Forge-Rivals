@@ -6,7 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { 
   ChevronLeft, Settings, Users, ShieldCheck, Mail, 
   Info, Palette, Loader2, BookOpen, Sword, Package,
-  ChevronRight
+  ChevronRight, Sparkles
 } from 'lucide-react';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
@@ -48,10 +48,12 @@ export default function SystemPage() {
       online: "Игроков онлайн",
       registered: "Зарегистрировано",
       knowledge: "База знаний",
+      heroes: "Герои",
+      heroesDesc: "Реестр из 128 игровых персонажей",
       roles: "Роли",
-      rolesDesc: "Реестр специализаций и позиций",
+      rolesDesc: "Специализации и позиции на карте",
       items: "Предметы",
-      itemsDesc: "Каталог артефактов и бонусов",
+      itemsDesc: "Каталог артефактов и снаряжения",
       config: "Глобальная конфигурация",
       skins: "Визуальные скины",
       skinsDesc: "Настройка акцентов интерфейса",
@@ -68,10 +70,12 @@ export default function SystemPage() {
       online: "Online Managers",
       registered: "Total Registered",
       knowledge: "Knowledge Base",
+      heroes: "Heroes",
+      heroesDesc: "Registry of 128 game units",
       roles: "Roles",
       rolesDesc: "Specializations and roles",
       items: "Items",
-      itemsDesc: "Artifact and bonus catalog",
+      itemsDesc: "Artifact and equipment catalog",
       config: "Global Config",
       skins: "Visual Skins",
       skinsDesc: "Customize UI accents",
@@ -135,7 +139,25 @@ export default function SystemPage() {
 
         <section className="space-y-2">
           <h2 className="text-[10px] font-black uppercase tracking-widest text-accent px-1">{t.knowledge}</h2>
+          
           <Link href="/system/knowledge-base/heroes" className="block">
+            <Card className="glass-card border-white/5 bg-secondary/10 hover:bg-white/5 transition-all cursor-pointer">
+              <CardContent className="p-4 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="p-2 rounded-lg bg-primary/10">
+                    <Sparkles className="w-5 h-5 text-primary" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-bold uppercase">{t.heroes}</h3>
+                    <p className="text-[9px] text-muted-foreground uppercase">{t.heroesDesc}</p>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-muted-foreground" />
+              </CardContent>
+            </Card>
+          </Link>
+
+          <Link href="/system/knowledge-base/roles" className="block">
             <Card className="glass-card border-white/5 bg-secondary/10 hover:bg-white/5 transition-all cursor-pointer">
               <CardContent className="p-4 flex items-center justify-between">
                 <div className="flex items-center gap-4">
@@ -151,6 +173,7 @@ export default function SystemPage() {
               </CardContent>
             </Card>
           </Link>
+
           <Link href="/system/knowledge-base/items" className="block">
             <Card className="glass-card border-white/5 bg-secondary/10 hover:bg-white/5 transition-all cursor-pointer">
               <CardContent className="p-4 flex items-center justify-between">
