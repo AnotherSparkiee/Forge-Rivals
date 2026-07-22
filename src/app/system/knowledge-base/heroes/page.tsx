@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useGameState } from '@/app/lib/store';
@@ -211,7 +210,8 @@ export default function HeroesKnowledgePage() {
 
   const getHeroIconUrl = (attr: Attribute) => {
     const key = attr === 'Strength' ? 'hero-str' : (attr === 'Agility' ? 'hero-agi' : (attr === 'Intelligence' ? 'hero-int' : 'hero-support'));
-    return PlaceHolderImages.find(img => img.id === key)?.imageUrl || "";
+    const placeholder = PlaceHolderImages.find(img => img.id === key);
+    return placeholder?.imageUrl || "https://picsum.photos/seed/hero/200/200";
   };
 
   return (

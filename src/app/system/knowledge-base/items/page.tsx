@@ -3,7 +3,7 @@
 import { useGameState } from '@/app/lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { ChevronLeft, Zap, Gem, ScrollText, ShieldCheck, Sword, Coffee, Swords, Shield, Target, Sparkles, Flame, Eye } from 'lucide-react';
+import { ChevronLeft, Zap, Gem, ScrollText, ShieldCheck, Sword, Coffee, Swords, Shield, Target, Sparkles, Flame, Eye, HeartPulse, Activity, Heart, Users } from 'lucide-react';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -25,7 +25,7 @@ export default function ItemsKnowledgePage() {
     // Consumables
     {
       name: "Tango",
-      label: language === 'ru' ? "Tango" : "Tango",
+      label: "Tango",
       desc: language === 'ru' ? "Восстанавливает здоровье в течение времени. Базовый реген." : "Restores health over time. Basic regeneration tool.",
       type: "Consumable",
       price: 90,
@@ -34,7 +34,7 @@ export default function ItemsKnowledgePage() {
     },
     {
       name: "Healing Salve",
-      label: language === 'ru' ? "Healing Salve" : "Healing Salve",
+      label: "Healing Salve",
       desc: language === 'ru' ? "Быстро восстанавливает большое количество здоровья." : "Rapidly restores a large amount of health.",
       type: "Consumable",
       price: 110,
@@ -43,17 +43,17 @@ export default function ItemsKnowledgePage() {
     },
     {
       name: "Clarity",
-      label: language === 'ru' ? "Clarity" : "Clarity",
+      label: "Clarity",
       desc: language === 'ru' ? "Восстанавливает ману в течение времени." : "Restores mana over time.",
       type: "Consumable",
       price: 50,
       icon: Sparkles,
       color: "text-blue-400"
     },
-    // Early Game
+    // Artifacts
     {
       name: "Blink Dagger",
-      label: language === 'ru' ? "Blink Dagger" : "Blink Dagger",
+      label: "Blink Dagger",
       desc: language === 'ru' ? "Мгновенно перемещает героя на короткое расстояние." : "Instantly teleports the hero over a short distance.",
       type: "Artifact",
       price: 2250,
@@ -62,7 +62,7 @@ export default function ItemsKnowledgePage() {
     },
     {
       name: "Power Treads",
-      label: language === 'ru' ? "Power Treads" : "Power Treads",
+      label: "Power Treads",
       desc: language === 'ru' ? "Дает скорость атаки и бонус к выбранному атрибуту." : "Grants attack speed and a bonus to selected attribute.",
       type: "Equipment",
       price: 1400,
@@ -72,7 +72,7 @@ export default function ItemsKnowledgePage() {
     // Core
     {
       name: "Black King Bar",
-      label: language === 'ru' ? "Black King Bar" : "Black King Bar",
+      label: "Black King Bar",
       desc: language === 'ru' ? "Дает иммунитет к большинству заклинаний на 6-9 секунд." : "Grants immunity to most spells for 6-9 seconds.",
       type: "Core",
       price: 4050,
@@ -81,7 +81,7 @@ export default function ItemsKnowledgePage() {
     },
     {
       name: "Aghanim's Scepter",
-      label: language === 'ru' ? "Aghanim's Scepter" : "Aghanim's Scepter",
+      label: "Aghanim's Scepter",
       desc: language === 'ru' ? "Улучшает ультимативную способность героя." : "Upgrades the hero's ultimate ability.",
       type: "Core",
       price: 4200,
@@ -90,7 +90,7 @@ export default function ItemsKnowledgePage() {
     },
     {
       name: "Manta Style",
-      label: language === 'ru' ? "Manta Style" : "Manta Style",
+      label: "Manta Style",
       desc: language === 'ru' ? "Создает 2 иллюзии героя для запутывания врага." : "Creates 2 illusions of the hero to confuse enemies.",
       type: "Artifact",
       price: 4600,
@@ -99,7 +99,7 @@ export default function ItemsKnowledgePage() {
     },
     {
       name: "Daedalus",
-      label: language === 'ru' ? "Daedalus" : "Daedalus",
+      label: "Daedalus",
       desc: language === 'ru' ? "Значительно увеличивает шанс критического урона." : "Significantly increases the chance of critical strikes.",
       type: "Artifact",
       price: 5150,
@@ -109,7 +109,7 @@ export default function ItemsKnowledgePage() {
     // Late Game / S-Tier
     {
       name: "Divine Rapier",
-      label: language === 'ru' ? "Divine Rapier" : "Divine Rapier",
+      label: "Divine Rapier",
       desc: language === 'ru' ? "Экстремальный урон (+350). Выпадает при смерти." : "Extreme damage (+350). Drops upon death.",
       type: "S-Tier",
       price: 5600,
@@ -118,7 +118,7 @@ export default function ItemsKnowledgePage() {
     },
     {
       name: "Abyssal Blade",
-      label: language === 'ru' ? "Abyssal Blade" : "Abyssal Blade",
+      label: "Abyssal Blade",
       desc: language === 'ru' ? "Оглушает врага при атаке сквозь невосприимчивость." : "Stuns the target upon attack, even through immunity.",
       type: "S-Tier",
       price: 6250,
@@ -127,7 +127,7 @@ export default function ItemsKnowledgePage() {
     },
     {
       name: "Satanic",
-      label: language === 'ru' ? "Satanic" : "Satanic",
+      label: "Satanic",
       desc: language === 'ru' ? "Мгновенно дает 200% вампиризма при активации." : "Instantly grants 200% lifesteal when activated.",
       type: "S-Tier",
       price: 5050,
@@ -192,5 +192,3 @@ export default function ItemsKnowledgePage() {
     </div>
   );
 }
-
-import { HeartPulse, Activity, Heart } from 'lucide-react';

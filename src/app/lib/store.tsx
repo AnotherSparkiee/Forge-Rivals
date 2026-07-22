@@ -1,9 +1,8 @@
 'use client';
 
 /**
- * Глобальное хранилище v96 (Manager XP & Popularity Overhaul).
- * Переработана формула опыта: 700, 1400, 3800 и далее удвоение.
- * Улучшена система популярности (числовой эквивалент).
+ * Глобальное хранилище v98 (Fixed Gifts & XP Engine).
+ * Устранена ошибка ReferenceError: language и исправлена отправка подарков.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
@@ -308,10 +307,10 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const addCrystals = useCallback((amount: number) => { const r = getRefs(); if (r) setDoc(r.team, { crystals: increment(amount) }, { merge: true }); }, [getRefs]);
   const addCredits = useCallback((amount: number) => { const r = getRefs(); if (r) setDoc(r.team, { credits: increment(amount) }, { merge: true }); }, [getRefs]);
   
-  const updatePlayer = useCallback((id: string, data: Partial<Player>, cr = 0, cy = 0) => {
+  const updatePlayer = useCallback((id: string, data: Partial<Player>, costCredits = 0, costCrystals = 0) => {
     const r = getRefs(); if (!r) return;
     updateDoc(doc(collection(r.team, 'heroes'), id), data);
-    if (cr || cy) setDoc(r.team, { credits: increment(-cr), crystals: increment(-cy) }, { merge: true });
+    if (costCredits || costCrystals) setDoc(r.team, { credits: increment(-costCredits), crystals: increment(-costCrystals) }, { merge: true });
   }, [getRefs]);
 
   const removePlayer = useCallback((id: string, refund: number) => {
@@ -532,29 +531,39 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     setDoc(r.team, { managerSkills: { [key]: increment(1) }, skillPoints: increment(-1) }, { merge: true });
   }, [getRefs]);
 
-  const startArenaConstruction = useCallback((id: string, cost: number) => startConstruction('arena', id, cost), [addCredits, getRefs]);
-  const startHQConstruction = useCallback((id: string, cost: number) => startConstruction('hq', id, cost), [addCredits, getRefs]);
-  const startBootcampConstruction = useCallback((id: string, cost: number) => startConstruction('bootcamp', id, cost), [addCredits, getRefs]);
-  const startAcademyConstruction = useCallback((id: string, cost: number) => startConstruction('academy', id, cost), [addCredits, getRefs]);
-  const startMedicalConstruction = useCallback((id: string, cost: number) => startConstruction('medical', id, cost), [addCredits, getRefs]);
+  const startArenaConstruction = useCallback((id: string, cost: number) => startConstruction('arena', id, cost), []);
+  const startHQConstruction = useCallback((id: string, cost: number) => startConstruction('hq', id, cost), []);
+  const startBootcampConstruction = useCallback((id: string, cost: number) => startConstruction('bootcamp', id, cost), []);
+  const startAcademyConstruction = useCallback((id: string, cost: number) => startConstruction('academy', id, cost), []);
+  const startMedicalConstruction = useCallback((id: string, cost: number) => startConstruction('medical', id, cost), []);
   
   const startConstruction = useCallback((cat: string, id: string, cost: number) => {
     const r = getRefs(); if (!r || stateRef.current.credits < cost) return false;
     const level = (stateRef.current as any)[cat][id] || 0;
-    addCredits(-cost);
-    setDoc(r.team, { [cat]: { constructionStarts: { [id]: getMoscowTime().toISOString() }, constructionFinishes: { [id]: new Date(getMoscowTime().getTime() + (4 * (level + 1)) * 3600000).toISOString() } } }, { merge: true });
+    setDoc(r.team, { 
+      credits: increment(-cost),
+      [cat]: { 
+        constructionStarts: { [id]: getMoscowTime().toISOString() }, 
+        constructionFinishes: { [id]: new Date(getMoscowTime().getTime() + (4 * (level + 1)) * 3600000).toISOString() } 
+      } 
+    }, { merge: true });
     return true;
-  }, [getRefs, addCredits]);
+  }, [getRefs]);
 
   const accelerateConstruction = useCallback((type: string, id: string, multiplier: number, price: number) => {
     const r = getRefs(); if (!r || stateRef.current.crystals < price) return false;
     const data = (stateRef.current as any)[type];
     if (data.isAccelerated?.[id]) return false;
     const remaining = new Date(data.constructionFinishes[id]).getTime() - getMoscowTime().getTime();
-    addCrystals(-price);
-    setDoc(r.team, { [type]: { constructionFinishes: { [id]: new Date(getMoscowTime().getTime() + (remaining / multiplier)).toISOString() }, isAccelerated: { [id]: true } } }, { merge: true });
+    setDoc(r.team, { 
+      crystals: increment(-price),
+      [type]: { 
+        constructionFinishes: { [id]: new Date(getMoscowTime().getTime() + (remaining / multiplier)).toISOString() }, 
+        isAccelerated: { [id]: true } 
+      } 
+    }, { merge: true });
     return true;
-  }, [getRefs, addCrystals]);
+  }, [getRefs]);
 
   const checkConstructions = useCallback(() => {
     const r = getRefs(); if (!r) return;
