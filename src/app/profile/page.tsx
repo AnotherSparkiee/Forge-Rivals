@@ -12,7 +12,7 @@ import {
   UserCog, HeartPulse, GraduationCap, 
   TrendingUp, BarChart3, Building2, MapPin,
   Shield, Activity, Settings2, Info, AlertTriangle, Trash2, Medal,
-  Gift as GiftIcon, Package, CheckCircle2, Clock, Crown
+  Gift as GiftIcon, Package, CheckCircle2, Clock, Crown, Coins
 } from 'lucide-react';
 import { cn, formatCurrency } from '@/lib/utils';
 import { useAuth, useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
@@ -63,7 +63,12 @@ export default function ProfilePage() {
     }
   }, [user, isUserLoading, router]);
 
-  const popularity = useMemo(() => {
+  // Переработанная система популярности в числовом виде
+  const popularityPoints = useMemo(() => {
+    // 1. Лига (от 1000 до 9000 очков)
+    const leaguePoints = (10 - (leagueLevel || 9)) * 1000;
+
+    // 2. Инфраструктура (+150 за каждый уровень постройки)
     const totalInfraLevels = (
       (arena.pressCenterLevel || 0) + (arena.cafeLevel || 0) + (arena.shopLevel || 0) + 
       (arena.screensLevel || 0) + (arena.parkingLevel || 0) + (arena.lightingLevel || 0) +
@@ -76,19 +81,25 @@ export default function ProfilePage() {
       (medical.physiotherapyLevel || 0) + (medical.massageLevel || 0) + 
       (medical.psychiatristLevel || 0) + (medical.labLevel || 0) + (medical.psychologistLevel || 0)
     );
-    const infraBonus = Math.floor(totalInfraLevels / 10);
-    let licenseBonus = 0;
-    if (activeLicenseTier === 3) licenseBonus = 5;
-    else if (activeLicenseTier === 2) licenseBonus = 10;
-    else if (activeLicenseTier === 1) licenseBonus = 20;
+    const infraPoints = totalInfraLevels * 150;
     
-    const fanCount = (arena.capacity || 5000) * 1.5;
-    const fanBonus = Math.floor(fanCount / 1500);
-    const leagueBonus = (10 - leagueLevel) * 3;
-    const premiumBonus = isPremium ? 25 : 0;
+    // 3. PRO игроки (+5000 за каждого)
+    const proPlayerPoints = ownedPlayers.filter(p => p.isPro).length * 5000;
     
-    return 10 + infraBonus + licenseBonus + fanBonus + leagueBonus + premiumBonus;
-  }, [arena, hq, bootcamp, academy, medical, activeLicenseTier, leagueLevel, isPremium]);
+    // 4. Фан-база (+0.5 за каждое место)
+    const fanPoints = Math.floor((arena.capacity || 5000) * 0.5);
+
+    // 5. Премиум бонус (+25000)
+    const premiumPoints = isPremium ? 25000 : 0;
+
+    // 6. Лицензия
+    let licensePoints = 0;
+    if (activeLicenseTier === 3) licensePoints = 5000;
+    else if (activeLicenseTier === 2) licensePoints = 15000;
+    else if (activeLicenseTier === 1) licensePoints = 35000;
+    
+    return 5000 + leaguePoints + infraPoints + proPlayerPoints + fanPoints + premiumPoints + licensePoints;
+  }, [arena, hq, bootcamp, academy, medical, activeLicenseTier, leagueLevel, isPremium, ownedPlayers]);
 
   const currentXp = experiencePoints || 0;
   const xpThreshold = getLevelThreshold(managerLevel || 1);
@@ -104,11 +115,11 @@ export default function ProfilePage() {
       backToMenu: "Back to Hub",
       lvl: "УР",
       xp: "XP Progress",
-      popularity: "Club Popularity",
+      popularity: "Global Status",
       resetBtn: "RESET PROFILE",
       resetTitle: "ABSOLUTE RESET",
       resetDesc: "This action will PERMANENTLY delete your team, progress, and assets. You will have to initialize your club again. THIS CANNOT BE UNDONE.",
-      teamStats: "Club Status",
+      teamStats: "Operational Balance",
       premiumActive: "ELITE STATUS ACTIVE",
       premiumExp: "Expires",
       trophies: "TROPHIES",
@@ -142,11 +153,11 @@ export default function ProfilePage() {
       backToMenu: "Вернуться в хаб",
       lvl: "УР",
       xp: "Опыт менеджера",
-      popularity: "Популярность клуба",
+      popularity: "Статус в мире",
       resetBtn: "СБРОСИТЬ ПРОФИЛЬ",
       resetTitle: "ПОЛНЫЙ СБРОС",
       resetDesc: "Это действие НАВСЕГДА удалит вашу команду, весь прогресс и активы. Вам придется заново инициализировать клуб. ЭТО ДЕЙСТВИЕ НЕЛЬЗЯ ОТМЕНИТЬ.",
-      teamStats: "Статус команды",
+      teamStats: "Операционный баланс",
       premiumActive: "ЭЛИТНЫЙ СТАТУС АКТИВЕН",
       premiumExp: "Истекает",
       trophies: "ТРОФЕИ",
@@ -279,7 +290,7 @@ export default function ProfilePage() {
           <CardContent className="p-4 flex flex-col items-center text-center">
             <TrendingUp className="w-5 h-5 text-primary mb-2" />
             <p className="text-[8px] font-black text-muted-foreground uppercase mb-1">{t.popularity}</p>
-            <p className="text-2xl font-headline font-black italic text-primary">{popularity}%</p>
+            <p className="text-2xl font-headline font-black italic text-primary">{popularityPoints.toLocaleString()}</p>
           </CardContent>
         </Card>
         <Card className="glass-card bg-accent/5 border-accent/20">
@@ -300,7 +311,15 @@ export default function ProfilePage() {
           </h3>
           <div className="grid grid-cols-1 gap-2">
             <div className="flex items-center justify-between p-3 bg-background/40 rounded-xl border border-white/5">
-              <span className="text-[9px] font-bold text-muted-foreground uppercase">Squad Valuation</span>
+              <span className="text-[9px] font-bold text-muted-foreground uppercase flex items-center gap-1.5"><Coins className="w-3 h-3 text-yellow-500" /> Euro Balance</span>
+              <span className="text-xs font-mono font-bold text-white">€ {credits.toLocaleString()}</span>
+            </div>
+            <div className="flex items-center justify-between p-3 bg-background/40 rounded-xl border border-white/5">
+              <span className="text-[9px] font-bold text-muted-foreground uppercase flex items-center gap-1.5"><Gem className="w-3 h-3 text-blue-400" /> Crystals</span>
+              <span className="text-xs font-mono font-bold text-blue-400">{crystals.toLocaleString()}</span>
+            </div>
+            <div className="flex items-center justify-between p-3 bg-background/40 rounded-xl border border-white/5">
+              <span className="text-[9px] font-bold text-muted-foreground uppercase">Squad Evaluation</span>
               <span className="text-xs font-mono font-bold text-white">€ {(ownedPlayers.length * 250000).toLocaleString()}</span>
             </div>
             <div className="flex items-center justify-between p-3 bg-background/40 rounded-xl border border-white/5">

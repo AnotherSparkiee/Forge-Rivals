@@ -1,5 +1,5 @@
 /**
- * @fileOverview Ядро времени v86 (Infinite Season Sync). 
+ * @fileOverview Ядро времени v87 (Infinite Season Sync). 
  * Глобальная синхронизация цикла (15 дней).
  * Стабильная эпоха: 1 января 2025 года.
  */
@@ -37,8 +37,19 @@ export function toMskDate(date: Date): Date {
   return new Date(date.getTime() + MSK_OFFSET);
 }
 
+/**
+ * Рассчитывает порог опыта для следующего уровня.
+ * Уровень 1 -> 2: 700
+ * Уровень 2 -> 3: 1400
+ * Уровень 3 -> 4: 3800
+ * Далее: Удвоение
+ */
 export function getLevelThreshold(level: number): number {
-  return Math.floor(1000 * Math.pow(level, 1.3));
+  if (level === 1) return 700;
+  if (level === 2) return 1400;
+  if (level === 3) return 3800;
+  // Удвоение после 3-го уровня
+  return 3800 * Math.pow(2, level - 3);
 }
 
 export function calculateLiveAge(baseAge: number, hiredAtIso: string) {

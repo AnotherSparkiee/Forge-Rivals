@@ -1,9 +1,9 @@
 'use client';
 
 /**
- * Глобальное хранилище v95 (Resilient Transactional Gifting).
- * Исправлены ошибки области видимости и синхронизации языка.
- * Улучшена надежность отправки подарков через транзакции.
+ * Глобальное хранилище v96 (Manager XP & Popularity Overhaul).
+ * Переработана формула опыта: 700, 1400, 3800 и далее удвоение.
+ * Улучшена система популярности (числовой эквивалент).
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
@@ -165,7 +165,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const [allMatches, setAllMatches] = useState<any[]>([]);
   const [isWorldReady, setIsWorldReady] = useState(false);
   
-  const language = state.language;
+  const language = state.language || 'ru';
 
   const stateRef = useRef(state);
   useEffect(() => { stateRef.current = state; }, [state]);
