@@ -1,14 +1,16 @@
+
 'use client';
 
 import { useGameState } from '@/app/lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { ChevronLeft, Search, Zap, Shield, Sparkles, Sword, Info } from 'lucide-react';
+import { ChevronLeft, Search, Zap, Shield, Sparkles, Sword, Info, User } from 'lucide-react';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { useState, useMemo } from 'react';
+import { PlaceHolderImages } from '@/app/lib/placeholder-images';
 
 type Attribute = 'Strength' | 'Agility' | 'Intelligence';
 
@@ -177,7 +179,7 @@ export default function HeroesKnowledgePage() {
       subtitle: "Список из 128 легендарных юнитов",
       searchPlaceholder: "Поиск героя...",
       attr: { Strength: "Сила", Agility: "Ловкость", Intelligence: "Интеллект" },
-      type: { Melee: "Ближний бой", Ranged: "Дальний бой" }
+      type: { Melee: "Ближний", Ranged: "Дальний" }
     },
     en: {
       title: "HERO REGISTRY",
@@ -205,6 +207,11 @@ export default function HeroesKnowledgePage() {
     }
   };
 
+  const getHeroIconUrl = (attr: Attribute) => {
+    const key = attr === 'Strength' ? 'hero-str' : (attr === 'Agility' ? 'hero-agi' : 'hero-int');
+    return PlaceHolderImages.find(img => img.id === key)?.imageUrl || "";
+  };
+
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-32">
       <header className="mb-8 flex items-center gap-4">
@@ -214,8 +221,8 @@ export default function HeroesKnowledgePage() {
           </Button>
         </Link>
         <div>
-          <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-white">{t.title}</h1>
-          <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-black opacity-50">{t.subtitle}</p>
+          <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-white leading-none">{t.title}</h1>
+          <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-black opacity-50 mt-1">{t.subtitle}</p>
         </div>
       </header>
 
@@ -225,7 +232,7 @@ export default function HeroesKnowledgePage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder={t.searchPlaceholder}
-          className="pl-10 bg-secondary/30 border-white/10 h-12 rounded-xl"
+          className="pl-10 bg-secondary/30 border-white/10 h-12 rounded-xl text-sm"
         />
       </div>
 
@@ -233,16 +240,26 @@ export default function HeroesKnowledgePage() {
         {filteredHeroes.map((hero, i) => (
           <Card key={i} className="glass-card border-white/5 bg-secondary/10 overflow-hidden group hover:border-primary/30 transition-all">
             <CardContent className="p-3">
-              <div className="flex flex-col gap-2">
-                <div className="flex justify-between items-start">
-                  <h3 className="text-[11px] font-bold uppercase text-white truncate pr-1">{hero.name}</h3>
-                  <div className={cn("shrink-0", getAttrColor(hero.attr))}>
-                    {getAttrIcon(hero.attr)}
-                  </div>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg overflow-hidden border border-white/10 bg-background shrink-0 shadow-lg">
+                   <img 
+                    src={getHeroIconUrl(hero.attr)} 
+                    alt={hero.name} 
+                    className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all" 
+                    data-ai-hint="hero portrait"
+                  />
                 </div>
-                <div className="flex flex-wrap gap-1">
-                  <Badge variant="outline" className="text-[6px] px-1 border-white/10 opacity-50">{hero.type}</Badge>
-                  <Badge variant="secondary" className="text-[6px] px-1 bg-primary/10 text-primary border-none">{hero.role}</Badge>
+                <div className="flex-1 min-w-0 flex flex-col gap-1">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-[10px] font-bold uppercase text-white truncate leading-none">{hero.name}</h3>
+                    <div className={cn("shrink-0", getAttrColor(hero.attr))}>
+                      {getAttrIcon(hero.attr)}
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    <Badge variant="outline" className="text-[6px] px-1 border-white/10 opacity-50 h-3 leading-none">{t.type[hero.type]}</Badge>
+                    <Badge variant="secondary" className="text-[6px] px-1 bg-primary/10 text-primary border-none h-3 leading-none truncate max-w-[50px]">{hero.role}</Badge>
+                  </div>
                 </div>
               </div>
             </CardContent>
@@ -252,3 +269,4 @@ export default function HeroesKnowledgePage() {
     </div>
   );
 }
+

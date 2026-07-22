@@ -1,3 +1,4 @@
+
 {
   "placeholderImages": [
     {
@@ -43,16 +44,28 @@
       "imageHint": "turkish gamer"
     },
     {
-      "id": "arena-starter",
-      "description": "High resolution starter arena visual v3",
-      "imageUrl": "https://iili.io/C2cBhIj.md.jpg",
-      "imageHint": "stadium arena"
+      "id": "hero-str",
+      "description": "Strength hero placeholder",
+      "imageUrl": "https://picsum.photos/seed/str8/200/200",
+      "imageHint": "warrior knight"
     },
     {
-      "id": "hq-starter",
-      "description": "High resolution starter headquarters visual",
-      "imageUrl": "https://iili.io/C217fx2.md.jpg",
-      "imageHint": "office building"
+      "id": "hero-agi",
+      "description": "Agility hero placeholder",
+      "imageUrl": "https://picsum.photos/seed/agi8/200/200",
+      "imageHint": "assassin rogue"
+    },
+    {
+      "id": "hero-int",
+      "description": "Intelligence hero placeholder",
+      "imageUrl": "https://picsum.photos/seed/int8/200/200",
+      "imageHint": "mage wizard"
+    },
+    {
+      "id": "arena-starter",
+      "description": "High resolution starter arena visual v3",
+      "imageUrl": "https://i.postimg.cc/75TSz68F/compressed-image-(2).jpg",
+      "imageHint": "stadium arena"
     }
   ]
 }
