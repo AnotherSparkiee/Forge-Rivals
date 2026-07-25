@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * Глобальное хранилище v103 (Master Roster Persistence & Glow Feedback).
- * Состав команды теперь привязан к глобальному профилю игрока.
+ * Глобальное хранилище v104 (Hardened Sync & Glow Feedback).
+ * Исправлены ошибки инициализации и добавлены обработчики сбоев Firestore.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
@@ -177,9 +177,11 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     }
     const rootRef = doc(db, 'players_v10', user.uid);
     let active = true;
+
     const unsub = onSnapshot(rootRef, (snap) => {
       if (!active) return;
       if (!snap.exists()) {
+        // Если документа нет, все равно ставим Loaded, чтобы AuthGuard мог отправить на /setup
         setState(s => ({ ...s, id: user.uid, isLoaded: true }));
         return;
       }
@@ -200,11 +202,14 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         availableGiftsToSend: data.availableGiftsToSend || [],
         isLoaded: true
       }));
+    }, (error) => {
+      console.warn("Profile Subscription Error (Expected for new users):", error.message);
+      if (active) setState(s => ({ ...s, id: user.uid, isLoaded: true }));
     });
     return () => { active = false; unsub(); };
   }, [user?.uid, isUserLoading, db, staticSeasonInfo]);
 
-  // 2. ПОДПИСКА НА МАСТЕР-СОСТАВ (Глобальные герои)
+  // 2. ПОДПИСКА НА МАСТЕР-СОСТАВ
   useEffect(() => {
     if (isUserLoading || !user?.uid || !state.isLoaded) return;
     
@@ -220,6 +225,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         ownedPlayers: all.filter(h => h.isYouth !== true), 
         youthAcademyPlayers: all.filter(h => h.isYouth === true) 
       }));
+    }, (err) => {
+      console.warn("Heroes Subscription Error:", err.message);
     });
 
     return () => { active = false; playersUnsub(); };
@@ -270,6 +277,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         lastScoutDate: d.lastScoutDate || null,
         isTeamLoaded: true
       }));
+    }, (err) => {
+      console.warn("Team Subscription Error:", err.message);
     });
 
     const unsubStaff = onSnapshot(collection(teamRef, 'staff'), (sSnap) => {
@@ -288,6 +297,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const unsubGifts = onSnapshot(collection(doc(db, 'players_v10', user.uid), 'received_gifts'), (snap) => {
       const gifts = snap.docs.map(d => ({ ...d.data(), id: d.id } as Gift));
       setState(prev => ({ ...prev, receivedGifts: gifts }));
+    }, (err) => {
+      console.warn("Gifts Subscription Error:", err.message);
     });
     return () => unsubGifts();
   }, [db, user?.uid]);

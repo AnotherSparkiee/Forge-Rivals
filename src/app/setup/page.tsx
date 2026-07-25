@@ -163,8 +163,10 @@ export default function SetupPage() {
         version: SETUP_VERSION
       });
 
+      // 1. Обновляем корень
       batch.set(rootRef, rootData, { merge: true });
 
+      // 2. Пути для команды в лиге
       const seasonId = `season_${activeSeasonNumber || 1}`;
       const prefixedGroupId = `${seasonId}_league_${selectedLeagueId}_group_${placement.group}`;
       const teamRef = doc(db, 'leagues_v2', selectedLeagueId, 'divisions', String(placement.tier), 'groups', prefixedGroupId, 'teams', user.uid);
@@ -199,6 +201,7 @@ export default function SetupPage() {
 
       batch.set(teamRef, teamData, { merge: true });
 
+      // 3. Создаем героев, если их нет
       if (!existingSquad) {
         uniqueSquad.forEach(hero => {
           const heroRef = doc(collection(rootRef, 'heroes'), hero.id);
@@ -208,9 +211,11 @@ export default function SetupPage() {
 
       await batch.commit();
       toast({ title: language === 'ru' ? "Профиль настроен!" : "Profile Configured!" });
+      
+      // Жесткий редирект для сброса кешей
       window.location.href = '/';
     } catch (e: any) {
-      console.error("[SETUP v87 ERROR]", e);
+      console.error("[SETUP v87 CRITICAL ERROR]", e);
       toast({ variant: "destructive", title: "Setup Failed", description: e.message });
     } finally {
       setIsUpdating(false);

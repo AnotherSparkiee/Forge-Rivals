@@ -63,6 +63,7 @@ export default function RegisterPage() {
     setIsLoading(true);
     try {
       const { seasonNumber } = getGlobalSeasonInfo();
+      // 1. Создаем аккаунт в Firebase Auth
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       
       const rootRef = doc(db, 'players_v10', userCredential.user.uid);
@@ -74,17 +75,30 @@ export default function RegisterPage() {
         lastLoginDate: new Date().toISOString(), 
         createdAt: new Date().toISOString(),
         lastProcessedSeason: Number(seasonNumber || 1),
-        version: 80
+        version: 80 // Принудительная версия для чистого синка
       };
       
+      // 2. Создаем корневой документ профиля. 
+      // Прямой setDoc надежнее батч-запроса сразу после создания пользователя.
       await setDoc(rootRef, cleanData(profileData));
 
       toast({ title: t.successTitle });
-      router.push('/setup');
+      
+      // Даем небольшую паузу для срабатывания Auth-листенеров
+      setTimeout(() => {
+        router.push('/setup');
+      }, 500);
+      
     } catch (error: any) {
-      console.error("[REGISTER ERROR]", error);
-      toast({ variant: "destructive", title: "Error", description: error.message });
-    } finally { setIsLoading(false); }
+      console.error("[REGISTER CRITICAL ERROR]", error.code, error.message);
+      toast({ 
+        variant: "destructive", 
+        title: "Registration Error", 
+        description: error.code === 'permission-denied' ? "Security Error: Check firestore.rules" : error.message 
+      });
+    } finally { 
+      setIsLoading(false); 
+    }
   };
 
   if (isUserLoading) return <LoadingScreen />;
@@ -93,7 +107,9 @@ export default function RegisterPage() {
     return (
       <Card className="glass-card border-primary/20 bg-primary/5 p-8 text-center">
         <h2 className="text-xl font-headline font-bold text-white uppercase mb-4">{t.welcomeBack}</h2>
-        <Button onClick={() => router.push('/')} className="w-full h-14 hero-gradient font-black text-xs uppercase">{t.enterHub} <ArrowRight className="ml-2 w-4 h-4" /></Button>
+        <Button onClick={() => router.push('/setup')} className="w-full h-14 hero-gradient font-black text-xs uppercase">
+          {t.enterHub} <ArrowRight className="ml-2 w-4 h-4" />
+        </Button>
       </Card>
     );
   }
@@ -109,7 +125,7 @@ export default function RegisterPage() {
         </CardContent>
         <CardFooter className="flex flex-col gap-4">
           <Button type="submit" className="w-full hero-gradient font-bold h-12" disabled={isLoading}>{isLoading ? <Loader2 className="animate-spin" /> : <><UserPlus className="w-4 h-4 mr-2" /> {t.submitBtn}</>}</Button>
-          <p className="text-xs text-center text-muted-foreground mt-2">{t.alreadyRegistered} <Link href="/" className="text-primary hover:underline">{t.loginLink}</Link></p>
+          <p className="text-xs text-center text-muted-foreground mt-2">{t.alreadyRegistered} <Link href="/auth/login" className="text-primary hover:underline">{t.loginLink}</Link></p>
         </CardFooter>
       </form>
     </Card>
