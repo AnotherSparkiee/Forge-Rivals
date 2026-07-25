@@ -2,7 +2,7 @@
 
 /**
  * Глобальное хранилище v104 (Hardened Sync & Glow Feedback).
- * Исправлены ошибки инициализации и добавлены обработчики сбоев Firestore.
+ * Исправлены ошибки инициализации и добавлена защита от отсутствия документов.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
