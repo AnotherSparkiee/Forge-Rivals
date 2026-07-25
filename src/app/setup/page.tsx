@@ -18,7 +18,7 @@ import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 import { getRandomStartingSquad } from '@/app/lib/moba-data';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 
-const SETUP_VERSION = 86;
+const SETUP_VERSION = 87;
 
 const CLUBS = [
   { id: 'parivision', name: 'Parivision', logo: 'https://iili.io/CYIAgVa.webp' },
@@ -36,7 +36,7 @@ export default function SetupPage() {
   const db = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
-  const { language, isLoaded, displayName } = useGameState();
+  const { language, isLoaded, displayName, ownedPlayers, youthAcademyPlayers } = useGameState();
   
   const [step, setStep] = useState<'league' | 'country' | 'club' | 'name'>('league');
   const [selectedLeagueId, setSelectedLeagueId] = useState<string | null>(null);
@@ -95,15 +95,13 @@ export default function SetupPage() {
     
     snap.forEach(d => {
       const data = d.data();
-      if (Number(data.version || 0) >= 80) {
-        const tier = Number(data.leagueLevel);
-        const group = Number(data.groupId);
-        const rank = Number(data.rank);
-        if (tier && group && rank) {
-          const groupsBefore = Math.pow(2, tier - 1) - 1;
-          const globalIndex = (groupsBefore * 8) + (group - 1) * 8 + (rank - 1);
-          occupiedIndices.add(globalIndex);
-        }
+      const tier = Number(data.leagueLevel);
+      const group = Number(data.groupId);
+      const rank = Number(data.rank);
+      if (tier && group && rank) {
+        const groupsBefore = Math.pow(2, tier - 1) - 1;
+        const globalIndex = (groupsBefore * 8) + (group - 1) * 8 + (rank - 1);
+        occupiedIndices.add(globalIndex);
       }
     });
 
@@ -130,12 +128,15 @@ export default function SetupPage() {
       const placement = await findPlacementClient(selectedLeagueId);
       const selectedCountry = COUNTRIES.find(c => c.code === selectedCountryCode);
       const selectedClub = CLUBS.find(c => c.id === selectedClubId);
-      const uniqueSquad = getRandomStartingSquad();
       const { activeSeasonNumber } = getGlobalSeasonInfo();
       const nowIso = new Date().toISOString();
       
       const batch = writeBatch(db);
       const rootRef = doc(db, 'players_v10', user.uid);
+      
+      // БЕЗОПАСНАЯ ИНИЦИАЛИЗАЦИЯ: Если состав уже есть (ownedPlayers), не генерим новый
+      const existingSquad = (ownedPlayers.length > 0 || youthAcademyPlayers.length > 0);
+      const uniqueSquad = existingSquad ? [] : getRandomStartingSquad();
       
       batch.set(rootRef, {
         id: user.uid,
@@ -151,11 +152,11 @@ export default function SetupPage() {
         clubLogo: selectedClub?.logo || null,
         setupDate: nowIso,
         lastProcessedSeason: Number(activeSeasonNumber || 1),
-        trophies: [],
+        trophies: profile?.trophies || [],
         lastSeenMatchDay: 0,
         createdAt: profile?.createdAt || nowIso,
         version: SETUP_VERSION
-      }, { merge: false });
+      }, { merge: true });
 
       const seasonId = `season_${activeSeasonNumber || 1}`;
       const prefixedGroupId = `${seasonId}_league_${selectedLeagueId}_group_${placement.group}`;
@@ -169,10 +170,10 @@ export default function SetupPage() {
         credits: 1000000, crystals: 50, experiencePoints: 0, managerLevel: 1,
         managerSkills: { sponsors: 0, agents: 0, training: 0, medical: 0 },
         arena: { capacity: 5000 }, hq: {}, bootcamp: {}, academy: {}, medical: {},
-        lineup: { 
-          offlane: uniqueSquad[0].id, carry: uniqueSquad[1].id, mid: uniqueSquad[2].id, 
-          support: uniqueSquad[3].id, full_support: uniqueSquad[4].id, 
-          sub1: uniqueSquad[5].id, sub2: uniqueSquad[6].id
+        lineup: existingSquad ? (profile?.lineup || {}) : { 
+          offlane: uniqueSquad[0]?.id, carry: uniqueSquad[1]?.id, mid: uniqueSquad[2]?.id, 
+          support: uniqueSquad[3]?.id, full_support: uniqueSquad[4]?.id, 
+          sub1: uniqueSquad[5]?.id, sub2: uniqueSquad[6]?.id
         },
         strategy: 'Balanced Play',
         rank: Number(placement.rank),
@@ -180,18 +181,21 @@ export default function SetupPage() {
         matchHistory: [],
         createdAt: nowIso,
         version: SETUP_VERSION
-      });
+      }, { merge: true });
 
-      uniqueSquad.forEach(hero => {
-        const heroRef = doc(collection(teamRef, 'heroes'), hero.id);
-        batch.set(heroRef, JSON.parse(JSON.stringify({ ...hero, isYouth: false })));
-      });
+      // Записываем героев в ГЛОБАЛЬНЫЙ МАСТЕР-СПИСОК
+      if (!existingSquad) {
+        uniqueSquad.forEach(hero => {
+          const heroRef = doc(collection(rootRef, 'heroes'), hero.id);
+          batch.set(heroRef, JSON.parse(JSON.stringify({ ...hero, isYouth: false })));
+        });
+      }
 
       await batch.commit();
       toast({ title: language === 'ru' ? "Профиль настроен!" : "Profile Configured!" });
       window.location.href = '/';
     } catch (e: any) {
-      console.error("[SETUP v86 ERROR]", e);
+      console.error("[SETUP v87 ERROR]", e);
       toast({ variant: "destructive", title: "Setup Failed", description: e.message });
     } finally {
       setIsUpdating(false);
@@ -208,7 +212,7 @@ export default function SetupPage() {
       name: 'НАЗВАНИЕ КЛУБА',
       continue: 'ПРОДОЛЖИТЬ',
       finalize: 'ЗАВЕРШИТЬ ПРОФИЛЬ',
-      protocol: 'Операционный протокол v86',
+      protocol: 'Операционный протокол v87',
       msk: 'МСК',
       namePlaceholder: 'Введите название клуба...',
       nameDesc: 'Это имя будет отображаться в чатах и таблицах.',
@@ -223,7 +227,7 @@ export default function SetupPage() {
       name: 'CLUB NAME',
       continue: 'CONTINUE',
       finalize: 'FINALIZE PROFILE',
-      protocol: 'Operational Protocol v86',
+      protocol: 'Operational Protocol v87',
       msk: 'MSK',
       namePlaceholder: 'Enter club name...',
       nameDesc: 'This name will be visible in chats and rankings.',
@@ -382,7 +386,7 @@ export default function SetupPage() {
                 else if (step === 'club') setStep('name');
                 else handleCompleteSetup();
               }} 
-              className="w-full h-16 hero-gradient font-black text-xs tracking-[0.2em] uppercase shadow-2xl active:scale-0.98 transition-all"
+              className="w-full h-16 hero-gradient font-black text-xs tracking-[0.2em] uppercase shadow-2xl active:scale-100 transition-all"
             >
               {isUpdating ? <Loader2 className="animate-spin" /> : (step === 'name' ? t.finalize : t.continue)}
             </Button>

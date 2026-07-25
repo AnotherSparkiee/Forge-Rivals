@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Ядро MMO-синхронизации v86 (Infinite Season Cycle).
- * Оптимизировано для мгновенного доступа и предотвращения исчезновения данных групп.
+ * @fileOverview Ядро MMO-синхронизации v87 (Master Roster Mirroring).
+ * Оптимизировано для мгновенного доступа и гарантированного зеркалирования состава.
  */
 
 import { useEffect, useRef } from 'react';
@@ -16,7 +16,7 @@ import { getStableGroupTeams, generateSeasonCalendar, getMatchResult } from '@/a
 import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
 import { generateBotSquad } from '@/app/lib/moba-data';
 
-const SYNC_VERSION = 86; 
+const SYNC_VERSION = 87; 
 
 export function AutoMatchManager() {
   const { user, isUserLoading } = useUser();
@@ -30,7 +30,6 @@ export function AutoMatchManager() {
   const syncInProgressRef = useRef<string | null>(null);
 
   useEffect(() => {
-    // Ждем базовую информацию из профиля. Менеджер работает автономно от загрузки команды.
     if (isUserLoading || !user?.uid || !isLoaded || !selectedLeagueId) return;
 
     const syncSharedWorld = async () => {
@@ -54,41 +53,33 @@ export function AutoMatchManager() {
         let tableSnap = await getDoc(tableRef);
         let teamData = [];
 
-        // 1. ПРОВЕРКА/СОЗДАНИЕ ТАБЛИЦЫ ЛИГИ
+        // 1. ТАБЛИЦА ЛИГИ
         if (!tableSnap.exists()) {
           teamData = getStableGroupTeams(tier, groupNum, lId, [{
-            id: userId,
-            name: currentClubName,
-            rank: myRank,
-            logo: clubLogo || null,
-            isBot: false
+            id: userId, name: currentClubName, rank: myRank, logo: clubLogo || null, isBot: false
           }]);
-          
           await setDoc(tableRef, {
             tableId, season: currentSeason, leagueId: lId, tier, group: groupNum,
             teamData, stats: {}, createdAt: serverTimestamp(), version: SYNC_VERSION
           });
-        } else {
-          const data = tableSnap.data();
-          teamData = data.teamData || [];
-          
-          const mySlotIndex = Math.max(0, myRank - 1);
-          const mySlot = teamData[mySlotIndex];
-          
-          // Если я не в таблице (напр. после сброса), вписываю себя
-          if (!mySlot || mySlot.id !== userId) {
-            teamData[mySlotIndex] = {
-              id: userId,
-              name: currentClubName,
-              rank: myRank,
-              logo: clubLogo || null,
-              isBot: false
-            };
-            await updateDoc(tableRef, { teamData, updatedAt: serverTimestamp() });
-          }
         }
 
-        // 2. ГЕНЕРАЦИЯ КАЛЕНДАРЯ (если пуст)
+        const seasonId = `season_${currentSeason}`;
+        const prefixedGroupId = `${seasonId}_league_${lId}_group_${groupNum}`;
+        const teamRef = doc(db, 'leagues_v2', lId, 'divisions', String(tier), 'groups', prefixedGroupId, 'teams', userId);
+
+        // 2. ЗЕРКАЛИРОВАНИЕ СОСТАВА (Master -> League)
+        // Гарантирует, что симуляция всегда видит актуальных героев
+        if (ownedPlayers.length > 0) {
+          const batch = writeBatch(db);
+          ownedPlayers.forEach(p => {
+            const leagueHeroRef = doc(teamRef, 'heroes', p.id);
+            batch.set(leagueHeroRef, JSON.parse(JSON.stringify(p)), { merge: true });
+          });
+          await batch.commit();
+        }
+
+        // 3. ГЕНЕРАЦИЯ КАЛЕНДАРЯ
         const matchesQuery = query(collection(db, 'matches_v1'), where('tableId', '==', tableId));
         const matchesSnap = await getDocs(matchesQuery);
 
@@ -97,24 +88,17 @@ export function AutoMatchManager() {
           const calendar = generateSeasonCalendar(teamData, currentSeason, lId);
           calendar.forEach(m => {
             const mId = `m_s${currentSeason}_${lId}_t${tier}_g${groupNum}_d${m.day}_h${m.homeId}`;
-            const homeT = teamData.find(t => t.id === m.homeId);
-            const awayT = teamData.find(t => t.id === m.awayId);
-            
             batch.set(doc(db, 'matches_v1', mId), {
               ...m, tableId, season: currentSeason, leagueId: lId, tier, groupId: groupNum,
-              status: 'scheduled', isFinished: false, version: SYNC_VERSION,
-              homeLogo: homeT?.logo || null,
-              awayLogo: awayT?.logo || null,
-              participants: [m.homeId, m.awayId]
+              status: 'scheduled', isFinished: false, version: SYNC_VERSION, participants: [m.homeId, m.awayId]
             });
           });
           await batch.commit();
         }
 
-        // РАЗБЛОКИРОВКА МИРА
         setWorldReady(true);
 
-        // 3. ФОНОВАЯ СИМУЛЯЦИЯ (только если загружена команда)
+        // 4. ФОНОВАЯ СИМУЛЯЦИЯ
         if (isTeamLoaded) {
           const pendingQuery = query(
             collection(db, 'matches_v1'),
@@ -176,16 +160,13 @@ export function AutoMatchManager() {
                 });
 
                 if (isMeHome || isMeAway) {
-                  const seasonId = `season_${currentSeason}`;
-                  const prefixedGroupId = `${seasonId}_league_${lId}_group_${groupNum}`;
-                  const teamRef = doc(db, 'leagues_v2', lId, 'divisions', String(tier), 'groups', prefixedGroupId, 'teams', userId);
-                  
                   const fatigueLoss = 15 + Math.floor(Math.random() * 11);
                   const coreSlots: LineupSlot[] = ['carry', 'mid', 'offlane', 'support', 'full_support'];
+                  const masterHeroesCol = collection(doc(db, 'players_v10', userId), 'heroes');
                   coreSlots.forEach(slot => {
                     const pId = lineup[slot];
                     if (pId) {
-                      const heroRef = doc(teamRef, 'heroes', pId);
+                      const heroRef = doc(masterHeroesCol, pId);
                       transaction.update(heroRef, { 
                         fatigue: increment(-fatigueLoss),
                         form: increment(-1) 

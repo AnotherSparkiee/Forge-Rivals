@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * Глобальное хранилище v99 (Ultra Snappy & Transactional Gifts).
- * Исправлена отправка подарков через транзакции и улучшен отклик.
+ * Глобальное хранилище v102 (Master Roster Persistence & Glow Feedback).
+ * Состав команды теперь привязан к глобальному профилю игрока.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
@@ -164,13 +164,12 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const [allMatches, setAllMatches] = useState<any[]>([]);
   const [isWorldReady, setIsWorldReady] = useState(false);
   
-  const language = state.language || 'ru';
-
   const stateRef = useRef(state);
   useEffect(() => { stateRef.current = state; }, [state]);
 
   const staticSeasonInfo = useMemo(() => getGlobalSeasonInfo(), []);
 
+  // 1. ПОДПИСКА НА КОРНЕВОЙ ПРОФИЛЬ
   useEffect(() => {
     if (isUserLoading || !user?.uid) return;
     const rootRef = doc(db, 'players_v10', user.uid);
@@ -198,6 +197,28 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     return () => { active = false; unsub(); };
   }, [user?.uid, isUserLoading, db, staticSeasonInfo]);
 
+  // 2. ПОДПИСКА НА МАСТЕР-СОСТАВ (Глобальные герои)
+  useEffect(() => {
+    if (isUserLoading || !user?.uid || !state.isLoaded) return;
+    
+    const rootRef = doc(db, 'players_v10', user.uid);
+    const heroesCol = collection(rootRef, 'heroes');
+    let active = true;
+
+    const playersUnsub = onSnapshot(heroesCol, (hSnap) => {
+      if (!active) return;
+      const all = hSnap.docs.map(d => ({ ...d.data(), id: d.id } as Player));
+      setState(prev => ({ 
+        ...prev, 
+        ownedPlayers: all.filter(h => h.isYouth !== true), 
+        youthAcademyPlayers: all.filter(h => h.isYouth === true) 
+      }));
+    });
+
+    return () => { active = false; playersUnsub(); };
+  }, [db, user?.uid, isUserLoading, state.isLoaded]);
+
+  // 3. ПОДПИСКА НА ТЕКУЩУЮ КОМАНДУ ЛИГИ
   useEffect(() => {
     if (isUserLoading || !user?.uid || !state.id || !state.selectedLeagueId) return;
     
@@ -244,12 +265,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       }));
     });
 
-    const playersUnsub = onSnapshot(collection(teamRef, 'heroes'), (hSnap) => {
-      if (!active) return;
-      const all = hSnap.docs.map(d => ({ ...d.data(), id: d.id } as Player));
-      setState(prev => ({ ...prev, ownedPlayers: all.filter(h => h.isYouth !== true), youthAcademyPlayers: all.filter(h => h.isYouth === true) }));
-    });
-
     const unsubStaff = onSnapshot(collection(teamRef, 'staff'), (sSnap) => {
       if (!active) return;
       const staffObj: any = { coach: null, analyst: null, scout: null, doctor: null, financier: null };
@@ -257,20 +272,24 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       setState(prev => ({ ...prev, staff: staffObj }));
     });
     
+    return () => { active = false; unsubTeam(); unsubStaff(); };
+  }, [db, state.id, state.selectedLeagueId, state.leagueLevel, state.groupId, isUserLoading, user?.uid, staticSeasonInfo.activeSeasonNumber]);
+
+  // 4. ПОДПИСКА НА ПОДАРКИ
+  useEffect(() => {
+    if (!user?.uid) return;
     const unsubGifts = onSnapshot(collection(doc(db, 'players_v10', user.uid), 'received_gifts'), (snap) => {
-      if (!active) return;
       const gifts = snap.docs.map(d => ({ ...d.data(), id: d.id } as Gift));
       setState(prev => ({ ...prev, receivedGifts: gifts }));
     });
+    return () => unsubGifts();
+  }, [db, user?.uid]);
 
-    return () => { active = false; unsubTeam(); playersUnsub(); unsubStaff(); unsubGifts(); };
-  }, [db, state.id, state.selectedLeagueId, state.leagueLevel, state.groupId, isUserLoading, user?.uid, staticSeasonInfo.activeSeasonNumber]);
-
+  // 5. МАТЧИ
   useEffect(() => {
     if (isUserLoading || !user?.uid || !state.isLoaded || !state.id || !state.selectedLeagueId) return;
     
     const currentTableId = `s${staticSeasonInfo.activeSeasonNumber}_l${state.selectedLeagueId}_t${state.leagueLevel}_g${state.groupId}`;
-    
     const qGroup = query(collection(db, 'matches_v1'), where('tableId', '==', currentTableId));
     const qPersonal = query(collection(db, 'matches_v1'), where('participants', 'array-contains', user.uid));
 
@@ -300,22 +319,24 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     return { 
       team: doc(db, 'leagues_v2', s.selectedLeagueId, 'divisions', String(s.leagueLevel), 'groups', prefixedGroupId, 'teams', user.uid),
       root: doc(db, 'players_v10', user.uid),
-      table: doc(db, 'league_tables_v1', `s${staticSeasonInfo.activeSeasonNumber}_l${s.selectedLeagueId}_t${s.leagueLevel}_g${s.groupId}`)
+      table: doc(db, 'league_tables_v1', `s${staticSeasonInfo.activeSeasonNumber}_l${s.selectedLeagueId}_t${s.leagueLevel}_g${s.groupId}`),
+      masterHeroes: collection(doc(db, 'players_v10', user.uid), 'heroes')
     };
   }, [user?.uid, db, staticSeasonInfo.activeSeasonNumber]);
 
   const addCrystals = useCallback((amount: number) => { const r = getRefs(); if (r) setDoc(r.team, { crystals: increment(amount) }, { merge: true }); }, [getRefs]);
   const addCredits = useCallback((amount: number) => { const r = getRefs(); if (r) setDoc(r.team, { credits: increment(amount) }, { merge: true }); }, [getRefs]);
   
+  // Обновление игрока (Всегда в мастере)
   const updatePlayer = useCallback((id: string, data: Partial<Player>, costCredits = 0, costCrystals = 0) => {
     const r = getRefs(); if (!r) return;
-    updateDoc(doc(collection(r.team, 'heroes'), id), data);
+    updateDoc(doc(r.masterHeroes, id), data);
     if (costCredits || costCrystals) setDoc(r.team, { credits: increment(-costCredits), crystals: increment(-costCrystals) }, { merge: true });
   }, [getRefs]);
 
   const removePlayer = useCallback((id: string, refund: number) => {
     const r = getRefs(); if (!r) return;
-    deleteDoc(doc(collection(r.team, 'heroes'), id));
+    deleteDoc(doc(r.masterHeroes, id));
     if (refund > 0) setDoc(r.team, { credits: increment(refund) }, { merge: true });
   }, [getRefs]);
 
@@ -365,17 +386,17 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   const setTrainingFocus = useCallback((playerId: string, focus: string | null) => {
     const r = getRefs(); if (!r) return;
-    updateDoc(doc(collection(r.team, 'heroes'), playerId), { trainingFocus: focus });
+    updateDoc(doc(r.masterHeroes, playerId), { trainingFocus: focus });
   }, [getRefs]);
 
   const startDailyPlayerTraining = useCallback((playerId: string, focus: string) => {
     const r = getRefs(); if (!r) return;
-    updateDoc(doc(collection(r.team, 'heroes'), playerId), { dailyTrainingFocus: focus, dailyTrainingFinishTime: new Date(getMoscowTime().getTime() + 24 * 3600000).toISOString() });
+    updateDoc(doc(r.masterHeroes, playerId), { dailyTrainingFocus: focus, dailyTrainingFinishTime: new Date(getMoscowTime().getTime() + 24 * 3600000).toISOString() });
   }, [getRefs]);
 
   const claimDailyPlayerTraining = useCallback((playerId: string) => {
     const r = getRefs(); if (!r) return;
-    updateDoc(doc(collection(r.team, 'heroes'), playerId), { dailyTrainingFocus: null, dailyTrainingFinishTime: null });
+    updateDoc(doc(r.masterHeroes, playerId), { dailyTrainingFocus: null, dailyTrainingFinishTime: null });
   }, [getRefs]);
 
   const recoverAllFatigue = useCallback((type: 'credits' | 'crystals') => {
@@ -384,7 +405,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const cost = type === 'credits' ? 75000 : 150;
     if ((type === 'credits' && s.credits < cost) || (type === 'crystals' && s.crystals < cost)) return false;
     const batch = writeBatch(db);
-    s.ownedPlayers.forEach(p => { batch.update(doc(collection(r.team, 'heroes'), p.id), { fatigue: 100 }); });
+    s.ownedPlayers.forEach(p => { batch.update(doc(r.masterHeroes, p.id), { fatigue: 100 }); });
     batch.update(r.team, { [type]: increment(-cost) });
     batch.commit();
     return true;
@@ -407,30 +428,30 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   const trainHeroSkill = useCallback(async (heroId: string, skillKey: string, amount: number) => {
     const r = getRefs(); if (!r) return false;
-    const heroRef = doc(collection(r.team, 'heroes'), heroId);
+    const heroRef = doc(r.masterHeroes, heroId);
     await updateDoc(heroRef, { [`proStats.${skillKey}`]: increment(amount) });
     return true;
   }, [getRefs]);
 
   const addPlayerDirectly = useCallback((player: Player) => {
     const r = getRefs(); if (!r) return;
-    setDoc(doc(collection(r.team, 'heroes'), player.id), player);
+    setDoc(doc(r.masterHeroes, player.id), player);
   }, [getRefs]);
 
   const addYouthPlayerDirectly = useCallback((player: Player) => {
     const r = getRefs(); if (!r) return;
-    setDoc(doc(collection(r.team, 'heroes'), player.id), { ...player, isYouth: true });
+    setDoc(doc(r.masterHeroes, player.id), { ...player, isYouth: true });
   }, [getRefs]);
 
   const promoteYouthPlayer = useCallback((playerId: string) => {
     const r = getRefs(); if (!r) return;
-    updateDoc(doc(collection(r.team, 'heroes'), playerId), { isYouth: false });
+    updateDoc(doc(r.masterHeroes, playerId), { isYouth: false });
   }, [getRefs]);
 
   const updateProfileName = useCallback((name: string) => {
     const r = getRefs(); if (!r) return;
-    updateDoc(r.root, { clubName: name });
-    setDoc(r.team, { clubName: name }, { merge: true });
+    updateDoc(r.root, { clubName: name, displayName: name });
+    setDoc(r.team, { clubName: name, displayName: name }, { merge: true });
   }, [getRefs]);
 
   const updateProfileCountry = useCallback((country: string) => {
@@ -440,7 +461,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   const healPlayer = useCallback((playerId: string, type: 'credits' | 'crystals', cost: number) => {
     const r = getRefs(); if (!r) return;
-    updateDoc(doc(collection(r.team, 'heroes'), playerId), { isInjured: false, injuredUntil: null });
+    updateDoc(doc(r.masterHeroes, playerId), { isInjured: false, injuredUntil: null });
     setDoc(r.team, { [type]: increment(-cost) }, { merge: true });
   }, [getRefs]);
 
@@ -461,11 +482,9 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     setIsWorldReady(false);
     const r = getRefs(); if (!r) return;
     try {
-      await deleteDoc(r.team);
-      const nq = query(collection(db, 'notifications_v7'), where('userId', '==', user.uid));
-      const nSnap = await getDocs(nq);
       const batch = writeBatch(db);
-      nSnap.forEach(d => batch.delete(d.ref));
+      // Очистка только team doc
+      batch.delete(r.team);
       const rootSnap = await getDoc(r.root);
       const currentData = rootSnap.exists() ? rootSnap.data() : {};
       batch.set(r.root, { id: user.uid, email: currentData.email || null, tgId: currentData.tgId || null, displayName: "Manager", lastLoginDate: new Date().toISOString(), createdAt: currentData.createdAt || new Date().toISOString(), version: 0 });
@@ -520,7 +539,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const r = getRefs(); if (!r) return;
     const candidate = stateRef.current.scoutingCandidates.find(c => c.id === playerId);
     if (!candidate) return;
-    setDoc(doc(collection(r.team, 'heroes'), candidate.id), { ...candidate, isYouth: true });
+    setDoc(doc(r.masterHeroes, candidate.id), { ...candidate, isYouth: true });
     setDoc(r.team, { scoutingCandidates: stateRef.current.scoutingCandidates.filter(c => c.id !== playerId) }, { merge: true });
   }, [getRefs]);
 
@@ -615,8 +634,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const sendGift = useCallback(async (gift: Gift, friendId: string, friendName: string) => {
     if (!user || !gift || !friendId) return false;
     
-    const currentLang = stateRef.current.language || 'ru';
     const senderName = stateRef.current.clubName || stateRef.current.displayName || "Manager";
+    const lang = stateRef.current.language || 'ru';
 
     try {
       const success = await runTransaction(db, async (transaction) => {
@@ -651,8 +670,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         const notifData = {
           id: newNotifId,
           userId: friendId,
-          title: currentLang === 'ru' ? "Получен подарок!" : "Gift Received!",
-          description: currentLang === 'ru' 
+          title: lang === 'ru' ? "Получен подарок!" : "Gift Received!",
+          description: lang === 'ru' 
             ? `Менеджер ${senderName} прислал вам: ${giftToTransfer.label}`
             : `Manager ${senderName} sent you: ${giftToTransfer.label}`,
           type: 'social',
@@ -717,7 +736,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         const randomKey = keys[Math.floor(Math.random() * keys.length)];
         const updates: any = {};
         updates[`proStats.${randomKey}`] = increment(gift.value);
-        await updateDoc(doc(collection(r.team, 'heroes'), target.id), updates);
+        await updateDoc(doc(r.masterHeroes, target.id), updates);
       } else if (gift.type === 'secret') {
         const types = ['grant', 'shard'] as const;
         const randomType = types[Math.floor(Math.random() * types.length)];
