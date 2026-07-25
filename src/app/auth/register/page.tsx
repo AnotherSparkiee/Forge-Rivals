@@ -67,17 +67,18 @@ export default function RegisterPage() {
       const { seasonNumber } = getGlobalSeasonInfo();
       // 1. Создаем аккаунт в Firebase Auth
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const uid = userCredential.user.uid;
       
-      const rootRef = doc(db, 'players_v10', userCredential.user.uid);
+      const rootRef = doc(db, 'players_v10', uid);
       
       const profileData = {
-        id: userCredential.user.uid, 
+        id: uid, 
         displayName: trimmedUsername, 
         email, 
         lastLoginDate: new Date().toISOString(), 
         createdAt: new Date().toISOString(),
         lastProcessedSeason: Number(seasonNumber || 1),
-        version: 80 // Принудительная версия для чистого синка
+        version: 80 
       };
       
       // 2. Прямой setDoc надежнее батч-запроса сразу после создания пользователя.
@@ -85,17 +86,17 @@ export default function RegisterPage() {
 
       toast({ title: t.successTitle });
       
-      // Даем небольшую паузу для срабатывания Auth-листенеров
+      // Перенаправляем на настройку
       setTimeout(() => {
         router.push('/setup');
-      }, 800);
+      }, 500);
       
     } catch (error: any) {
       console.error("[REGISTER CRITICAL ERROR]", error.code, error.message);
       toast({ 
         variant: "destructive", 
         title: "Registration Error", 
-        description: error.code === 'permission-denied' ? "Security Error: Check firestore.rules" : error.message 
+        description: error.message 
       });
     } finally { 
       setIsLoading(false); 

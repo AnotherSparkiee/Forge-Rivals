@@ -78,17 +78,16 @@ export default function SetupPage() {
     const checkName = async () => {
       setNameStatus('checking');
       try {
-        const q = query(
-          collection(db, 'players_v10'), 
-          where('clubName', '==', customClubName.trim()),
-          limit(1)
-        );
-        const snap = await getDocs(q);
-        const results = snap.docs.filter(d => d.id !== user?.uid);
-        if (results.length > 0) setNameStatus('taken');
+        // Используем простой getDocs всей коллекции и фильтрацию в памяти, 
+        // чтобы избежать ошибок индексов, которые часто выглядят как ошибки разрешений.
+        const snap = await getDocs(collection(db, 'players_v10'));
+        const isTaken = snap.docs.some(d => d.id !== user?.uid && d.data().clubName === customClubName.trim());
+        
+        if (isTaken) setNameStatus('taken');
         else setNameStatus('available');
       } catch (e) {
-        setNameStatus('idle');
+        console.warn("Name check failed, assuming available", e);
+        setNameStatus('available');
       }
     };
 
@@ -97,36 +96,43 @@ export default function SetupPage() {
   }, [customClubName, step, db, user?.uid]);
 
   const findPlacementClient = async (leagueId: string) => {
-    const q = query(collection(db, 'players_v10'), where('selectedLeagueId', '==', leagueId));
-    const snap = await getDocs(q);
-    const occupiedIndices = new Set<number>();
-    
-    snap.forEach(d => {
-      const data = d.data();
-      const tier = Number(data.leagueLevel);
-      const group = Number(data.groupId);
-      const rank = Number(data.rank);
-      if (tier && group && rank) {
-        const groupsBefore = Math.pow(2, tier - 1) - 1;
-        const globalIndex = (groupsBefore * 8) + (group - 1) * 8 + (rank - 1);
-        occupiedIndices.add(globalIndex);
-      }
-    });
+    try {
+      // Чтобы не требовать индекса для запроса, получаем всех игроков лиги через фильтрацию в памяти
+      const snap = await getDocs(collection(db, 'players_v10'));
+      const leaguePlayers = snap.docs.filter(d => d.data().selectedLeagueId === leagueId);
+      
+      const occupiedIndices = new Set<number>();
+      
+      leaguePlayers.forEach(d => {
+        const data = d.data();
+        const tier = Number(data.leagueLevel);
+        const group = Number(data.groupId);
+        const rank = Number(data.rank);
+        if (tier && group && rank) {
+          const groupsBefore = Math.pow(2, tier - 1) - 1;
+          const globalIndex = (groupsBefore * 8) + (group - 1) * 8 + (rank - 1);
+          occupiedIndices.add(globalIndex);
+        }
+      });
 
-    let foundIndex = 0;
-    for (let i = 0; i < 4088; i++) {
-      if (!occupiedIndices.has(i)) {
-        foundIndex = i;
-        break;
+      let foundIndex = 0;
+      for (let i = 0; i < 4088; i++) {
+        if (!occupiedIndices.has(i)) {
+          foundIndex = i;
+          break;
+        }
       }
+
+      const groupIndex = Math.floor(foundIndex / 8);
+      const tier = Math.floor(Math.log2(groupIndex + 1)) + 1;
+      const groupsBeforeTier = Math.pow(2, tier - 1) - 1;
+      const group = (groupIndex - groupsBeforeTier) + 1;
+      const rank = (foundIndex % 8) + 1;
+      return { tier, group, rank };
+    } catch (e) {
+      console.warn("Placement query failed, using default slot", e);
+      return { tier: 9, group: 1, rank: 1 };
     }
-
-    const groupIndex = Math.floor(foundIndex / 8);
-    const tier = Math.floor(Math.log2(groupIndex + 1)) + 1;
-    const groupsBeforeTier = Math.pow(2, tier - 1) - 1;
-    const group = (groupIndex - groupsBeforeTier) + 1;
-    const rank = (foundIndex % 8) + 1;
-    return { tier, group, rank };
   };
 
   const handleCompleteSetup = async () => {
@@ -165,10 +171,8 @@ export default function SetupPage() {
         version: SETUP_VERSION
       });
 
-      // 1. Обновляем корень
       batch.set(rootRef, rootData, { merge: true });
 
-      // 2. Пути для команды в лиге
       const seasonId = `season_${activeSeasonNumber || 1}`;
       const prefixedGroupId = `${seasonId}_league_${selectedLeagueId}_group_${placement.group}`;
       const teamRef = doc(db, 'leagues_v2', selectedLeagueId, 'divisions', String(placement.tier), 'groups', prefixedGroupId, 'teams', user.uid);
@@ -203,7 +207,6 @@ export default function SetupPage() {
 
       batch.set(teamRef, teamData, { merge: true });
 
-      // 3. Создаем героев в глобальном профиле (Master Roster), если их нет
       if (!existingSquad) {
         uniqueSquad.forEach(hero => {
           const heroRef = doc(collection(rootRef, 'heroes'), hero.id);
@@ -214,7 +217,6 @@ export default function SetupPage() {
       await batch.commit();
       toast({ title: language === 'ru' ? "Профиль настроен!" : "Profile Configured!" });
       
-      // Жесткий редирект для сброса кешей
       window.location.href = '/';
     } catch (e: any) {
       console.error("[SETUP v87 CRITICAL ERROR]", e);

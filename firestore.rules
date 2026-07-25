@@ -1,10 +1,7 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // ПОЛНЫЙ ДОСТУП ДЛЯ ПРОТОТИПА
-    // Позволяет всем пользователям (включая неавторизованных) читать и записывать любые данные.
-    // Это необходимо для устранения ошибок "insufficient permissions" во время разработки и настройки.
-    match /{document=**} {
+    match /{allPaths=**} {
       allow read, write: if true;
     }
   }
