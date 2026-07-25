@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
-import { doc, writeBatch, collection, query, where, getDocs, serverTimestamp, setDoc, limit } from 'firebase/firestore';
+import { doc, writeBatch, collection, query, where, getDocs, serverTimestamp, setDoc, limit, getDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -30,6 +30,12 @@ const CLUBS = [
   { id: 'liquid', name: 'Team Liquid', logo: 'https://iili.io/CYuS3pR.webp' },
   { id: 'navi', name: 'NAVI', logo: 'https://iili.io/CYupwe2.webp' },
 ];
+
+function cleanData(obj: any) {
+  return JSON.parse(JSON.stringify(obj, (key, value) => 
+    value === undefined ? null : value
+  ));
+}
 
 export default function SetupPage() {
   const { user, isUserLoading } = useUser();
@@ -134,11 +140,10 @@ export default function SetupPage() {
       const batch = writeBatch(db);
       const rootRef = doc(db, 'players_v10', user.uid);
       
-      // БЕЗОПАСНАЯ ИНИЦИАЛИЗАЦИЯ: Если состав уже есть (ownedPlayers), не генерим новый
       const existingSquad = (ownedPlayers.length > 0 || youthAcademyPlayers.length > 0);
       const uniqueSquad = existingSquad ? [] : getRandomStartingSquad();
       
-      batch.set(rootRef, {
+      const rootData = cleanData({
         id: user.uid,
         email: profile?.email || null,
         tgId: profile?.tgId || null,
@@ -156,13 +161,15 @@ export default function SetupPage() {
         lastSeenMatchDay: 0,
         createdAt: profile?.createdAt || nowIso,
         version: SETUP_VERSION
-      }, { merge: true });
+      });
+
+      batch.set(rootRef, rootData, { merge: true });
 
       const seasonId = `season_${activeSeasonNumber || 1}`;
       const prefixedGroupId = `${seasonId}_league_${selectedLeagueId}_group_${placement.group}`;
       const teamRef = doc(db, 'leagues_v2', selectedLeagueId, 'divisions', String(placement.tier), 'groups', prefixedGroupId, 'teams', user.uid);
       
-      batch.set(teamRef, {
+      const teamData = cleanData({
         id: user.uid,
         displayName: customClubName.trim(),
         clubName: customClubName.trim(),
@@ -188,13 +195,14 @@ export default function SetupPage() {
         matchHistory: [],
         createdAt: nowIso,
         version: SETUP_VERSION
-      }, { merge: true });
+      });
 
-      // Записываем героев в ГЛОБАЛЬНЫЙ МАСТЕР-СПИСОК
+      batch.set(teamRef, teamData, { merge: true });
+
       if (!existingSquad) {
         uniqueSquad.forEach(hero => {
           const heroRef = doc(collection(rootRef, 'heroes'), hero.id);
-          batch.set(heroRef, JSON.parse(JSON.stringify({ ...hero, isYouth: false })));
+          batch.set(heroRef, cleanData({ ...hero, isYouth: false }));
         });
       }
 

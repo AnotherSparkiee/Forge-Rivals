@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Глобальное хранилище v102 (Master Roster Persistence & Glow Feedback).
+ * Глобальное хранилище v103 (Master Roster Persistence & Glow Feedback).
  * Состав команды теперь привязан к глобальному профилю игрока.
  */
 
@@ -171,11 +171,18 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   // 1. ПОДПИСКА НА КОРНЕВОЙ ПРОФИЛЬ
   useEffect(() => {
-    if (isUserLoading || !user?.uid) return;
+    if (isUserLoading || !user?.uid) {
+      if (!isUserLoading && !user) setState(s => ({ ...s, isLoaded: true }));
+      return;
+    }
     const rootRef = doc(db, 'players_v10', user.uid);
     let active = true;
     const unsub = onSnapshot(rootRef, (snap) => {
-      if (!snap.exists() || !active) return;
+      if (!active) return;
+      if (!snap.exists()) {
+        setState(s => ({ ...s, id: user.uid, isLoaded: true }));
+        return;
+      }
       const data = snap.data();
       setState(s => ({
         ...s, id: user.uid, displayName: data.displayName || "Manager",
@@ -327,7 +334,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const addCrystals = useCallback((amount: number) => { const r = getRefs(); if (r) setDoc(r.team, { crystals: increment(amount) }, { merge: true }); }, [getRefs]);
   const addCredits = useCallback((amount: number) => { const r = getRefs(); if (r) setDoc(r.team, { credits: increment(amount) }, { merge: true }); }, [getRefs]);
   
-  // Обновление игрока (Всегда в мастере)
   const updatePlayer = useCallback((id: string, data: Partial<Player>, costCredits = 0, costCrystals = 0) => {
     const r = getRefs(); if (!r) return;
     updateDoc(doc(r.masterHeroes, id), data);
@@ -483,7 +489,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const r = getRefs(); if (!r) return;
     try {
       const batch = writeBatch(db);
-      // Очистка только team doc
       batch.delete(r.team);
       const rootSnap = await getDoc(r.root);
       const currentData = rootSnap.exists() ? rootSnap.data() : {};
