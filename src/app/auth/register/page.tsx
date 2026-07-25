@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth, useFirestore, useUser } from '@/firebase';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, writeBatch } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -65,19 +65,26 @@ export default function RegisterPage() {
       const { seasonNumber } = getGlobalSeasonInfo();
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       
+      const batch = writeBatch(db);
+      const rootRef = doc(db, 'players_v10', userCredential.user.uid);
+      
       const profileData = {
         id: userCredential.user.uid, 
         displayName: trimmedUsername, 
         email, 
         lastLoginDate: new Date().toISOString(), 
         createdAt: new Date().toISOString(),
-        lastProcessedSeason: Number(seasonNumber || 1)
+        lastProcessedSeason: Number(seasonNumber || 1),
+        version: 80
       };
       
-      await setDoc(doc(db, 'players_v10', userCredential.user.uid), cleanData(profileData));
+      batch.set(rootRef, cleanData(profileData));
+      await batch.commit();
+
       toast({ title: t.successTitle });
       router.push('/setup');
     } catch (error: any) {
+      console.error("[REGISTER ERROR]", error);
       toast({ variant: "destructive", title: "Error", description: error.message });
     } finally { setIsLoading(false); }
   };
