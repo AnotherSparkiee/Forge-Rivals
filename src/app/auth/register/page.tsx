@@ -16,7 +16,11 @@ import { useGameState } from '@/app/lib/store';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 
-function cleanData(obj: any) {
+/**
+ * Очистка данных для Firestore.
+ * Удаляет undefined и NaN, которые вызывают ошибки разрешений.
+ */
+function cleanData(obj: any): any {
   return JSON.parse(JSON.stringify(obj, (key, value) => {
     if (value === undefined) return null;
     if (typeof value === 'number' && isNaN(value)) return null;

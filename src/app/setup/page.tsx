@@ -78,8 +78,6 @@ export default function SetupPage() {
     const checkName = async () => {
       setNameStatus('checking');
       try {
-        // Используем простой getDocs всей коллекции и фильтрацию в памяти, 
-        // чтобы избежать ошибок индексов, которые часто выглядят как ошибки разрешений.
         const snap = await getDocs(collection(db, 'players_v10'));
         const isTaken = snap.docs.some(d => d.id !== user?.uid && d.data().clubName === customClubName.trim());
         
@@ -97,7 +95,6 @@ export default function SetupPage() {
 
   const findPlacementClient = async (leagueId: string) => {
     try {
-      // Чтобы не требовать индекса для запроса, получаем всех игроков лиги через фильтрацию в памяти
       const snap = await getDocs(collection(db, 'players_v10'));
       const leaguePlayers = snap.docs.filter(d => d.data().selectedLeagueId === leagueId);
       

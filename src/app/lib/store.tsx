@@ -181,7 +181,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     const unsub = onSnapshot(rootRef, (snap) => {
       if (!active) return;
       if (!snap.exists()) {
-        // Если документа нет, все равно ставим Loaded, чтобы AuthGuard мог отправить на /setup
         setState(s => ({ ...s, id: user.uid, isLoaded: true }));
         return;
       }
@@ -203,7 +202,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         isLoaded: true
       }));
     }, (error) => {
-      console.warn("Profile Subscription Error (Expected for new users):", error.message);
+      console.warn("Profile Subscription Error (Caught):", error.message);
       if (active) setState(s => ({ ...s, id: user.uid, isLoaded: true }));
     });
     return () => { active = false; unsub(); };
@@ -278,7 +277,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         isTeamLoaded: true
       }));
     }, (err) => {
-      console.warn("Team Subscription Error:", err.message);
+      console.warn("Team Subscription Error (Caught):", err.message);
     });
 
     const unsubStaff = onSnapshot(collection(teamRef, 'staff'), (sSnap) => {
