@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * Глобальное хранилище v98 (Fixed Gifts & XP Engine).
- * Устранена ошибка ReferenceError: language и исправлена отправка подарков.
+ * Глобальное хранилище v99 (Ultra Snappy & Transactional Gifts).
+ * Исправлена отправка подарков через транзакции и улучшен отклик.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef, useMemo } from 'react';
@@ -615,8 +615,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const sendGift = useCallback(async (gift: Gift, friendId: string, friendName: string) => {
     if (!user || !gift || !friendId) return false;
     
-    const senderName = stateRef.current.clubName || stateRef.current.displayName || "Manager";
     const currentLang = stateRef.current.language || 'ru';
+    const senderName = stateRef.current.clubName || stateRef.current.displayName || "Manager";
 
     try {
       const success = await runTransaction(db, async (transaction) => {

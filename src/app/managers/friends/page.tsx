@@ -202,7 +202,7 @@ export default function FriendsListPage() {
           friends.map((friend) => (
             <Card 
               key={friend.id} 
-              className="glass-card border-white/5 hover:bg-white/5 cursor-pointer transition-all active:scale-[0.98]"
+              className="glass-card border-white/5 hover:bg-white/5 cursor-pointer transition-all active:scale-95 duration-75"
               onClick={() => setSelectedFriend({ id: friend.id, name: friend.name })}
             >
               <CardContent className="p-3 flex items-center justify-between">
@@ -261,7 +261,7 @@ export default function FriendsListPage() {
           <div className="p-4 space-y-2">
             {isSTier && (
               <Card 
-                className="glass-card border-accent/20 bg-accent/5 hover:bg-accent/10 cursor-pointer transition-all active:scale-[0.98]"
+                className="glass-card border-accent/20 bg-accent/5 hover:bg-accent/10 cursor-pointer transition-all active:scale-95 duration-75"
                 onClick={() => setShowGiftModal(true)}
               >
                 <CardContent className="p-3 flex items-center justify-between">
@@ -280,7 +280,7 @@ export default function FriendsListPage() {
             )}
 
             <Card 
-              className="glass-card border-white/5 hover:bg-white/5 cursor-pointer transition-all active:scale-[0.98]"
+              className="glass-card border-white/5 hover:bg-white/5 cursor-pointer transition-all active:scale-95 duration-75"
               onClick={handlePrivateMessage}
             >
               <CardContent className="p-3 flex items-center justify-between">
@@ -298,7 +298,7 @@ export default function FriendsListPage() {
             </Card>
 
             <Card 
-              className="glass-card border-white/5 hover:bg-white/5 cursor-pointer transition-all active:scale-[0.98]"
+              className="glass-card border-white/5 hover:bg-white/5 cursor-pointer transition-all active:scale-95 duration-75"
               onClick={handleRemoveFriend}
             >
               <CardContent className="p-3 flex items-center justify-between">
@@ -342,7 +342,7 @@ export default function FriendsListPage() {
             {(availableGiftsToSend?.length || 0) > 0 ? availableGiftsToSend.map((gift) => (
               <Card 
                 key={gift.id} 
-                className="glass-card border-white/5 hover:bg-white/5 cursor-pointer transition-all active:scale-[0.98]"
+                className="glass-card border-white/5 hover:bg-white/5 cursor-pointer transition-all active:scale-95 duration-75"
                 onClick={() => handleSendGiftToFriend(gift)}
               >
                 <CardContent className="p-4 flex items-center justify-between">

@@ -40,14 +40,12 @@ export default function Home() {
     return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
   };
 
-  // Расчет непросмотренных матчей лиги
   const unreadMatches = (allSeasonMatches || []).filter(m => 
     user && (m.homeId === user.uid || m.awayId === user.uid) && 
     m.isFinished && 
     Number(m.day) > (lastSeenMatchDay || 0)
   );
 
-  // Расчет непросмотренных матчей из истории (дружеские, турниры)
   const historyUnread = (matchHistory || []).filter(m => m.seen === false);
   const totalUnreadCount = unreadMatches.length + historyUnread.length;
 
@@ -126,7 +124,7 @@ export default function Home() {
           <div className="grid grid-cols-4 gap-2 w-full max-h-full py-2">
             {menuItems.map((item) => (
               <Link key={item.label} href={item.href}>
-                <Card className="glass-card hover:bg-white/5 transition-all border-white/5 group aspect-square flex flex-col items-center justify-center p-1 relative overflow-visible">
+                <Card className="glass-card hover:bg-white/5 transition-all active:scale-95 duration-75 border-white/5 group aspect-square flex flex-col items-center justify-center p-1 relative overflow-visible">
                   <div className={cn("p-2 rounded-lg bg-secondary/50 group-hover:bg-primary/10 transition-colors border border-white/5 mb-1.5", item.color)}>
                     <item.icon className="w-5 h-5" />
                   </div>

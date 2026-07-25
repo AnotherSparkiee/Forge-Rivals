@@ -165,7 +165,7 @@ export default function ItemsKnowledgePage() {
 
       <div className="space-y-3">
         {items.map((item) => (
-          <Card key={item.name} className="glass-card border-white/5 bg-secondary/10 overflow-hidden group hover:border-blue-500/30 transition-all">
+          <Card key={item.name} className="glass-card border-white/5 bg-secondary/10 overflow-hidden group hover:border-blue-500/30 transition-all active:scale-95 duration-75">
             <CardContent className="p-4 flex items-start gap-4">
               <div className={cn("p-2.5 rounded-xl bg-secondary/50 border border-white/5 shrink-0", item.color)}>
                 <item.icon className="w-5 h-5" />
