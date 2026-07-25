@@ -17,9 +17,11 @@ import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 
 function cleanData(obj: any) {
-  return JSON.parse(JSON.stringify(obj, (key, value) => 
-    value === undefined ? null : value
-  ));
+  return JSON.parse(JSON.stringify(obj, (key, value) => {
+    if (value === undefined) return null;
+    if (typeof value === 'number' && isNaN(value)) return null;
+    return value;
+  }));
 }
 
 export default function RegisterPage() {
@@ -78,8 +80,7 @@ export default function RegisterPage() {
         version: 80 // Принудительная версия для чистого синка
       };
       
-      // 2. Создаем корневой документ профиля. 
-      // Прямой setDoc надежнее батч-запроса сразу после создания пользователя.
+      // 2. Прямой setDoc надежнее батч-запроса сразу после создания пользователя.
       await setDoc(rootRef, cleanData(profileData));
 
       toast({ title: t.successTitle });
@@ -87,7 +88,7 @@ export default function RegisterPage() {
       // Даем небольшую паузу для срабатывания Auth-листенеров
       setTimeout(() => {
         router.push('/setup');
-      }, 500);
+      }, 800);
       
     } catch (error: any) {
       console.error("[REGISTER CRITICAL ERROR]", error.code, error.message);

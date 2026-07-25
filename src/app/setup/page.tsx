@@ -32,9 +32,11 @@ const CLUBS = [
 ];
 
 function cleanData(obj: any) {
-  return JSON.parse(JSON.stringify(obj, (key, value) => 
-    value === undefined ? null : value
-  ));
+  return JSON.parse(JSON.stringify(obj, (key, value) => {
+    if (value === undefined) return null;
+    if (typeof value === 'number' && isNaN(value)) return null;
+    return value;
+  }));
 }
 
 export default function SetupPage() {
@@ -201,7 +203,7 @@ export default function SetupPage() {
 
       batch.set(teamRef, teamData, { merge: true });
 
-      // 3. Создаем героев, если их нет
+      // 3. Создаем героев в глобальном профиле (Master Roster), если их нет
       if (!existingSquad) {
         uniqueSquad.forEach(hero => {
           const heroRef = doc(collection(rootRef, 'heroes'), hero.id);
