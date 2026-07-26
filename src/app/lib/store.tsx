@@ -2,15 +2,15 @@
 'use client';
 
 /**
- * Глобальное облачное хранилище v212 (Firebase Server Sync).
- * Исправлена логика полного сброса профиля и синхронизации стейта.
+ * Глобальное облачное хранилище v213 (Firebase Server Sync).
+ * Оптимизирована отказоустойчивость: переход на setDoc(merge) вместо updateDoc.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useMemo, useRef } from 'react';
 import { Player, StaffMember, StaffRole, generateScoutedPlayer, getRandomStartingSquad } from './moba-data';
 import { getMoscowTime, getGlobalSeasonInfo, getMoscowDateString, getLevelThreshold } from './time-utils';
 import { useUser, useFirestore } from '@/firebase';
-import { doc, onSnapshot, updateDoc, setDoc, collection, getDocs, writeBatch, serverTimestamp } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc, collection, getDocs, writeBatch, serverTimestamp } from 'firebase/firestore';
 
 export { getLevelThreshold };
 
@@ -135,7 +135,7 @@ const DEFAULT_STATE: GameState = {
   arena: { capacity: 5000 }, hq: {}, bootcamp: {}, academy: {}, medical: {},
   country: null, isPremium: false, premiumUntil: null, activeSeasonNumber: 1, seasonNumber: 1, seasonDay: 1, isSyncing: false, language: 'ru',
   isDataReady: false, allSeasonMatches: [], nextMatch: null, isMatchesLoading: true,
-  lastProcessedSeason: 0, trophies: [], version: 212,
+  lastProcessedSeason: 0, trophies: [], version: 213,
   availableGiftsToSend: [], receivedGifts: [], lastGiftGenDate: null,
   addCrystals: () => {}, addCredits: () => {}, updatePlayer: () => {}, removePlayer: () => {}, assignToRole: () => {}, updateLineup: () => {}, updateTactics: () => {},
   claimReward: () => {}, setLanguage: () => {}, purchaseLicense: () => false, purchasePremium: () => false,
@@ -184,7 +184,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       if (snap.exists()) {
         const data = snap.data();
         setState(prev => ({
-          ...DEFAULT_STATE, // Reset to defaults before merging to ensure "missing" fields are cleared
+          ...DEFAULT_STATE, 
           ...data,
           id: user.uid,
           isLoaded: true,
@@ -194,7 +194,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
           seasonDay: staticSeasonInfo.seasonDay
         }));
       } else {
-        setState(prev => ({ ...DEFAULT_STATE, id: user.uid, isLoaded: true }));
+        setState(prev => ({ ...prev, id: user.uid, isLoaded: true }));
       }
       setIsDataReady(true);
     }, (error) => {
@@ -237,9 +237,11 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     if (!db || !user?.uid) return;
     try {
       const docRef = doc(db, 'players_v10', user.uid);
-      await updateDoc(docRef, cleanData(updates));
-    } catch (e) {
-      console.error("Save to Firestore failed:", e);
+      // setDoc with merge: true is more robust than updateDoc for rapid updates
+      await setDoc(docRef, cleanData(updates), { merge: true });
+    } catch (e: any) {
+      console.error("Save to Firestore failed:", e.code, e.message);
+      // Fallback: still update local state for better UX
       setState(prev => ({ ...prev, ...updates }));
     }
   }, [db, user?.uid]);
@@ -412,7 +414,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const resetProfile = useCallback(async () => {
     if (!db || !user?.uid) return;
     
-    // Explicitly overwrite everything with defaults for a clean start
     const resetData = {
       ...DEFAULT_STATE,
       id: user.uid,
@@ -422,9 +423,9 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       crystals: 50,
       managerLevel: 1,
       experiencePoints: 0,
-      version: 212,
-      selectedLeagueId: null, // Critical for AuthGuard
-      country: null,          // Critical for AuthGuard
+      version: 213,
+      selectedLeagueId: null, 
+      country: null,          
       clubName: null,
       clubLogo: null,
       ownedPlayers: [],
@@ -434,8 +435,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     };
 
     await setDoc(doc(db, 'players_v10', user.uid), cleanData(resetData));
-    
-    // Immediately clear local state to prevent "merging" with old data
     setState(resetData);
   }, [db, user?.uid, user?.email, state.displayName]);
 
@@ -524,11 +523,10 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const claimGift = useCallback(async (gift: Gift) => {
     if (!db) return false;
     try {
-      // Implement gift logic based on type (e.g., speed up construction, add credits)
       if (gift.type === 'grant') addCredits(gift.value);
       if (gift.type === 'shard') addCrystals(gift.value);
       
-      await updateDoc(doc(db, 'received_gifts_v1', gift.id), { claimed: true });
+      await setDoc(doc(db, 'received_gifts_v1', gift.id), { claimed: true }, { merge: true });
       saveToFirestore({ receivedGifts: state.receivedGifts.filter(g => g.id !== gift.id) });
       return true;
     } catch (e) {

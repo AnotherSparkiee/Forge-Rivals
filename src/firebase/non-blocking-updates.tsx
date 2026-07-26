@@ -4,7 +4,6 @@
 import {
   setDoc,
   doc,
-  updateDoc,
   deleteDoc,
   CollectionReference,
   DocumentReference,
@@ -54,10 +53,11 @@ export function addDocumentNonBlocking(colRef: CollectionReference, data: any) {
 
 
 /**
- * Initiates an updateDoc operation for a document reference.
+ * Initiates an update operation for a document reference.
+ * Uses setDoc with { merge: true } for better resilience against "Missing Permissions" errors.
  */
 export function updateDocumentNonBlocking(docRef: DocumentReference, data: any) {
-  updateDoc(docRef, data)
+  setDoc(docRef, data, { merge: true })
     .catch(error => {
       errorEmitter.emit(
         'permission-error',
