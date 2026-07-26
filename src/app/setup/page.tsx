@@ -11,9 +11,9 @@ import { COUNTRIES } from '@/app/lib/countries-data';
 import { Loader2, ChevronLeft, ShieldCheck, Edit3, CheckCircle2, Info } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import { useGameState } from '@/app/lib/store';
+import { useGameState, LineupSlot } from '@/app/lib/store';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
-import { getRandomStartingSquad } from '@/app/lib/moba-data';
+import { getRandomStartingSquad, Player } from '@/app/lib/moba-data';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 
 const CLUBS = [
@@ -30,7 +30,7 @@ const CLUBS = [
 export default function SetupPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const { language, isLoaded, saveToLocal, ownedPlayers } = useGameState();
+  const { language, isLoaded, saveToLocal } = useGameState();
   
   const [step, setStep] = useState<'league' | 'country' | 'club' | 'name'>('league');
   const [selectedLeagueId, setSelectedLeagueId] = useState<string | null>(null);
@@ -50,18 +50,36 @@ export default function SetupPage() {
       
       const placement = { tier: 1, group: 1, rank: 1 };
       
+      // Генерируем 10 игроков (по 2 на роль)
       const startingSquad = getRandomStartingSquad();
       
-      // AUTO-ASSIGN CORE 5
-      const initialLineup = {
-        carry: startingSquad.find(p => p.role === 'Carry')?.id || startingSquad[0]?.id || null,
-        mid: startingSquad.find(p => p.role === 'Midlaner')?.id || startingSquad[1]?.id || null,
-        offlane: startingSquad.find(p => p.role === 'Tank')?.id || startingSquad[2]?.id || null,
-        support: startingSquad.find(p => p.role === 'Jungler')?.id || startingSquad[3]?.id || null,
-        full_support: startingSquad.find(p => p.role === 'Support')?.id || startingSquad[4]?.id || null,
-        sub1: startingSquad[5]?.id || null,
-        sub2: startingSquad[6]?.id || null,
-        res1: null, res2: null, res3: null, res4: null, res5: null, res6: null, res7: null, res8: null
+      // АВТО-РАСПРЕДЕЛЕНИЕ ВСЕГО СОСТАВА
+      // Берем по 1-му представителю каждой роли в основу
+      const coreCarry = startingSquad.filter(p => p.role === 'Carry')[0];
+      const coreMid = startingSquad.filter(p => p.role === 'Midlaner')[0];
+      const coreTank = startingSquad.filter(p => p.role === 'Tank')[0];
+      const coreJungler = startingSquad.filter(p => p.role === 'Jungler')[0];
+      const coreSupport = startingSquad.filter(p => p.role === 'Support')[0];
+
+      // Вторые представители идут в запас и резерв
+      const subCarry = startingSquad.filter(p => p.role === 'Carry')[1];
+      const subMid = startingSquad.filter(p => p.role === 'Midlaner')[1];
+      const resTank = startingSquad.filter(p => p.role === 'Tank')[1];
+      const resJungler = startingSquad.filter(p => p.role === 'Jungler')[1];
+      const resSupport = startingSquad.filter(p => p.role === 'Support')[1];
+
+      const initialLineup: Record<LineupSlot, string | null> = {
+        carry: coreCarry?.id || null,
+        mid: coreMid?.id || null,
+        offlane: coreTank?.id || null,
+        support: coreJungler?.id || null,
+        full_support: coreSupport?.id || null,
+        sub1: subCarry?.id || null,
+        sub2: subMid?.id || null,
+        res1: resTank?.id || null,
+        res2: resJungler?.id || null,
+        res3: resSupport?.id || null,
+        res4: null, res5: null, res6: null, res7: null, res8: null
       };
 
       saveToLocal({
@@ -82,7 +100,7 @@ export default function SetupPage() {
 
       toast({ 
         title: language === 'ru' ? "Клуб создан!" : "Club Initialized!",
-        description: language === 'ru' ? `Назначен в Дивизион ${placement.tier}.${placement.group}` : `Assigned to Division ${placement.tier}.${placement.group}`
+        description: language === 'ru' ? `Сформирован сбалансированный состав (10 игроков, OVR 28-37).` : `Balanced squad formed (10 players, OVR 28-37).`
       });
       router.push('/');
     } catch (e) {
@@ -117,7 +135,7 @@ export default function SetupPage() {
       msk: 'MSK',
       namePlaceholder: 'Enter club name...',
     }
-  }[language === 'ru' ? 'ru' : 'en'];
+  }[language as 'ru' ? 'ru' : 'en'];
 
   return (
     <div className="min-h-screen bg-background flex flex-col relative">
@@ -221,8 +239,8 @@ export default function SetupPage() {
                   <Info className="w-4 h-4 text-primary shrink-0 mt-0.5" />
                   <p className="text-[10px] text-muted-foreground leading-relaxed italic">
                     {language === 'ru' 
-                      ? "Новые клубы получают приоритетное распределение в максимально высокий дивизион для обеспечения спортивной конкуренции." 
-                      : "New clubs receive priority placement in the highest possible division to ensure competitive parity."}
+                      ? "В начале карьеры вам выдается сбалансированный ростер из 10 специалистов (рейтинг 28-37) с дублерами на каждую позицию." 
+                      : "At the start, you receive a balanced roster of 10 specialists (rating 28-37) with backups for each position."}
                   </p>
                </div>
             </div>

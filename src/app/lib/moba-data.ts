@@ -190,7 +190,7 @@ export function generateUniquePlayer(role: Role, index: number, isStarter: boole
   const startAge = getRandomStat(isStarter ? 17 : 18, isStarter ? 28 : 32, rng);
   const playerId = seed ? `p_det_${seed}` : `player_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 5)}`;
 
-  // Новая логика OVR для стартового состава: 28-37
+  // Принудительный диапазон 28-37 для стартового состава
   const baseOvr = isStarter ? getRandomStat(28, 37, rng) : 15;
 
   return {
@@ -208,24 +208,24 @@ export function generateUniquePlayer(role: Role, index: number, isStarter: boole
     age: startAge,
     careerEndAge: isPro ? 35 : 38,
     salary: isPro ? 25000 : 2500,
-    form: isStarter ? 75 : 90,
-    fatigue: isStarter ? 75 : 100,
+    form: isStarter ? 85 : 90,
+    fatigue: 0,
     country: { code, name: country.name, flag: country.flag },
     isInjured: false,
     isYouth: isStarter ? false : (startAge < 18),
     proStats: {
-      lastHitting: getRandomStat(5, 10, rng), mapAwareness: getRandomStat(5, 10, rng),
-      positioning: getRandomStat(5, 10, rng), reflexes: getRandomStat(5, 10, rng),
-      manaManagement: getRandomStat(5, 10, rng), objectiveControl: getRandomStat(5, 10, rng),
-      communication: getRandomStat(5, 10, rng), tiltResistance: getRandomStat(5, 10, rng),
-      versatility: getRandomStat(5, 10, rng), ganking: getRandomStat(5, 10, rng),
+      lastHitting: getRandomStat(10, 20, rng), mapAwareness: getRandomStat(10, 20, rng),
+      positioning: getRandomStat(10, 20, rng), reflexes: getRandomStat(10, 20, rng),
+      manaManagement: getRandomStat(10, 20, rng), objectiveControl: getRandomStat(10, 20, rng),
+      communication: getRandomStat(10, 20, rng), tiltResistance: getRandomStat(10, 20, rng),
+      versatility: getRandomStat(10, 20, rng), ganking: getRandomStat(10, 20, rng),
     },
     proTalents: {
-      lastHitting: getRandomStat(25, 45, rng), mapAwareness: getRandomStat(25, 45, rng),
-      positioning: getRandomStat(25, 45, rng), reflexes: getRandomStat(25, 45, rng),
-      manaManagement: getRandomStat(25, 45, rng), objectiveControl: getRandomStat(25, 45, rng),
-      communication: getRandomStat(25, 45, rng), tiltResistance: getRandomStat(25, 45, rng),
-      versatility: getRandomStat(25, 45, rng), ganking: getRandomStat(25, 45, rng),
+      lastHitting: getRandomStat(35, 55, rng), mapAwareness: getRandomStat(35, 55, rng),
+      positioning: getRandomStat(35, 55, rng), reflexes: getRandomStat(35, 55, rng),
+      manaManagement: getRandomStat(35, 55, rng), objectiveControl: getRandomStat(35, 55, rng),
+      communication: getRandomStat(35, 55, rng), tiltResistance: getRandomStat(35, 55, rng),
+      versatility: getRandomStat(35, 55, rng), ganking: getRandomStat(35, 55, rng),
     }
   };
 }
@@ -273,7 +273,6 @@ export function generateBotSquad(targetOvr: number = 10): any[] {
     const name = PLAYER_NAMES[nameSeed];
     const image = COUNTRY_PHOTOS[countryCode].url;
     
-    // Ослабление ботов (коэффициент 0.25 от OVR)
     const skillBase = Math.max(1, Math.floor(val * 0.25));
 
     return {
@@ -302,7 +301,14 @@ export function getRandomBotTeamName(): string {
   return BOT_TEAM_NAMES[Math.floor(Math.random() * BOT_TEAM_NAMES.length)];
 }
 
+/**
+ * Генерирует сбалансированный стартовый состав из 10 игроков.
+ * По 2 игрока на каждую роль для обеспечения основного состава и запаса.
+ */
 export function getRandomStartingSquad(): Player[] {
-  const roles: Role[] = ['Tank', 'Carry', 'Midlaner', 'Jungler', 'Support', 'Carry', 'Tank'];
-  return roles.map((role, i) => generateUniquePlayer(role, i, true));
+  const roles: Role[] = [
+    'Carry', 'Midlaner', 'Tank', 'Jungler', 'Support', // 1-я пятерка
+    'Carry', 'Midlaner', 'Tank', 'Jungler', 'Support'  // 2-я пятерка (дублеры)
+  ];
+  return roles.map((role, i) => generateUniquePlayer(role, i, true, `starter_${Date.now()}_${i}`));
 }
