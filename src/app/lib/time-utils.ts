@@ -1,5 +1,5 @@
 /**
- * @fileOverview Ядро времени v87 (Infinite Season Sync). 
+ * @fileOverview Ядро времени v88 (Infinite Season Sync). 
  * Глобальная синхронизация цикла (15 дней).
  * Стабильная эпоха: 1 января 2025 года.
  */
@@ -39,16 +39,11 @@ export function toMskDate(date: Date): Date {
 
 /**
  * Рассчитывает порог опыта для следующего уровня.
- * Уровень 1 -> 2: 700
- * Уровень 2 -> 3: 1400
- * Уровень 3 -> 4: 3800
- * Далее: Удвоение
  */
 export function getLevelThreshold(level: number): number {
   if (level === 1) return 700;
   if (level === 2) return 1400;
   if (level === 3) return 3800;
-  // Удвоение после 3-го уровня
   return 3800 * Math.pow(2, level - 3);
 }
 
@@ -89,14 +84,20 @@ export function getGlobalSeasonInfo() {
     return {
       seasonDay: 1, dayOfCycle: 1, seasonNumber: 1, activeSeasonNumber: 1,
       isOffseason: false, isGenerationWindow: false,
-      timeToStartMs: 0, currentSeasonStart: epochUtc, nextSeasonStart: new Date(epochUtc.getTime() + cycleMs)
+      timeToStartMs: 0, currentSeasonStart: epochUtc, nextSeasonStart: new Date(epochUtc.getTime() + cycleMs),
+      generationTime: new Date(epochUtc.getTime() + (14 * dayMs) + (16 * 3600000))
     };
   }
 
   const seasonNumber = Math.floor(diffMs / cycleMs) + 1;
   const dayOfCycle = Math.floor((diffMs % cycleMs) / dayMs) + 1;
-  
   const isOffseason = dayOfCycle === 15;
+
+  const currentSeasonStart = new Date(epochUtc.getTime() + (seasonNumber - 1) * cycleMs);
+  // Время генерации: 15-й день цикла в 16:00 MSK
+  // 15-й день начинается через 14 полных дней после начала цикла
+  const generationTime = new Date(currentSeasonStart.getTime() + (14 * dayMs) + (16 * 3600000));
+  const isGenerationReady = utcNow.getTime() >= generationTime.getTime();
 
   return {
     seasonDay: isOffseason ? 0 : dayOfCycle,
@@ -104,15 +105,16 @@ export function getGlobalSeasonInfo() {
     seasonNumber,
     activeSeasonNumber: seasonNumber,
     isOffseason,
-    currentSeasonStart: new Date(epochUtc.getTime() + (seasonNumber - 1) * cycleMs),
-    nextSeasonStart: new Date(epochUtc.getTime() + seasonNumber * cycleMs)
+    isGenerationReady,
+    generationTime,
+    currentSeasonStart,
+    nextSeasonStart: new Date(currentSeasonStart.getTime() + cycleMs)
   };
 }
 
 export function isMatchOverdue(startTimeIso: string): boolean {
   const utcNow = getMoscowTime();
   const start = new Date(startTimeIso);
-  // Просрочен через 45 минут после начала
   return utcNow.getTime() > (start.getTime() + (45 * 60 * 1000));
 }
 

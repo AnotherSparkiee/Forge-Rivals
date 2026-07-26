@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useGameState } from './lib/store';
@@ -7,7 +6,7 @@ import {
   CalendarDays, Medal, ArrowRightLeft, 
   Shield, Construction, Briefcase, 
   LineChart, Heart, Newspaper, Settings, Search, Tv, User as UserIcon, UserCheck,
-  Radar, LayoutList, Swords, Timer, ShieldAlert
+  Radar, LayoutList, Swords, Timer, ShieldAlert, CalendarClock
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import Link from 'next/link';
@@ -16,7 +15,7 @@ import { useUser } from '@/firebase';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { Badge } from '@/components/ui/badge';
 import { useState, useEffect } from 'react';
-import { getMoscowTime } from './lib/time-utils';
+import { getMoscowTime, getGlobalSeasonInfo } from './lib/time-utils';
 
 export default function Home() {
   const { user, isUserLoading } = useUser();
@@ -32,8 +31,9 @@ export default function Home() {
     return () => clearInterval(timer);
   }, []);
 
-  const getCountdown = (startTimeIso: string) => {
-    const diff = new Date(startTimeIso).getTime() - now.getTime();
+  const getCountdown = (targetTimeIso: string | Date) => {
+    const target = typeof targetTimeIso === 'string' ? new Date(targetTimeIso) : targetTimeIso;
+    const diff = target.getTime() - now.getTime();
     if (diff <= 0) return '00:00:00';
     const hh = Math.floor(diff / 3600000);
     const mm = Math.floor((diff % 3600000) / 60000);
@@ -76,13 +76,14 @@ export default function Home() {
   ];
 
   const currentNextMatch = nextMatch?.match;
+  const seasonInfo = getGlobalSeasonInfo();
 
   return (
     <div className="relative h-[calc(100dvh-3.5rem-5rem)] flex flex-col overflow-hidden bg-[#0a0d14]">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,_hsl(var(--primary)/0.1),_transparent_70%)] -z-10" />
       <div className="flex-1 w-full max-w-md mx-auto px-4 flex flex-col pt-4 overflow-hidden">
         
-        {/* NEXT MATCH WIDGET */}
+        {/* NEXT MATCH / OFFSEASON WIDGET */}
         {currentNextMatch ? (
           <Card className="glass-card mb-4 border-primary/30 bg-primary/5 overflow-hidden animate-in fade-in slide-in-from-top-4 duration-700 shrink-0">
             <CardContent className="p-3 flex items-center justify-between">
@@ -115,12 +116,34 @@ export default function Home() {
             </CardContent>
           </Card>
         ) : (
-          <Card className="glass-card mb-4 border-white/5 bg-secondary/5 opacity-50 shrink-0">
-            <CardContent className="p-3 flex items-center justify-center gap-3">
-               <ShieldAlert className="w-4 h-4 text-muted-foreground" />
-               <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
-                 {language === 'ru' ? 'ОЖИДАНИЕ НОВОГО ЦИКЛА МАТЧЕЙ' : 'AWAITING NEW MATCH CYCLE'}
-               </p>
+          <Card className="glass-card mb-4 border-accent/30 bg-accent/5 overflow-hidden animate-in fade-in slide-in-from-top-4 duration-700 shrink-0">
+            <CardContent className="p-3 flex items-center justify-between">
+               <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-secondary/50 border border-accent/20 flex items-center justify-center shrink-0 shadow-lg">
+                    <CalendarClock className="w-5 h-5 text-accent" />
+                  </div>
+                  <div>
+                    <p className="text-[8px] font-black text-accent uppercase tracking-[0.2em] leading-none mb-1">
+                      {language === 'ru' ? 'ОЖИДАНИЕ НОВОГО СЕЗОНА' : 'AWAITING NEW SEASON'}
+                    </p>
+                    <h3 className="text-[11px] font-bold uppercase text-white leading-none">
+                      {seasonInfo.isOffseason && !seasonInfo.isGenerationReady 
+                        ? (language === 'ru' ? 'ФОРМИРОВАНИЕ ГРУПП' : 'LEAGUE GENERATION') 
+                        : (language === 'ru' ? 'ПОДГОТОВКА ТЕРМИНАЛА' : 'TERMINAL PREPARATION')}
+                    </h3>
+                  </div>
+               </div>
+               <div className="text-right border-l border-white/5 pl-4 flex flex-col justify-center">
+                 <div className="flex items-center justify-end gap-1 mb-0.5 text-muted-foreground">
+                    <Clock className="w-2.5 h-2.5" />
+                    <span className="text-[7px] font-black uppercase tracking-tighter">SYNC_IN</span>
+                 </div>
+                 <p className="text-lg font-headline font-black text-accent italic tabular-nums leading-none">
+                   {seasonInfo.isOffseason && !seasonInfo.isGenerationReady 
+                    ? getCountdown(seasonInfo.generationTime) 
+                    : getCountdown(seasonInfo.nextSeasonStart)}
+                 </p>
+               </div>
             </CardContent>
           </Card>
         )}
