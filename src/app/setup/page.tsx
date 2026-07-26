@@ -2,23 +2,19 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
-import { doc, writeBatch, collection, query, where, getDocs, serverTimestamp, setDoc, limit, getDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { LEAGUES } from '@/app/lib/leagues-data';
 import { COUNTRIES } from '@/app/lib/countries-data';
-import { Loader2, ChevronLeft, ShieldCheck, Trophy, Target, Shield, Edit3, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Loader2, ChevronLeft, ShieldCheck, Edit3, CheckCircle2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { useGameState } from '@/app/lib/store';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 import { getRandomStartingSquad } from '@/app/lib/moba-data';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
-
-const SETUP_VERSION = 87;
 
 const CLUBS = [
   { id: 'parivision', name: 'Parivision', logo: 'https://iili.io/CYIAgVa.webp' },
@@ -31,199 +27,51 @@ const CLUBS = [
   { id: 'navi', name: 'NAVI', logo: 'https://iili.io/CYupwe2.webp' },
 ];
 
-function cleanData(obj: any) {
-  return JSON.parse(JSON.stringify(obj, (key, value) => {
-    if (value === undefined) return null;
-    if (typeof value === 'number' && isNaN(value)) return null;
-    return value;
-  }));
-}
-
 export default function SetupPage() {
-  const { user, isUserLoading } = useUser();
-  const db = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
-  const { language, isLoaded, displayName, ownedPlayers, youthAcademyPlayers } = useGameState();
+  const { language, isLoaded, saveToLocal, ownedPlayers } = useGameState();
   
   const [step, setStep] = useState<'league' | 'country' | 'club' | 'name'>('league');
   const [selectedLeagueId, setSelectedLeagueId] = useState<string | null>(null);
   const [selectedCountryCode, setSelectedCountryCode] = useState<string | null>(null);
   const [selectedClubId, setSelectedClubId] = useState<string | null>(null);
   const [customClubName, setCustomClubName] = useState('');
-  const [nameStatus, setNameStatus] = useState<'idle' | 'checking' | 'taken' | 'available'>('idle');
   const [isUpdating, setIsUpdating] = useState(false);
 
-  const userRef = useMemoFirebase(() => (user?.uid ? doc(db, 'players_v10', user.uid) : null), [db, user?.uid]);
-  const { data: profile } = useDoc(userRef);
-
-  useEffect(() => {
-    if (!isUserLoading && !user) {
-      router.replace('/auth/login');
-    }
-  }, [user, isUserLoading, router]);
-
-  useEffect(() => {
-    if (displayName && !customClubName && displayName !== "Manager") {
-      setCustomClubName(displayName);
-    }
-  }, [displayName, customClubName]);
-
-  useEffect(() => {
-    if (step !== 'name' || customClubName.trim().length < 3) {
-      setNameStatus('idle');
-      return;
-    }
-
-    const checkName = async () => {
-      setNameStatus('checking');
-      try {
-        const snap = await getDocs(collection(db, 'players_v10'));
-        const isTaken = snap.docs.some(d => d.id !== user?.uid && d.data().clubName === customClubName.trim());
-        
-        if (isTaken) setNameStatus('taken');
-        else setNameStatus('available');
-      } catch (e) {
-        console.warn("Name check failed, assuming available", e);
-        setNameStatus('available');
-      }
-    };
-
-    const timer = setTimeout(checkName, 600);
-    return () => clearTimeout(timer);
-  }, [customClubName, step, db, user?.uid]);
-
-  const findPlacementClient = async (leagueId: string) => {
-    try {
-      const snap = await getDocs(collection(db, 'players_v10'));
-      const leaguePlayers = snap.docs.filter(d => d.data().selectedLeagueId === leagueId);
-      
-      const occupiedIndices = new Set<number>();
-      
-      leaguePlayers.forEach(d => {
-        const data = d.data();
-        const tier = Number(data.leagueLevel);
-        const group = Number(data.groupId);
-        const rank = Number(data.rank);
-        if (tier && group && rank) {
-          const groupsBefore = Math.pow(2, tier - 1) - 1;
-          const globalIndex = (groupsBefore * 8) + (group - 1) * 8 + (rank - 1);
-          occupiedIndices.add(globalIndex);
-        }
-      });
-
-      let foundIndex = 0;
-      for (let i = 0; i < 4088; i++) {
-        if (!occupiedIndices.has(i)) {
-          foundIndex = i;
-          break;
-        }
-      }
-
-      const groupIndex = Math.floor(foundIndex / 8);
-      const tier = Math.floor(Math.log2(groupIndex + 1)) + 1;
-      const groupsBeforeTier = Math.pow(2, tier - 1) - 1;
-      const group = (groupIndex - groupsBeforeTier) + 1;
-      const rank = (foundIndex % 8) + 1;
-      return { tier, group, rank };
-    } catch (e) {
-      console.warn("Placement query failed, using default slot", e);
-      return { tier: 9, group: 1, rank: 1 };
-    }
-  };
-
   const handleCompleteSetup = async () => {
-    if (!user || !selectedLeagueId || !selectedCountryCode || !selectedClubId || customClubName.trim().length < 3 || nameStatus !== 'available') return;
+    if (!selectedLeagueId || !selectedCountryCode || !selectedClubId || customClubName.trim().length < 3) return;
     setIsUpdating(true);
-    try {
-      const placement = await findPlacementClient(selectedLeagueId);
+    
+    setTimeout(() => {
       const selectedCountry = COUNTRIES.find(c => c.code === selectedCountryCode);
       const selectedClub = CLUBS.find(c => c.id === selectedClubId);
       const { activeSeasonNumber } = getGlobalSeasonInfo();
-      const nowIso = new Date().toISOString();
       
-      const batch = writeBatch(db);
-      const rootRef = doc(db, 'players_v10', user.uid);
-      
-      const existingSquad = (ownedPlayers.length > 0 || youthAcademyPlayers.length > 0);
-      const uniqueSquad = existingSquad ? [] : getRandomStartingSquad();
-      
-      const rootData = cleanData({
-        id: user.uid,
-        email: profile?.email || null,
-        tgId: profile?.tgId || null,
+      const hasSquad = ownedPlayers.length > 0;
+      const startingSquad = hasSquad ? ownedPlayers : getRandomStartingSquad();
+
+      saveToLocal({
         selectedLeagueId,
-        leagueLevel: Number(placement.tier),
-        groupId: Number(placement.group),
-        rank: Number(placement.rank),
+        leagueLevel: 9,
+        groupId: 1,
+        rank: 1,
         country: selectedCountry?.name || 'International',
         clubName: customClubName.trim(),
-        displayName: customClubName.trim(), 
-        clubLogo: selectedClub?.logo || null,
-        setupDate: nowIso,
-        lastProcessedSeason: Number(activeSeasonNumber || 1),
-        trophies: profile?.trophies || [],
-        lastSeenMatchDay: 0,
-        createdAt: profile?.createdAt || nowIso,
-        version: SETUP_VERSION
-      });
-
-      batch.set(rootRef, rootData, { merge: true });
-
-      const seasonId = `season_${activeSeasonNumber || 1}`;
-      const prefixedGroupId = `${seasonId}_league_${selectedLeagueId}_group_${placement.group}`;
-      const teamRef = doc(db, 'leagues_v2', selectedLeagueId, 'divisions', String(placement.tier), 'groups', prefixedGroupId, 'teams', user.uid);
-      
-      const teamData = cleanData({
-        id: user.uid,
         displayName: customClubName.trim(),
-        clubName: customClubName.trim(),
         clubLogo: selectedClub?.logo || null,
-        credits: profile?.credits || 1000000, 
-        crystals: profile?.crystals || 50, 
-        experiencePoints: profile?.experiencePoints || 0, 
-        managerLevel: profile?.managerLevel || 1,
-        managerSkills: profile?.managerSkills || { sponsors: 0, agents: 0, training: 0, medical: 0 },
-        arena: profile?.arena || { capacity: 5000 }, 
-        hq: profile?.hq || {}, 
-        bootcamp: profile?.bootcamp || {}, 
-        academy: profile?.academy || {}, 
-        medical: profile?.medical || {},
-        lineup: existingSquad ? (profile?.lineup || {}) : { 
-          offlane: uniqueSquad[0]?.id, carry: uniqueSquad[1]?.id, mid: uniqueSquad[2]?.id, 
-          support: uniqueSquad[3]?.id, full_support: uniqueSquad[4]?.id, 
-          sub1: uniqueSquad[5]?.id, sub2: uniqueSquad[6]?.id
-        },
-        strategy: 'Balanced Play',
-        rank: Number(placement.rank),
-        lastProcessedSeason: Number(activeSeasonNumber || 1),
-        matchHistory: [],
-        createdAt: nowIso,
-        version: SETUP_VERSION
+        ownedPlayers: startingSquad,
+        isDataReady: true,
+        isTeamLoaded: true,
+        lastProcessedSeason: activeSeasonNumber
       });
 
-      batch.set(teamRef, teamData, { merge: true });
-
-      if (!existingSquad) {
-        uniqueSquad.forEach(hero => {
-          const heroRef = doc(collection(rootRef, 'heroes'), hero.id);
-          batch.set(heroRef, cleanData({ ...hero, isYouth: false }));
-        });
-      }
-
-      await batch.commit();
-      toast({ title: language === 'ru' ? "Профиль настроен!" : "Profile Configured!" });
-      
-      window.location.href = '/';
-    } catch (e: any) {
-      console.error("[SETUP v87 CRITICAL ERROR]", e);
-      toast({ variant: "destructive", title: "Setup Failed", description: e.message });
-    } finally {
-      setIsUpdating(false);
-    }
+      toast({ title: language === 'ru' ? "Клуб создан локально!" : "Club Created Locally!" });
+      router.push('/');
+    }, 1000);
   };
 
-  if (isUserLoading || !user || !isLoaded) return <LoadingScreen />;
+  if (!isLoaded) return <LoadingScreen />;
 
   const t = {
     ru: {
@@ -233,13 +81,9 @@ export default function SetupPage() {
       name: 'НАЗВАНИЕ КЛУБА',
       continue: 'ПРОДОЛЖИТЬ',
       finalize: 'ЗАВЕРШИТЬ ПРОФИЛЬ',
-      protocol: 'Операционный протокол v87',
+      protocol: 'Локальный протокол v200',
       msk: 'МСК',
       namePlaceholder: 'Введите название клуба...',
-      nameDesc: 'Это имя будет отображаться в чатах и таблицах.',
-      nameChecking: 'Синхронизация с реестром имен...',
-      nameTaken: 'Это название уже занято другим клубом',
-      nameAvailable: 'Название доступно для регистрации'
     },
     en: {
       league: 'MATCH TIME',
@@ -248,13 +92,9 @@ export default function SetupPage() {
       name: 'CLUB NAME',
       continue: 'CONTINUE',
       finalize: 'FINALIZE PROFILE',
-      protocol: 'Operational Protocol v87',
+      protocol: 'Local Protocol v200',
       msk: 'MSK',
       namePlaceholder: 'Enter club name...',
-      nameDesc: 'This name will be visible in chats and rankings.',
-      nameChecking: 'Syncing with global registry...',
-      nameTaken: 'This callsign is already assigned',
-      nameAvailable: 'Callsign available for deployment'
     }
   }[language === 'ru' ? 'ru' : 'en'];
 
@@ -306,7 +146,7 @@ export default function SetupPage() {
                   key={c.code} 
                   className={cn(
                     "glass-card border-white/5 cursor-pointer transition-all aspect-square flex items-center justify-center", 
-                    selectedCountryCode === c.code ? "ring-2 ring-accent bg-accent/10 shadow-[0_0_15px_rgba(var(--accent),0.2)]" : "hover:bg-white/5"
+                    selectedCountryCode === c.code ? "ring-2 ring-accent bg-accent/10" : "hover:bg-white/5"
                   )} 
                   onClick={() => setSelectedCountryCode(c.code)}
                 >
@@ -326,19 +166,12 @@ export default function SetupPage() {
                   key={c.id} 
                   className={cn(
                     "glass-card border-white/5 cursor-pointer transition-all overflow-hidden aspect-square flex items-center justify-center", 
-                    selectedClubId === c.id ? "ring-2 ring-primary bg-primary/10 shadow-[0_0_20px_rgba(var(--primary),0.2)]" : "hover:bg-white/5"
+                    selectedClubId === c.id ? "ring-2 ring-primary bg-primary/10" : "hover:bg-white/5"
                   )} 
                   onClick={() => setSelectedClubId(c.id)}
                 >
                   <CardContent className="p-0 flex items-center justify-center w-full h-full">
-                    <div className="relative w-full h-full flex items-center justify-center p-2">
-                      <img src={c.logo} alt={c.name} className="w-full h-full object-contain" />
-                      {selectedClubId === c.id && (
-                        <div className="absolute top-1 right-1 bg-primary rounded-full p-0.5 shadow-lg">
-                          <ShieldCheck className="w-2.5 h-2.5 text-primary-foreground" />
-                        </div>
-                      )}
-                    </div>
+                    <img src={c.logo} alt={c.name} className="w-full h-full object-contain p-2" />
                   </CardContent>
                 </Card>
               ))}
@@ -357,32 +190,8 @@ export default function SetupPage() {
                         value={customClubName} 
                         onChange={(e) => setCustomClubName(e.target.value)} 
                         placeholder={t.namePlaceholder}
-                        className={cn(
-                          "pl-12 h-14 bg-background/50 border-white/10 text-lg font-bold transition-all",
-                          nameStatus === 'taken' && "border-red-500 ring-1 ring-red-500/20",
-                          nameStatus === 'available' && "border-green-500 ring-1 ring-green-500/20"
-                        )}
+                        className="pl-12 h-14 bg-background/50 border-white/10 text-lg font-bold"
                        />
-                     </div>
-                     <div className="min-h-[20px] px-1 transition-all">
-                       {nameStatus === 'checking' && (
-                         <p className="text-[9px] text-muted-foreground animate-pulse flex items-center gap-1.5 uppercase font-bold">
-                           <Loader2 className="w-3 h-3 animate-spin" /> {t.nameChecking}
-                         </p>
-                       )}
-                       {nameStatus === 'taken' && (
-                         <p className="text-[9px] text-red-500 flex items-center gap-1.5 uppercase font-bold">
-                           <AlertCircle className="w-3 h-3" /> {t.nameTaken}
-                         </p>
-                       )}
-                       {nameStatus === 'available' && (
-                         <p className="text-[9px] text-green-500 flex items-center gap-1.5 uppercase font-bold">
-                           <CheckCircle2 className="w-3 h-3" /> {t.nameAvailable}
-                         </p>
-                       )}
-                       {nameStatus === 'idle' && (
-                         <p className="text-[9px] text-muted-foreground italic">{t.nameDesc}</p>
-                       )}
                      </div>
                    </div>
                  </div>
@@ -399,7 +208,7 @@ export default function SetupPage() {
                 (step === 'league' && !selectedLeagueId) || 
                 (step === 'country' && !selectedCountryCode) || 
                 (step === 'club' && !selectedClubId) ||
-                (step === 'name' && (customClubName.trim().length < 3 || nameStatus !== 'available'))
+                (step === 'name' && customClubName.trim().length < 3)
               } 
               onClick={() => {
                 if (step === 'league') setStep('country');
@@ -407,7 +216,7 @@ export default function SetupPage() {
                 else if (step === 'club') setStep('name');
                 else handleCompleteSetup();
               }} 
-              className="w-full h-16 hero-gradient font-black text-xs tracking-[0.2em] uppercase shadow-2xl active:scale-100 transition-all"
+              className="w-full h-16 hero-gradient font-black text-xs tracking-[0.2em] uppercase shadow-2xl"
             >
               {isUpdating ? <Loader2 className="animate-spin" /> : (step === 'name' ? t.finalize : t.continue)}
             </Button>

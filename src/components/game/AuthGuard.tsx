@@ -7,12 +7,11 @@ import { LoadingScreen } from './LoadingScreen';
 import { useGameState } from '@/app/lib/store';
 
 /**
- * STRATEGIC ROUTE GUARD v80 (Total Wipe Protocol)
- * Forces re-setup if the user version is old or empty to ensure proper initialization.
+ * ЛОКАЛЬНЫЙ ГАРД v2.0
+ * Работает без Firebase, проверяет только наличие настроенного профиля в локальном хранилище.
  */
 export function AuthGuard({ children }: { children: ReactNode }) {
-  const { user, isUserLoading } = useUser();
-  const { isLoaded, selectedLeagueId, country, version } = useGameState();
+  const { isLoaded, selectedLeagueId, country } = useGameState();
   const router = useRouter();
   const pathname = usePathname();
   
@@ -22,21 +21,10 @@ export function AuthGuard({ children }: { children: ReactNode }) {
   const isSetupPage = pathname === '/setup';
 
   useEffect(() => {
-    if (isUserLoading || !isLoaded) return;
+    if (!isLoaded) return;
 
-    // 1. IF NOT AUTHORIZED
-    if (!user) {
-      if (!isAuthPage && pathname !== '/') {
-        router.replace('/');
-      } else {
-        setIsInitialCheckDone(true);
-      }
-      return;
-    }
-
-    // 2. IF AUTHORIZED
-    // FORCE CLEAN SYNC VERSION 80
-    const needsSetup = !selectedLeagueId || !country || (Number(version || 0) < 80);
+    // В локальном режиме мы всегда "авторизованы" как local-manager
+    const needsSetup = !selectedLeagueId || !country;
     
     if (needsSetup) {
       if (!isSetupPage && !isAuthPage) {
@@ -45,15 +33,15 @@ export function AuthGuard({ children }: { children: ReactNode }) {
         setIsInitialCheckDone(true);
       }
     } else {
-      if (isSetupPage) {
+      if (isSetupPage || isAuthPage) {
         router.replace('/');
       } else {
         setIsInitialCheckDone(true);
       }
     }
-  }, [user, isUserLoading, isLoaded, selectedLeagueId, country, version, router, pathname, isAuthPage, isSetupPage]);
+  }, [isLoaded, selectedLeagueId, country, router, pathname, isAuthPage, isSetupPage]);
 
-  if (isUserLoading || (!isInitialCheckDone && !isAuthPage && !isSetupPage)) {
+  if (!isLoaded || (!isInitialCheckDone && !isAuthPage && !isSetupPage)) {
     return <LoadingScreen />;
   }
 
