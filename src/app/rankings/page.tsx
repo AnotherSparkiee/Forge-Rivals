@@ -1,11 +1,6 @@
 'use client';
 
-/**
- * @fileOverview Страница рейтингов v69 (Infinite Loading Fix). 
- * Добавлена устойчивость к медленной синхронизации Firestone.
- */
-
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGameState } from '../lib/store';
 import { 
@@ -16,76 +11,60 @@ import {
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { LEAGUES, MAX_LEVELS } from '../lib/leagues-data';
+import { LEAGUES, MAX_LEVELS, getStableGroupTeams } from '../lib/leagues-data';
 import { Badge } from '@/components/ui/badge';
-import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
-import { doc } from 'firebase/firestore';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import Link from 'next/link';
 
 type RankingTab = 'menu' | 'my_league' | 'my_pyramid' | 'all_pyramids' | 'cup';
 
+/**
+ * Локальная страница рейтингов v2.0.
+ * Удалены зависимости от Firebase, используется локальная генерация таблицы.
+ */
 export default function RankingsPage() {
-  const { user, isUserLoading } = useUser();
   const router = useRouter();
   const { 
     leagueLevel, groupId, isLoaded, language, 
-    selectedLeagueId, activeSeasonNumber, isDataReady
+    selectedLeagueId, clubName, clubLogo, rank, isDataReady
   } = useGameState();
-  const db = useFirestore();
   
   const [activeTab, setActiveTab] = useState<RankingTab>('menu');
   const [navLeague, setNavLeague] = useState<string | null>(null);
   const [navLevel, setNavLevel] = useState<number | null>(null);
   const [navGroup, setNavGroup] = useState<number | null>(null);
-  const [syncTimeout, setSyncTimeout] = useState(false);
 
-  useEffect(() => {
-    let timer: NodeJS.Timeout;
-    if (activeTab !== 'menu') {
-      timer = setTimeout(() => setSyncTimeout(true), 12000);
-    }
-    return () => {
-      clearTimeout(timer);
-      setSyncTimeout(false);
-    };
-  }, [activeTab, navGroup, navLevel, navLeague]);
+  const contextLeagueId = String(navLeague || selectedLeagueId || "ALPHA");
+  const contextLevel = Number(navLevel || leagueLevel || 9);
+  const contextGroup = Number(navGroup || groupId || 1);
 
-  const isMyLeagueTab = activeTab === 'my_league';
-  const contextLeagueId = isMyLeagueTab ? String(selectedLeagueId || "ALPHA") : String(navLeague || selectedLeagueId || "ALPHA");
-  const contextLevel = isMyLeagueTab ? Number(leagueLevel || 1) : Number(navLevel || leagueLevel || 1);
-  const contextGroup = isMyLeagueTab ? Number(navGroup || (isMyLeagueTab ? groupId : 1) || 1) : Number(navGroup || 1);
-
-  const safeTableId = useMemo(() => {
-    if (!activeSeasonNumber || !contextLeagueId || contextLeagueId === "null") return 'temp';
-    return `s${activeSeasonNumber}_l${contextLeagueId}_t${contextLevel}_g${contextGroup}`;
-  }, [activeSeasonNumber, contextLeagueId, contextLevel, contextGroup]);
-
-  const tableRef = useMemoFirebase(() => {
-    if (safeTableId === 'temp') return null;
-    return doc(db, 'league_tables_v1', safeTableId);
-  }, [db, safeTableId]);
-
-  const { data: tableData, isLoading: isTableLoading } = useDoc(tableRef);
-
+  // Генерируем локальные данные таблицы для отображения
   const standings = useMemo(() => {
-    if (!tableData || !tableData.teamData) return [];
+    if (!isLoaded || !selectedLeagueId) return [];
 
-    const list = (tableData.teamData).map((t: any) => {
-      const s = tableData.stats?.[t.id] || { points: 0, wins: 0, draws: 0, losses: 0, diff: 0, matchesPlayed: 0 };
-      return { ...t, ...s };
-    });
+    const teams = getStableGroupTeams(contextLevel, contextGroup, contextLeagueId, [
+      { id: 'local-manager', name: clubName || "Local Manager", rank: rank || 1, logo: clubLogo, isBot: false }
+    ]);
 
-    return list.sort((a: any, b: any) => b.points - a.points || b.diff - a.diff || a.name.localeCompare(b.name));
-  }, [tableData]);
+    return teams.map((t, i) => {
+      // Имитируем случайную статистику для ботов
+      const isMe = t.id === 'local-manager';
+      return {
+        ...t,
+        matchesPlayed: 14,
+        wins: isMe ? 8 : Math.floor(Math.random() * 6) + 4,
+        draws: 2,
+        losses: isMe ? 4 : Math.floor(Math.random() * 4) + 4,
+        points: isMe ? 26 : Math.floor(Math.random() * 20) + 10,
+        diff: isMe ? 12 : Math.floor(Math.random() * 10) - 5
+      };
+    }).sort((a, b) => b.points - a.points);
+  }, [isLoaded, contextLevel, contextGroup, contextLeagueId, clubName, clubLogo, rank, selectedLeagueId]);
 
   const t = {
     en: {
       title: "RANKINGS HUB", subtitle: "Global Competitive Terminals",
       pts: "PTS", winLoss: "W-D-L", m: "M", back: "Back",
-      syncing: "Synchronizing group data...",
-      timeout: "Initial sync is taking longer than usual. Please refresh the command center.",
-      noData: "Establishing Link with League Server...",
       promotion: "Promotion Zone", relegation: "Relegation Danger",
       menu: [
         { id: 'my_league', label: 'League Standings', desc: `Division ${leagueLevel}.${groupId}`, icon: Shield, color: 'text-primary' },
@@ -97,9 +76,6 @@ export default function RankingsPage() {
     ru: {
       title: "ТАБЛИЦЫ РЕЙТИНГА", subtitle: "Терминалы глобальных соревнований",
       pts: "О", winLoss: "В-Н-П", m: "И", back: "Назад",
-      syncing: "Синхронизация данных группы...",
-      timeout: "Первичная синхронизация занимает больше времени. Пожалуйста, обновите терминал.",
-      noData: "Установка связи с сервером лиги...",
       promotion: "Зона повышения", relegation: "Зона вылета",
       menu: [
         { id: 'my_league', label: 'Таблица Лиги', desc: `Дивизион ${leagueLevel}.${groupId}`, icon: Shield, color: 'text-primary' },
@@ -122,7 +98,7 @@ export default function RankingsPage() {
     router.push('/');
   };
 
-  if (isUserLoading || !isLoaded || !user || !isDataReady) return <LoadingScreen />;
+  if (!isLoaded || !isDataReady) return <LoadingScreen />;
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-24">
@@ -132,9 +108,9 @@ export default function RankingsPage() {
         </Button>
         <div>
           <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-white leading-none">
-            {activeTab === 'menu' ? t.title : (isMyLeagueTab ? t.menu[0].label : (activeTab === 'cup' ? t.menu[3].label : contextLeagueId))}
+            {activeTab === 'menu' ? t.title : contextLeagueId}
           </h1>
-          <p className="text-muted-foreground text-[10px] uppercase tracking-widest leading-none mt-1.5 font-black opacity-50">
+          <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-black opacity-50 mt-1.5">
             {activeTab === 'menu' ? t.subtitle : `DIV ${contextLevel} • GROUP ${contextGroup}`}
           </p>
         </div>
@@ -142,126 +118,16 @@ export default function RankingsPage() {
 
       {activeTab === 'menu' && (
         <div className="space-y-2">
-          {t.menu.map(item => {
-            const content = (
-              <Card key={item.id} className="glass-card border-white/5 hover:bg-white/5 transition-all cursor-pointer group" onClick={() => {
-                if (item.href) return;
-                setActiveTab(item.id as RankingTab);
-                setNavLeague(null); setNavLevel(null); setNavGroup(null);
-              }}>
-                <CardContent className="p-4 flex justify-between items-center">
-                  <div className="flex items-center gap-4">
-                    <div className={cn("p-2.5 rounded-xl bg-secondary/50", item.color)}><item.icon className="w-5 h-5" /></div>
-                    <div><h3 className="text-sm font-bold uppercase group-hover:text-white transition-colors">{item.label}</h3><p className="text-[10px] text-muted-foreground">{item.desc}</p></div>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-all" />
-                </CardContent>
-              </Card>
-            );
-
-            if (item.href) {
-              return <Link key={item.id} href={item.href} className="block">{content}</Link>;
-            }
-            return content;
-          })}
-        </div>
-      )}
-
-      {(activeTab === 'my_league' || navGroup) && (
-        <div className="space-y-4 animate-in fade-in duration-500">
-           <div className="flex items-center justify-between px-1">
-             <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase italic">DIV {contextLevel} • G {contextGroup}</Badge>
-             <span className="text-[10px] font-mono text-muted-foreground uppercase">LIVE STANDINGS</span>
-           </div>
-           
-           {(isTableLoading || !tableData || safeTableId === 'temp') ? (
-             <div className="py-20 text-center opacity-50 flex flex-col items-center gap-4">
-               <Loader2 className="w-8 h-8 animate-spin text-primary" />
-               <p className="text-[10px] uppercase font-black tracking-widest">{t.syncing}</p>
-               {syncTimeout && (
-                 <p className="text-[9px] text-red-400 font-bold uppercase italic animate-in fade-in">{t.timeout}</p>
-               )}
-             </div>
-           ) : standings.length === 0 ? (
-             <div className="py-20 text-center opacity-30 italic text-xs">{t.noData}</div>
-           ) : (
-             <div className="space-y-1">
-               <div className="grid grid-cols-[24px_1fr_25px_60px_35px] gap-1 px-3 py-2 text-[8px] font-black text-muted-foreground uppercase tracking-widest border-b border-white/5">
-                 <span>#</span><span>Team</span><span className="text-center">{t.m}</span><span className="text-center">{t.winLoss}</span><span className="text-right">{t.pts}</span>
-               </div>
-               {standings.map((entry: any, i: number) => {
-                 const pos = i + 1;
-                 const isMe = entry.id === user?.uid;
-                 const isPromotion = pos === 1 && contextLevel > 1;
-                 const isRelegation = pos >= 7 && contextLevel < 9;
-                 
-                 return (
-                  <div key={entry.id} className={cn(
-                    "grid grid-cols-[24px_1fr_25px_60px_35px] gap-1 items-center p-2.5 rounded-xl border mb-1 transition-all", 
-                    isMe ? "bg-primary/20 border-primary/40 shadow-[0_0_15px_rgba(var(--primary),0.1)]" : "bg-secondary/20 border-white/5",
-                    isPromotion && "border-l-4 border-l-green-500",
-                    isRelegation && "border-l-4 border-l-red-500"
-                  )}>
-                    <div className="text-[10px] font-black italic text-muted-foreground">{pos}</div>
-                    <div className="truncate flex items-center gap-1.5 min-w-0">
-                      <div className="w-4 h-4 rounded-full overflow-hidden flex items-center justify-center bg-secondary shrink-0 border border-white/5">
-                         {entry.logo ? (
-                           <img src={entry.logo} alt="Club" className="w-full h-full object-contain p-0.5" />
-                         ) : entry.isBot ? (
-                           <Bot className="w-2.5 h-2.5 opacity-30" />
-                         ) : (
-                           <User className="w-2.5 h-2.5 text-primary" />
-                         )}
-                      </div>
-                      <span className={cn("text-[10px] font-bold uppercase truncate", isMe ? "text-primary font-black" : "text-white")}>
-                        {entry.name}
-                      </span>
-                    </div>
-                    <div className="text-center font-mono text-[9px] text-muted-foreground">{entry.matchesPlayed || 0}</div>
-                    <div className="text-center font-mono text-[9px] text-muted-foreground/60">{entry.wins || 0}-{entry.draws || 0}-{entry.losses || 0}</div>
-                    <div className="text-right font-headline font-black text-primary italic pr-1">{entry.points || 0}</div>
-                  </div>
-                 );
-               })}
-             </div>
-           )}
-
-           {tableData && standings.length > 0 && (
-             <div className="p-4 bg-primary/5 rounded-2xl border border-white/5 space-y-2 mt-4">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-green-500" />
-                  <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.promotion}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-red-500" />
-                  <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.relegation}</p>
-                </div>
-             </div>
-           )}
-        </div>
-      )}
-
-      {activeTab === 'all_pyramids' && !navLeague && (
-        <div className="grid grid-cols-2 gap-2 animate-in slide-in-from-bottom-4">
-          {LEAGUES.map(l => (
-            <Card key={l.id} className="glass-card border-white/5 hover:bg-white/5 cursor-pointer active:scale-95 transition-all" onClick={() => setNavLeague(l.id)}>
-              <CardContent className="p-4 text-center">
-                <p className="text-sm font-headline font-bold text-white italic tracking-widest">{l.id}</p>
-                <p className="text-[8px] text-muted-foreground uppercase mt-1">Start: {l.startTime}</p>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
-
-      {(activeTab === 'my_pyramid' || (activeTab === 'all_pyramids' && navLeague)) && !navLevel && (
-        <div className="space-y-2 animate-in slide-in-from-right-4">
-          {Array.from({ length: MAX_LEVELS }, (_, i) => i + 1).map(lvl => (
-            <Card key={lvl} className="glass-card border-white/5 hover:bg-white/5 transition-all cursor-pointer" onClick={() => setNavLevel(lvl)}>
+          {t.menu.map(item => (
+            <Card key={item.id} className="glass-card border-white/5 hover:bg-white/5 transition-all cursor-pointer group" onClick={() => {
+              if (item.href) { router.push(item.href); return; }
+              setActiveTab(item.id as RankingTab);
+              setNavLeague(null); setNavLevel(null); setNavGroup(null);
+            }}>
               <CardContent className="p-4 flex justify-between items-center">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-secondary/50 flex items-center justify-center border border-white/5"><span className="text-xs font-headline font-bold text-primary">{lvl}</span></div>
-                  <span className="text-sm font-bold uppercase">Division {lvl}</span>
+                <div className="flex items-center gap-4">
+                  <div className={cn("p-2.5 rounded-xl bg-secondary/50", item.color)}><item.icon className="w-5 h-5" /></div>
+                  <div><h3 className="text-sm font-bold uppercase group-hover:text-white transition-colors">{item.label}</h3><p className="text-[10px] text-muted-foreground">{item.desc}</p></div>
                 </div>
                 <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-all" />
               </CardContent>
@@ -270,10 +136,73 @@ export default function RankingsPage() {
         </div>
       )}
 
+      {(activeTab === 'my_league' || navGroup) && (
+        <div className="space-y-4 animate-in fade-in duration-500">
+           <div className="flex items-center justify-between px-1">
+             <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase italic">DIV {contextLevel} • G {contextGroup}</Badge>
+             <span className="text-[10px] font-mono text-muted-foreground uppercase">LOCAL STANDINGS</span>
+           </div>
+           
+           <div className="space-y-1">
+             <div className="grid grid-cols-[24px_1fr_25px_60px_35px] gap-1 px-3 py-2 text-[8px] font-black text-muted-foreground uppercase tracking-widest border-b border-white/5">
+               <span>#</span><span>Team</span><span className="text-center">{t.m}</span><span className="text-center">{t.winLoss}</span><span className="text-right">{t.pts}</span>
+             </div>
+             {standings.map((entry: any, i: number) => {
+               const pos = i + 1;
+               const isMe = entry.id === 'local-manager';
+               return (
+                <div key={entry.id + i} className={cn(
+                  "grid grid-cols-[24px_1fr_25px_60px_35px] gap-1 items-center p-2.5 rounded-xl border mb-1 transition-all", 
+                  isMe ? "bg-primary/20 border-primary/40" : "bg-secondary/20 border-white/5"
+                )}>
+                  <div className="text-[10px] font-black italic text-muted-foreground">{pos}</div>
+                  <div className="truncate flex items-center gap-1.5 min-w-0">
+                    <div className="w-4 h-4 rounded-full bg-secondary overflow-hidden shrink-0">
+                       {entry.logo ? <img src={entry.logo} alt="" className="w-full h-full object-contain" /> : <Bot className="w-2.5 h-2.5 opacity-30 mx-auto mt-0.5" />}
+                    </div>
+                    <span className={cn("text-[10px] font-bold uppercase truncate", isMe ? "text-primary" : "text-white")}>
+                      {entry.name}
+                    </span>
+                  </div>
+                  <div className="text-center font-mono text-[9px] text-muted-foreground">{entry.matchesPlayed}</div>
+                  <div className="text-center font-mono text-[9px] text-muted-foreground/60">{entry.wins}-{entry.draws}-{entry.losses}</div>
+                  <div className="text-right font-headline font-black text-primary italic pr-1">{entry.points}</div>
+                </div>
+               );
+             })}
+           </div>
+        </div>
+      )}
+
+      {activeTab === 'all_pyramids' && !navLeague && (
+        <div className="grid grid-cols-2 gap-2">
+          {LEAGUES.map(l => (
+            <Card key={l.id} className="glass-card border-white/5 hover:bg-white/5 cursor-pointer" onClick={() => setNavLeague(l.id)}>
+              <CardContent className="p-4 text-center">
+                <p className="text-sm font-headline font-bold text-white italic tracking-widest">{l.id}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {(activeTab === 'my_pyramid' || (activeTab === 'all_pyramids' && navLeague)) && !navLevel && (
+        <div className="space-y-2">
+          {Array.from({ length: MAX_LEVELS }, (_, i) => i + 1).map(lvl => (
+            <Card key={lvl} className="glass-card border-white/5 hover:bg-white/5 cursor-pointer" onClick={() => setNavLevel(lvl)}>
+              <CardContent className="p-4 flex justify-between items-center">
+                <span className="text-sm font-bold uppercase">Division {lvl}</span>
+                <ChevronRight className="w-4 h-4 text-muted-foreground" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
       {navLevel && !navGroup && (
-        <div className="grid grid-cols-4 gap-2 animate-in zoom-in-95 max-h-[60vh] overflow-y-auto scrollbar-hide pb-10">
-          {Array.from({ length: Math.pow(2, navLevel - 1) }, (_, i) => i + 1).slice(0, 512).map(g => (
-            <Button key={g} variant="outline" className="h-10 border-white/5 bg-secondary/20 font-bold hover:bg-primary/20 hover:text-primary transition-all" onClick={() => setNavGroup(g)}>
+        <div className="grid grid-cols-4 gap-2">
+          {Array.from({ length: 8 }, (_, i) => i + 1).map(g => (
+            <Button key={g} variant="outline" className="h-10 border-white/5" onClick={() => setNavGroup(g)}>
               {g}
             </Button>
           ))}

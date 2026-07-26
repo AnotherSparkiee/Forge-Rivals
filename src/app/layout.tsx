@@ -10,12 +10,10 @@ import { BottomNav } from "@/components/game/BottomNav";
 import { AutoMatchManager } from "@/components/game/AutoMatchManager";
 import { DailyRewardManager } from "@/components/game/DailyRewardManager";
 import { GiftGenerationManager } from "@/components/game/GiftGenerationManager";
-import { TelegramSyncHandler } from "@/components/game/TelegramSyncHandler";
 import { AuthGuard } from "@/components/game/AuthGuard";
 import { Suspense } from 'react';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { usePathname } from 'next/navigation';
-import { useUser } from '@/firebase';
 import { cn } from '@/lib/utils';
 import Script from 'next/script';
 
@@ -33,7 +31,6 @@ function GameInterface({ children }: { children: React.ReactNode }) {
 
   return (
     <>
-      <TelegramSyncHandler />
       {needsWorldSync && <AutoMatchManager />}
       
       {showPreloader ? (
@@ -43,7 +40,6 @@ function GameInterface({ children }: { children: React.ReactNode }) {
           {!isAuthOrSetup && isDataReady && <TopBar />}
           {!isAuthOrSetup && isDataReady && (
             <>
-              {/* Firebase-зависимые слушатели временно отключены для локального режима */}
               <DailyRewardManager />
               <GiftGenerationManager />
             </>
