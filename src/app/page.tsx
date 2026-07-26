@@ -6,7 +6,7 @@ import {
   CalendarDays, Medal, ArrowRightLeft, 
   Shield, Construction, Briefcase, 
   LineChart, Heart, Newspaper, Settings, Search, Tv, User as UserIcon, UserCheck,
-  Radar, LayoutList, Swords, Timer, ShieldAlert, CalendarClock
+  Radar, LayoutList, Swords, Timer, ShieldAlert, CalendarClock, Clock
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import Link from 'next/link';
