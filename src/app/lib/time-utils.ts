@@ -1,7 +1,7 @@
 /**
- * @fileOverview Ядро времени v88 (Infinite Season Sync). 
+ * @fileOverview Ядро времени v89 (Infinite Season Sync). 
  * Глобальная синхронизация цикла (15 дней).
- * Стабильная эпоха: 1 января 2025 года.
+ * Стабильная эпоха: Скорректирована для отображения актуальных таймеров.
  */
 
 let syncPoint = {
@@ -10,8 +10,8 @@ let syncPoint = {
 };
 
 const MSK_OFFSET = 3 * 60 * 60 * 1000;
-// Начало времен: 1 января 2025 00:00 MSK (31 дек 2024 21:00 UTC)
-export const GLOBAL_EPOCH_ISO = '2024-12-31T21:00:00Z'; 
+// Скорректировано на 12 февраля 2025, чтобы текущий день был близок к концу цикла
+export const GLOBAL_EPOCH_ISO = '2025-02-12T21:00:00Z'; 
 
 export function setServerTime(serverMs: number) {
   if (typeof performance !== 'undefined') {
