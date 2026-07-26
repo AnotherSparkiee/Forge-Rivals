@@ -91,7 +91,6 @@ export default function SquadPage() {
     activeLabel: language === 'ru' ? "Основа (Core 5)" : "Core Five (5)",
     subsLabel: language === 'ru' ? "Запас (Subs 5)" : "Direct Subs (5)",
     reservesLabel: language === 'ru' ? `Резерв (${squadLimit - 10})` : `Reserves (${squadLimit - 10})`,
-    fullSquadLabel: language === 'ru' ? "ВСЕ ИГРОКИ КЛУБА" : "ALL CLUB PLAYERS",
     emptySlot: language === 'ru' ? "Назначить" : "Assign",
     teamOverall: language === 'ru' ? "ОБЩ" : "OVR",
     selectPlayer: language === 'ru' ? "Выберите игрока" : "Select player",
@@ -110,15 +109,15 @@ export default function SquadPage() {
     roles: {
       carry: { label: language === 'ru' ? "Керри" : "Carry", icon: Sword, color: "text-red-400" },
       mid: { label: language === 'ru' ? "Мидер" : "Midlaner", icon: Sparkles, color: "text-blue-400" },
-      offlane: { label: language === 'ru' ? "Танк (Off)" : "Offlaner", icon: Shield, color: "text-orange-400" },
-      support: { label: language === 'ru' ? "Лес (Pos 4)" : "Support", icon: Zap, color: "text-yellow-400" },
-      full_support: { label: language === 'ru' ? "Саппорт (Pos 5)" : "Full Support", icon: HeartPulse, color: "text-green-400" },
+      offlane: { label: language === 'ru' ? "Танк" : "Offlaner", icon: Shield, color: "text-orange-400" },
+      support: { label: language === 'ru' ? "Лес" : "Support", icon: Zap, color: "text-yellow-400" },
+      full_support: { label: language === 'ru' ? "Саппорт" : "Full Support", icon: HeartPulse, color: "text-green-400" },
       
-      sub_carry: { label: language === 'ru' ? "Зап. Керри" : "Sub Carry", icon: Sword, color: "text-red-400" },
-      sub_mid: { label: language === 'ru' ? "Зап. Мидер" : "Sub Midlaner", icon: Sparkles, color: "text-blue-400" },
-      sub_offlane: { label: language === 'ru' ? "Зап. Танк" : "Sub Offlaner", icon: Shield, color: "text-orange-400" },
-      sub_support: { label: language === 'ru' ? "Зап. Лес" : "Sub Support", icon: Zap, color: "text-yellow-400" },
-      sub_full_support: { label: language === 'ru' ? "Зап. Саппорт" : "Sub Full Support", icon: HeartPulse, color: "text-green-400" },
+      sub_carry: { label: language === 'ru' ? "Керри" : "Carry", icon: Sword, color: "text-red-400" },
+      sub_mid: { label: language === 'ru' ? "Мидер" : "Midlaner", icon: Sparkles, color: "text-blue-400" },
+      sub_offlane: { label: language === 'ru' ? "Танк" : "Offlaner", icon: Shield, color: "text-orange-400" },
+      sub_support: { label: language === 'ru' ? "Лес" : "Support", icon: Zap, color: "text-yellow-400" },
+      sub_full_support: { label: language === 'ru' ? "Саппорт" : "Full Support", icon: HeartPulse, color: "text-green-400" },
       
       res1: { label: language === 'ru' ? "Резерв" : "Reserve", icon: User, color: "text-muted-foreground" },
       res2: { label: language === 'ru' ? "Резерв" : "Reserve", icon: User, color: "text-muted-foreground" },
@@ -256,11 +255,11 @@ export default function SquadPage() {
               <div className="flex items-center gap-3 shrink-0 border-l border-white/5 pl-3">
                 <div className="flex flex-col items-center min-w-[24px]">
                   <p className="text-[6px] font-black text-muted-foreground uppercase tracking-tighter mb-0.5">{t.metrics.form}</p>
-                  <span className={cn("text-lg font-headline font-bold italic leading-none", getStatusColor(player.form))}>{player.form}</span>
+                  <span className={cn("text-lg font-headline font-bold italic", getStatusColor(player.form))}>{player.form}</span>
                 </div>
                 <div className="flex flex-col items-center min-w-[24px]">
                   <p className="text-[6px] font-black text-muted-foreground uppercase tracking-tighter mb-0.5">{t.metrics.fatigue}</p>
-                  <span className={cn("text-lg font-headline font-bold italic leading-none", getStatusColor(player.fatigue))}>{player.fatigue}</span>
+                  <span className={cn("text-lg font-headline font-bold italic", getStatusColor(player.fatigue))}>{player.fatigue}</span>
                 </div>
                 <div className="flex flex-col items-center min-w-[28px]">
                   <p className="text-[6px] font-black text-primary uppercase tracking-widest mb-0.5">{t.metrics.overall}</p>
@@ -332,45 +331,6 @@ export default function SquadPage() {
             <div className="space-y-1.5">{ reserveSlots.map(renderSlot) }</div>
           </section>
         )}
-
-        {/* FULL SQUAD LISTING */}
-        <section className="space-y-3 pt-4 border-t border-white/5">
-           <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-primary px-1 flex items-center gap-2">
-             <Users className="w-3.5 h-3.5" /> {t.fullSquadLabel}
-           </h2>
-           <div className="space-y-1.5">
-             {ownedPlayers.map(p => {
-               const isAssigned = assignedPlayerIds.has(p.id);
-               return (
-                 <Card key={p.id} className={cn(
-                   "glass-card border-white/5 transition-all overflow-hidden",
-                   isAssigned ? "opacity-50" : "hover:bg-white/5 cursor-pointer"
-                 )} onClick={() => !isAssigned && setProfilePlayer(p)}>
-                    <CardContent className="p-2 flex items-center justify-between gap-3">
-                       <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-lg overflow-hidden bg-secondary/50 border border-white/10 shrink-0">
-                            <img src={p.image} alt="" className="w-full h-full object-cover" />
-                          </div>
-                          <div>
-                            <h4 className="text-[11px] font-bold uppercase text-white truncate max-w-[120px]">{p.name}</h4>
-                            <div className="flex items-center gap-2 mt-0.5">
-                               <Badge variant="outline" className="text-[6px] h-3 px-1 border-white/10 uppercase opacity-60">
-                                 {rolesRu[p.role] || p.role}
-                               </Badge>
-                               {isAssigned && <span className="text-[7px] font-black text-primary uppercase">В СОСТАВЕ</span>}
-                            </div>
-                          </div>
-                       </div>
-                       <div className="flex flex-col items-end border-l border-white/5 pl-3 min-w-[40px]">
-                          <p className="text-[6px] font-black text-muted-foreground uppercase tracking-widest mb-0.5">OVR</p>
-                          <span className="text-sm font-headline font-bold text-accent italic leading-none">{p.overallRating}</span>
-                       </div>
-                    </CardContent>
-                 </Card>
-               );
-             })}
-           </div>
-        </section>
       </div>
 
       <Dialog open={!!managedSlot} onOpenChange={() => setManagedSlot(null)}>
@@ -459,7 +419,10 @@ export default function SquadPage() {
                     <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]"><span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Возраст' : 'Age'}</span><span className="text-[10px] font-bold">{calculateLiveAge(profilePlayer.baseAge, profilePlayer.hiredAt).display} {language === 'ru' ? 'лет' : 'yrs'}</span></div>
                     <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]"><span className="text-[9px] font-bold text-muted-foreground uppercase whitespace-nowrap">{language === 'ru' ? 'Талант' : 'Talent'}</span><div className="flex items-center">{renderStars(Math.max(...Object.values(profilePlayer.proTalents || {}).map(v => normTalent(v))))}</div></div>
                     <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]"><span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Зарплата' : 'Salary'}</span><span className="text-[10px] font-bold text-primary">€{(profilePlayer.salary || 0).toLocaleString()}</span></div>
-                    <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]"><span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Роль' : 'Role'}</span><span className="text-[10px] font-bold uppercase">{rolesRu[profilePlayer.role] || profilePlayer.role}</span></div>
+                    <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]">
+                       <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Роль' : 'Role'}</span>
+                       <span className="text-[10px] font-bold uppercase">{rolesRu[profilePlayer.role] || profilePlayer.role}</span>
+                    </div>
                     <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]"><span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'ФРМ' : 'FRM'}</span><span className={cn("text-lg font-headline font-bold italic", getStatusColor(profilePlayer.form))}>{profilePlayer.form}</span></div>
                     <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]"><span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'УСТ' : 'UST'}</span><span className={cn("text-lg font-headline font-bold italic", getStatusColor(profilePlayer.fatigue))}>{profilePlayer.fatigue}</span></div>
                   </div>
