@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview ТУРНИРНЫЙ ХАБ v2.1.
- * Возвращена вкладка "Пробный матч" под "Открытые турниры".
+ * @fileOverview ТУРНИРНЫЙ ХАБ v2.2.
+ * Исправлена работа Пробного матча (теперь полностью локально).
  */
 
 import { useEffect, useState, useMemo } from 'react';
@@ -29,7 +29,7 @@ export default function TournamentsPage() {
   const router = useRouter();
   const db = useFirestore();
   const { toast } = useToast();
-  const { language, isLoaded, displayName } = useGameState();
+  const { language, isLoaded, displayName, runTrialMatch } = useGameState();
   const [isActionLoading, setIsActionLoading] = useState(false);
 
   const myLobbyRef = useMemoFirebase(() => {
@@ -85,23 +85,8 @@ export default function TournamentsPage() {
     }
   }[language === 'ru' ? 'ru' : 'en'];
 
-  if (!db) {
-    return (
-      <div className="max-w-md mx-auto px-4 pt-8 pb-32 text-center">
-        <header className="mb-8 flex items-center gap-4 text-left">
-          <Link href="/"><Button variant="ghost" size="icon" className="rounded-full"><ChevronLeft className="w-6 h-6" /></Button></Link>
-          <div><h1 className="text-2xl font-headline font-bold uppercase">{t.title}</h1></div>
-        </header>
-        <div className="py-20 opacity-30 flex flex-col items-center gap-6">
-           <Lock className="w-16 h-16" />
-           <p className="text-xs font-black uppercase tracking-widest">{t.offline}</p>
-        </div>
-      </div>
-    );
-  }
-
   const handleToggleLobby = async () => {
-    if (!user || isActionLoading) return;
+    if (!user || isActionLoading || !db) return;
     setIsActionLoading(true);
     try {
       if (myLobby) {
@@ -122,27 +107,20 @@ export default function TournamentsPage() {
   };
 
   const handleStartTrial = async () => {
-    if (!user || isActionLoading) return;
-    if (myLobby || myBasket) {
-      toast({ 
-        title: language === 'ru' ? "Завершите текущий поиск" : "Complete active search first", 
-        variant: "destructive" 
-      });
-      return;
-    }
+    if (isActionLoading) return;
     setIsActionLoading(true);
     try {
-      // Создаем лобби, которое уже "бросило вызов" ботом
-      await setDoc(doc(db, 'friendly_lobbies_v3', user.uid), {
-        hostId: user.uid,
-        hostName: displayName || "Manager",
-        status: 'challenged',
-        challengerId: 'sys_training_bot',
-        challengerName: language === 'ru' ? 'Тренировочный Бот' : 'Training Bot',
-        isTrial: true,
-        updatedAt: serverTimestamp()
-      });
-      toast({ title: language === 'ru' ? "Вызов бота инициирован" : "Bot challenge initiated" });
+      const matchId = await runTrialMatch();
+      if (matchId) {
+        toast({ title: language === 'ru' ? "Пробный матч завершен!" : "Trial match finished!" });
+        router.push(`/match?id=${matchId}`);
+      } else {
+        toast({ 
+          variant: "destructive",
+          title: language === 'ru' ? "Ошибка" : "Error",
+          description: language === 'ru' ? "Назначьте 5 игроков в основу!" : "Assign 5 players to core squad!" 
+        });
+      }
     } catch (e) {
       console.error(e);
     } finally {
@@ -159,7 +137,9 @@ export default function TournamentsPage() {
           </Button>
         </Link>
         <div>
-          <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-white">{t.title}</h1>
+          <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-white">
+            {t.title}
+          </h1>
           <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-black opacity-50">{t.subtitle}</p>
         </div>
       </header>

@@ -1,9 +1,9 @@
 'use client';
 
 /**
- * Глобальное локальное хранилище v217 (Autonomous Mode).
- * Полностью удалена зависимость от облачной синхронизации для устранения ошибок доступа.
- * Все данные сохраняются в localStorage.
+ * Глобальное локальное хранилище v218 (Autonomous Mode).
+ * Полностью удалена зависимость от облачной синхронизации.
+ * Добавлена локальная симуляция Пробного матча.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useMemo } from 'react';
@@ -119,6 +119,7 @@ interface GameState {
   claimGift: (gift: Gift) => Promise<boolean>;
   generateDailyGifts: (gifts: Gift[]) => void;
   
+  runTrialMatch: () => Promise<string | null>;
   saveToLocal: (state: Partial<GameState>) => void;
 }
 
@@ -159,6 +160,7 @@ const DEFAULT_STATE: GameState = {
   payStaffSalaries: async () => {}, healPlayer: () => {}, launchFanCampaign: () => {},
   addTrophy: () => {}, setWorldReady: () => {}, resetProfile: async () => {},
   sendGift: async () => false, claimGift: async () => false, generateDailyGifts: () => {},
+  runTrialMatch: async () => null,
   saveToLocal: () => {}
 };
 
@@ -400,13 +402,56 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   const setWorldReady = useCallback((ready: boolean) => setState(prev => ({ ...prev, isDataReady: ready })), []);
 
+  const runTrialMatch = useCallback(async () => {
+    const activeSlots: LineupSlot[] = ['carry', 'mid', 'offlane', 'support', 'full_support'];
+    const squad = activeSlots.map(s => state.ownedPlayers.find(p => p.id === state.lineup[s])).filter(Boolean) as Player[];
+    
+    if (squad.length < 5) return null;
+
+    const clubName = state.clubName || "My Club";
+    const opponentName = "Training Bot";
+    const mId = `trial_${Date.now()}`;
+    const now = new Date().toISOString();
+
+    const simulation = {
+      winner: clubName,
+      seriesScore: "1-0",
+      games: [{
+        scoreA: 1, scoreB: 0,
+        duration: "32:00",
+        mvp: squad[0].name,
+        matchSummary: "Solid local trial victory.",
+        towersA: 11, towersB: 3,
+        objectivesA: 4, objectivesB: 1,
+        teamAOvr: Math.round(squad.reduce((a, p) => a + p.overallRating, 0) / 5),
+        teamBOvr: 25,
+        timeline: [
+          { time: "05:00", type: "kill", event: `${squad[0].name} gets first blood!`, score: "1:0" },
+          { time: "15:00", type: "tower", event: `${clubName} destroys mid tower!`, score: "1:0" },
+          { time: "32:00", type: "objective", event: "Final push successful!", score: "1:0" }
+        ],
+        scoreboard: [
+          ...squad.map(p => ({ name: p.name, team: clubName, role: p.role, kills: 2, deaths: 0, assists: 5, cs: 150, matchRating: 8.5, image: p.image })),
+          { name: "Bot1", team: opponentName, role: "Carry", kills: 0, deaths: 2, assists: 0, cs: 100, matchRating: 5.0 }
+        ],
+        teamComparison: {
+          farm: [70, 30], tactics: [60, 40], teamwork: [80, 20], reflexes: [75, 25]
+        }
+      }]
+    };
+
+    recordMatch(clubName, simulation, 0, opponentName, 'trial', now, mId);
+    return mId;
+  }, [state, recordMatch]);
+
   const value = useMemo(() => ({
     ...state,
     addCrystals, addCredits, updatePlayer, removePlayer, assignToRole, updateLineup, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage, setTrainingFocus, startDailyPlayerTraining, claimDailyPlayerTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, trainHeroSkill, addPlayerDirectly, addYouthPlayerDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, healPlayer, launchFanCampaign, scoutCandidates, recruitCandidate, clearScoutingReport, upgradeManagerSkill, startArenaConstruction, resetProfile, setWorldReady,
     generateDailyGifts: (gifts: Gift[]) => saveToLocal({ availableGiftsToSend: gifts, lastGiftGenDate: getMoscowDateString() }),
     sendGift: async () => true, claimGift: async () => true,
+    runTrialMatch,
     saveToLocal
-  }), [state, addCrystals, addCredits, updatePlayer, removePlayer, assignToRole, updateLineup, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage, setTrainingFocus, startDailyPlayerTraining, claimDailyPlayerTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, trainHeroSkill, addPlayerDirectly, addYouthPlayerDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, healPlayer, launchFanCampaign, scoutCandidates, recruitCandidate, clearScoutingReport, upgradeManagerSkill, startArenaConstruction, resetProfile, setWorldReady, saveToLocal]);
+  }), [state, addCrystals, addCredits, updatePlayer, removePlayer, assignToRole, updateLineup, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage, setTrainingFocus, startDailyPlayerTraining, claimDailyPlayerTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, trainHeroSkill, addPlayerDirectly, addYouthPlayerDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, healPlayer, launchFanCampaign, scoutCandidates, recruitCandidate, clearScoutingReport, upgradeManagerSkill, startArenaConstruction, resetProfile, setWorldReady, runTrialMatch, saveToLocal]);
 
   return <GameStateContext.Provider value={value}>{children}</GameStateContext.Provider>;
 }
