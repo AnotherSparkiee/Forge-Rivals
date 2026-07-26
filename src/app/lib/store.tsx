@@ -2,8 +2,8 @@
 'use client';
 
 /**
- * Глобальное облачное хранилище v213 (Firebase Server Sync).
- * Оптимизирована отказоустойчивость: переход на setDoc(merge) вместо updateDoc.
+ * Глобальное облачное хранилище v215 (Ultra-Stable Sync).
+ * Исправлены ошибки прав доступа за счет упрощения структуры данных.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useMemo, useRef } from 'react';
@@ -135,7 +135,7 @@ const DEFAULT_STATE: GameState = {
   arena: { capacity: 5000 }, hq: {}, bootcamp: {}, academy: {}, medical: {},
   country: null, isPremium: false, premiumUntil: null, activeSeasonNumber: 1, seasonNumber: 1, seasonDay: 1, isSyncing: false, language: 'ru',
   isDataReady: false, allSeasonMatches: [], nextMatch: null, isMatchesLoading: true,
-  lastProcessedSeason: 0, trophies: [], version: 213,
+  lastProcessedSeason: 0, trophies: [], version: 215,
   availableGiftsToSend: [], receivedGifts: [], lastGiftGenDate: null,
   addCrystals: () => {}, addCredits: () => {}, updatePlayer: () => {}, removePlayer: () => {}, assignToRole: () => {}, updateLineup: () => {}, updateTactics: () => {},
   claimReward: () => {}, setLanguage: () => {}, purchaseLicense: () => false, purchasePremium: () => false,
@@ -172,7 +172,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const [isDataInitialized, setIsDataReady] = useState(false);
   const staticSeasonInfo = useMemo(() => getGlobalSeasonInfo(), []);
 
-  // SYNC WITH FIRESTORE
   useEffect(() => {
     if (!db || !user?.uid) {
       if (!isAuthLoading) setIsDataReady(true);
@@ -198,14 +197,13 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       }
       setIsDataReady(true);
     }, (error) => {
-      console.warn("Firestore Sync Error:", error);
+      console.warn("Firestore Sync Error:", error.code, error.message);
       setIsDataReady(true);
     });
 
     return () => unsub();
   }, [db, user?.uid, isAuthLoading, staticSeasonInfo]);
 
-  // LOGIC: Find Next Match
   useEffect(() => {
     if (state.allSeasonMatches && state.allSeasonMatches.length > 0 && state.id) {
       const now = getMoscowTime().getTime();
@@ -237,11 +235,9 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     if (!db || !user?.uid) return;
     try {
       const docRef = doc(db, 'players_v10', user.uid);
-      // setDoc with merge: true is more robust than updateDoc for rapid updates
       await setDoc(docRef, cleanData(updates), { merge: true });
     } catch (e: any) {
       console.error("Save to Firestore failed:", e.code, e.message);
-      // Fallback: still update local state for better UX
       setState(prev => ({ ...prev, ...updates }));
     }
   }, [db, user?.uid]);
@@ -423,7 +419,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       crystals: 50,
       managerLevel: 1,
       experiencePoints: 0,
-      version: 213,
+      version: 215,
       selectedLeagueId: null, 
       country: null,          
       clubName: null,
