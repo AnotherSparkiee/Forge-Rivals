@@ -6,7 +6,7 @@ import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { useGameState } from '@/app/lib/store';
 import { 
   ChevronLeft, ShoppingBasket, Search, Swords, 
-  Loader2, Radar, ShieldAlert, Timer, Users, User
+  Loader2, Radar, ShieldAlert, Timer, Users, User, Lock
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -25,13 +25,25 @@ export default function CWBasketPage() {
   const { language, isLoaded } = useGameState();
   const [isActionLoading, setIsActionLoading] = useState(false);
 
-  const myEntryRef = useMemoFirebase(() => user ? doc(db, 'cw_basket_v2', user.uid) : null, [db, user]);
+  const myEntryRef = useMemoFirebase(() => {
+    if (!db || !user) return null;
+    return doc(db, 'cw_basket_v2', user.uid);
+  }, [db, user]);
+  
   const { data: myEntry, isLoading: isEntryLoading } = useDoc(myEntryRef);
 
-  const myLobbyRef = useMemoFirebase(() => user ? doc(db, 'friendly_lobbies_v3', user.uid) : null, [db, user]);
+  const myLobbyRef = useMemoFirebase(() => {
+    if (!db || !user) return null;
+    return doc(db, 'friendly_lobbies_v3', user.uid);
+  }, [db, user]);
+  
   const { data: myLobby } = useDoc(myLobbyRef);
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => {
+    if (!db || !user) return null;
+    return doc(db, 'players_v10', user.uid);
+  }, [db, user]);
+  
   const { data: profile } = useDoc(userRef);
 
   useEffect(() => {
@@ -42,7 +54,7 @@ export default function CWBasketPage() {
 
   const isBusy = useMemo(() => !!myLobby && !myEntry, [myLobby, myEntry]);
 
-  if (isUserLoading || !isLoaded || !user || isEntryLoading) {
+  if (isUserLoading || !isLoaded || !user) {
     return <LoadingScreen />;
   }
 
@@ -59,7 +71,8 @@ export default function CWBasketPage() {
       toastFound: "Match Found!",
       toastFoundDesc: "Your tactical engagement is being prepared.",
       busy: "Operational Conflict",
-      busyDesc: "You have a scheduled Friendly or Trial match. Complete it first."
+      busyDesc: "You have a scheduled Friendly or Trial match. Complete it first.",
+      offline: "OFFLINE: Basket terminal restricted."
     },
     ru: {
       title: "КВ КОРЗИНА",
@@ -73,11 +86,27 @@ export default function CWBasketPage() {
       toastFound: "Соперник найден!",
       toastFoundDesc: "Ваше тактическое сражение подготавливается.",
       busy: "Оперативный конфликт",
-      busyDesc: "У вас уже назначен Дружеский или Пробный матч. Завершите его сначала."
+      busyDesc: "У вас уже назначен Дружеский или Пробный матч. Завершите его сначала.",
+      offline: "ОФЛАЙН: Терминал подбора КВ недоступен."
     }
   };
 
   const t = translations[language as keyof typeof translations] || translations.ru;
+
+  if (!db) {
+    return (
+      <div className="max-w-md mx-auto px-4 pt-8 text-center">
+        <header className="mb-6 flex items-center gap-4">
+          <Link href="/tournaments"><Button variant="ghost" size="icon" className="rounded-full"><ChevronLeft className="w-6 h-6" /></Button></Link>
+          <div><h1 className="text-2xl font-headline font-bold uppercase">{t.title}</h1></div>
+        </header>
+        <div className="py-20 opacity-30 flex flex-col items-center gap-6">
+           <Lock className="w-16 h-16" />
+           <p className="text-xs font-black uppercase tracking-widest">{t.offline}</p>
+        </div>
+      </div>
+    );
+  }
 
   const handleToggleSearch = async () => {
     if (!user || !profile || isActionLoading) return;
@@ -222,7 +251,7 @@ export default function CWBasketPage() {
               isSearching ? "bg-red-500/10 border-red-500/20 text-red-400 hover:bg-red-500/20" : "hero-gradient"
             )}
             onClick={handleToggleSearch}
-            disabled={isActionLoading}
+            disabled={isActionLoading || isEntryLoading}
           >
             {isActionLoading ? <Loader2 className="w-6 h-6 animate-spin" /> : isSearching ? t.stopSearch : t.startSearch}
           </Button>

@@ -51,7 +51,11 @@ export default function IronKettlePage() {
   const simLockRef = useRef<Set<string>>(new Set());
   const rewardClaimedRef = useRef<string | null>(null);
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => {
+    if (!db || !user) return null;
+    return doc(db, 'players_v10', user.uid);
+  }, [db, user]);
+  
   const { data: profile } = useDoc(userRef);
 
   // Уникальный ID инстанса турнира для текущего часа
@@ -69,6 +73,7 @@ export default function IronKettlePage() {
   }, []);
 
   const participantsQuery = useMemoFirebase(() => {
+    if (!db) return null;
     return query(collection(db, 'players_v10'), where('tournaments', 'array-contains', tournamentInstanceId));
   }, [db, tournamentInstanceId]);
 
@@ -133,12 +138,12 @@ export default function IronKettlePage() {
   }, []);
 
   const tournamentData = useMemo(() => {
-    if (status === 'IDLE' || !activeTourHour || !user) return null;
+    if (!db || status === 'IDLE' || !activeTourHour || !user) return null;
     return getKettleTournamentData(getMoscowDateString(), activeTourHour, participants || [], user.uid, getMoscowTime());
-  }, [status, activeTourHour, participants, user]);
+  }, [db, status, activeTourHour, participants, user]);
 
   useEffect(() => {
-    if (status !== 'LIVE' || !tournamentData || !isJoined || !user || !tournamentInstanceId) return;
+    if (!db || status !== 'LIVE' || !tournamentData || !isJoined || !user || !tournamentInstanceId) return;
 
     const runAutoSim = async () => {
       const now = getMoscowTime();
@@ -243,10 +248,10 @@ export default function IronKettlePage() {
   }, [status, tournamentData, isJoined, user, activeTourHour, ownedPlayers, lineup, strategy, staff, bootcamp, db, profile, recordMatch, language, tournamentInstanceId, addCredits, addTrophy, toast]);
 
   const handleJoin = async () => {
-    if (!user || !profile || isJoining || status !== 'REG_OPEN' || credits < TOURNAMENT_FEE) return;
+    if (!user || !profile || isJoining || status !== 'REG_OPEN' || credits < TOURNAMENT_FEE || !userRef) return;
     setIsJoining(true);
     try {
-      await updateDoc(userRef!, { 
+      await updateDoc(userRef, { 
         tournaments: arrayUnion(tournamentInstanceId) 
       });
       addCredits(-TOURNAMENT_FEE);

@@ -25,10 +25,6 @@ const START_TIME = "21:05";
 const REG_CLOSE_TIME = "20:50"; 
 const MAX_PARTICIPANTS = 16;
 
-/**
- * Deterministic helper to get tournament structure.
- * Updated with W-L, Games, Points stats.
- */
 export function getDeterministicTournament(
   dateStr: string, 
   participants: any[], 
@@ -96,10 +92,15 @@ export default function IronGlobePage() {
   const activeRecordRef = useRef(false);
   const finalResultRef = useRef(false);
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => {
+    if (!db || !user) return null;
+    return doc(db, 'players_v10', user.uid);
+  }, [db, user]);
+  
   const { data: profile } = useDoc(userRef);
 
   const participantsQuery = useMemoFirebase(() => {
+    if (!db) return null;
     return query(collection(db, 'players_v10'), where('tournaments', 'array-contains', 'iron-globe'));
   }, [db]);
 
@@ -157,7 +158,7 @@ export default function IronGlobePage() {
       const alreadyHasActive = (profile.tournamentHistory || []).some(
         (h: any) => h.tournamentId === 'iron-globe' && h.status === 'active' && h.startDate.includes(today)
       );
-      if (!alreadyHasActive) {
+      if (!alreadyHasActive && userRef) {
         activeRecordRef.current = true;
         const activeRecord = {
           tournamentId: 'iron-globe',
@@ -185,16 +186,18 @@ export default function IronGlobePage() {
         }
         return h;
       });
-      updateDoc(userRef, { tournamentHistory: updatedHistory, tournaments: (profile.tournaments || []).filter((t: string) => t !== 'iron-globe') });
+      if (userRef) {
+        updateDoc(userRef, { tournamentHistory: updatedHistory, tournaments: (profile.tournaments || []).filter((t: string) => t !== 'iron-globe') });
+      }
       toast({ title: language === 'ru' ? "Турнир окончен" : "Tournament Ended" });
     }
   }, [hasFinished, isJoined, userRef, profile, language, toast, recordMatch, tournamentData]);
 
   const handleJoin = async () => {
-    if (!user || !profile || isJoining || isRegClosed || credits < TOURNAMENT_FEE) return;
+    if (!user || !profile || isJoining || isRegClosed || credits < TOURNAMENT_FEE || !userRef) return;
     setIsJoining(true);
     try {
-      await updateDoc(userRef!, { tournaments: arrayUnion('iron-globe') });
+      await updateDoc(userRef, { tournaments: arrayUnion('iron-globe') });
       addCredits(-TOURNAMENT_FEE);
       toast({ title: language === 'ru' ? "Вы зарегистрированы!" : "Successfully registered!" });
     } finally { setIsJoining(false); }
@@ -280,7 +283,7 @@ export default function IronGlobePage() {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    <h3 className="text-[10px] font-black text-accent uppercase tracking-[0.2em] px-1">1/4 Финала</h3>
+                    <h3 className="text-[10px] font-bold text-accent uppercase">1/4 Финала</h3>
                     <div className="grid gap-2">
                       {[0, 1, 2, 3].map(i => (
                         <div key={i} className="bg-secondary/30 p-4 rounded-2xl border border-white/5 flex items-center justify-between shadow-inner">

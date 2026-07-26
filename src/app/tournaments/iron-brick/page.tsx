@@ -42,10 +42,15 @@ export default function IronBrickPage() {
   const activeRecordRef = useRef(false);
   const finalResultRef = useRef(false);
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => {
+    if (!db || !user) return null;
+    return doc(db, 'players_v10', user.uid);
+  }, [db, user]);
+  
   const { data: profile } = useDoc(userRef);
 
   const participantsQuery = useMemoFirebase(() => {
+    if (!db) return null;
     return query(collection(db, 'players_v10'), where('tournaments', 'array-contains', TOUR_ID));
   }, [db]);
 
@@ -137,9 +142,11 @@ export default function IronBrickPage() {
           status: 'active'
         };
 
-        updateDoc(userRef, {
-          tournamentHistory: arrayUnion(activeRecord)
-        }).catch(e => console.error("Failed to add active tour record", e));
+        if (userRef) {
+          updateDoc(userRef, {
+            tournamentHistory: arrayUnion(activeRecord)
+          }).catch(e => console.error("Failed to add active tour record", e));
+        }
       }
     }
   }, [isRegClosed, isJoined, hasFinished, userRef, profile, language]);
@@ -174,10 +181,12 @@ export default function IronBrickPage() {
 
       const updatedTours = (profile.tournaments || []).filter((t: string) => t !== TOUR_ID);
 
-      updateDoc(userRef, {
-        tournamentHistory: updatedHistory,
-        tournaments: updatedTours
-      });
+      if (userRef) {
+        updateDoc(userRef, {
+          tournamentHistory: updatedHistory,
+          tournaments: updatedTours
+        });
+      }
 
       toast({
         title: language === 'ru' ? "Турнир окончен" : "Tournament Ended",
@@ -195,11 +204,13 @@ export default function IronBrickPage() {
     }
     setIsJoining(true);
     try {
-      await updateDoc(userRef!, {
-        tournaments: arrayUnion(TOUR_ID)
-      });
-      addCredits(-TOURNAMENT_FEE);
-      toast({ title: language === 'ru' ? "Вы зарегистрированы!" : "Successfully registered!" });
+      if (userRef) {
+        await updateDoc(userRef, {
+          tournaments: arrayUnion(TOUR_ID)
+        });
+        addCredits(-TOURNAMENT_FEE);
+        toast({ title: language === 'ru' ? "Вы зарегистрированы!" : "Successfully registered!" });
+      }
     } catch (e) {
       console.error(e);
     } finally {

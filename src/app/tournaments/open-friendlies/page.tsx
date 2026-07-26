@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -7,7 +6,7 @@ import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@
 import { useGameState } from '@/app/lib/store';
 import { 
   ChevronLeft, Swords, Search, ShieldAlert, 
-  User, Zap, Loader2, Target, Clock
+  User, Zap, Loader2, Target, Clock, Lock
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -33,15 +32,24 @@ export default function OpenFriendliesPage() {
   }, []);
 
   const lobbiesQuery = useMemoFirebase(() => {
+    if (!db) return null;
     return query(collection(db, 'friendly_lobbies_v3'), where('status', '==', 'searching'));
   }, [db]);
 
   const { data: rawLobbies, isLoading: isLobbiesLoading } = useCollection(lobbiesQuery);
   
-  const myBasketRef = useMemoFirebase(() => user ? doc(db, 'cw_basket_v2', user.uid) : null, [db, user]);
+  const myBasketRef = useMemoFirebase(() => {
+    if (!db || !user) return null;
+    return doc(db, 'cw_basket_v2', user.uid);
+  }, [db, user]);
+  
   const { data: myBasket } = useDoc(myBasketRef);
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => {
+    if (!db || !user) return null;
+    return doc(db, 'players_v10', user.uid);
+  }, [db, user]);
+  
   const { data: profile } = useDoc(userRef);
 
   const lobbies = useMemo(() => {
@@ -58,7 +66,7 @@ export default function OpenFriendliesPage() {
     }
   }, [user, isUserLoading, router]);
 
-  if (isUserLoading || !isLoaded || !user || isLobbiesLoading) {
+  if (isUserLoading || !isLoaded || !user) {
     return <LoadingScreen />;
   }
 
@@ -70,7 +78,8 @@ export default function OpenFriendliesPage() {
       challenge: "CHALLENGE",
       selfRequest: "This is your request",
       toastSent: "Challenge Sent",
-      busy: "Operational Conflict"
+      busy: "Operational Conflict",
+      offline: "OFFLINE: Matchmaking terminal restricted."
     },
     ru: {
       title: "ОТКРЫТЫЕ МАТЧИ",
@@ -79,11 +88,27 @@ export default function OpenFriendliesPage() {
       challenge: "ВЫЗВАТЬ",
       selfRequest: "Это ваша заявка",
       toastSent: "Вызов отправлен",
-      busy: "Оперативный конфликт"
+      busy: "Оперативный конфликт",
+      offline: "ОФЛАЙН: Терминал подбора матчей недоступен."
     }
   };
 
   const t = translations[language as keyof typeof translations] || translations.ru;
+
+  if (!db) {
+    return (
+      <div className="max-w-md mx-auto px-4 pt-8 text-center">
+        <header className="mb-6 flex items-center gap-4">
+          <Link href="/tournaments"><Button variant="ghost" size="icon" className="rounded-full"><ChevronLeft className="w-6 h-6" /></Button></Link>
+          <div><h1 className="text-2xl font-headline font-bold uppercase">{t.title}</h1></div>
+        </header>
+        <div className="py-20 opacity-30 flex flex-col items-center gap-6">
+           <Lock className="w-16 h-16" />
+           <p className="text-xs font-black uppercase tracking-widest">{t.offline}</p>
+        </div>
+      </div>
+    );
+  }
 
   const handleChallenge = async (lobbyId: string, hostName: string) => {
     if (!user || !profile || myBasket) {
@@ -108,7 +133,9 @@ export default function OpenFriendliesPage() {
         <Link href="/tournaments"><Button variant="ghost" size="icon" className="rounded-full"><ChevronLeft className="w-6 h-6" /></Button></Link>
         <div><h1 className="text-2xl font-headline font-bold uppercase">{t.title}</h1><p className="text-muted-foreground text-[10px] uppercase">{t.subtitle}</p></div>
       </header>
-      {lobbies.length > 0 ? (
+      {isLobbiesLoading ? (
+        <div className="py-20 text-center opacity-50"><Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" /></div>
+      ) : lobbies.length > 0 ? (
         <div className="space-y-3">
           {lobbies.map((lobby) => (
             <Card key={lobby.id} className="glass-card">

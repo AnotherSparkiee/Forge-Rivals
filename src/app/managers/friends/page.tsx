@@ -377,7 +377,7 @@ export default function FriendsListPage() {
               </Card>
             )) : (
               <div className="py-12 text-center opacity-30 border border-dashed border-white/10 rounded-2xl flex flex-col items-center gap-4 px-6">
-                 <HistoryIcon className="w-10 h-10" />
+                 <History className="w-10 h-10" />
                  <div>
                    <p className="text-sm font-bold uppercase text-white">{t.noGifts}</p>
                    <p className="text-[9px] font-black uppercase mt-1 leading-relaxed">{t.noGiftsDesc}</p>

@@ -15,7 +15,7 @@ import {
   Trophy, Medal, Swords, UserPlus, 
   Search, History, ChevronLeft, 
   ChevronRight, Loader2, XCircle, ShoppingBasket,
-  Globe, Briefcase, Zap
+  Globe, Briefcase, Zap, Lock
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
@@ -32,10 +32,18 @@ export default function TournamentsPage() {
   const { language, isLoaded, displayName } = useGameState();
   const [isActionLoading, setIsActionLoading] = useState(false);
 
-  const myLobbyRef = useMemoFirebase(() => user ? doc(db, 'friendly_lobbies_v3', user.uid) : null, [db, user]);
+  const myLobbyRef = useMemoFirebase(() => {
+    if (!db || !user) return null;
+    return doc(db, 'friendly_lobbies_v3', user.uid);
+  }, [db, user]);
+  
   const { data: myLobby, isLoading: isLobbyLoading } = useDoc(myLobbyRef);
 
-  const myBasketRef = useMemoFirebase(() => user ? doc(db, 'cw_basket_v2', user.uid) : null, [db, user]);
+  const myBasketRef = useMemoFirebase(() => {
+    if (!db || !user) return null;
+    return doc(db, 'cw_basket_v2', user.uid);
+  }, [db, user]);
+  
   const { data: myBasket } = useDoc(myBasketRef);
 
   useEffect(() => {
@@ -44,7 +52,7 @@ export default function TournamentsPage() {
     }
   }, [user, isUserLoading, router]);
 
-  if (isUserLoading || !isLoaded || !user || isLobbyLoading) {
+  if (isUserLoading || !isLoaded || !user) {
     return <LoadingScreen />;
   }
 
@@ -52,6 +60,7 @@ export default function TournamentsPage() {
     en: {
       title: "TOURNAMENT HUB",
       subtitle: "Operational Terminals",
+      offline: "OFFLINE: Tournament frequency jammed.",
       menu: [
         { id: 'schedule', label: myLobby ? 'Cancel Match' : 'Schedule Friendly', desc: myLobby ? 'Abort active request' : 'Wait for an opponent', icon: myLobby ? XCircle : UserPlus, color: myLobby ? 'text-red-400' : 'text-accent' },
         { id: 'open', label: 'Open Friendlies', desc: 'Browse available challenges', icon: Search, href: '/tournaments/open-friendlies', color: 'text-primary' },
@@ -64,6 +73,7 @@ export default function TournamentsPage() {
     ru: {
       title: "ТУРНИРНЫЙ ХАБ",
       subtitle: "Операционные терминалы",
+      offline: "ОФЛАЙН: Частоты турниров заглушены.",
       menu: [
         { id: 'schedule', label: myLobby ? 'Отменить тов. матч' : 'Назначить тов. матч', desc: myLobby ? 'Прервать активный поиск' : 'Ожидать вызова соперника', icon: myLobby ? XCircle : UserPlus, color: myLobby ? 'text-red-400' : 'text-accent' },
         { id: 'open', label: 'Открытые тов. матчи', desc: 'Список доступных вызовов', icon: Search, href: '/tournaments/open-friendlies', color: 'text-primary' },
@@ -74,6 +84,21 @@ export default function TournamentsPage() {
       ]
     }
   }[language === 'ru' ? 'ru' : 'en'];
+
+  if (!db) {
+    return (
+      <div className="max-w-md mx-auto px-4 pt-8 pb-32 text-center">
+        <header className="mb-8 flex items-center gap-4 text-left">
+          <Link href="/"><Button variant="ghost" size="icon" className="rounded-full"><ChevronLeft className="w-6 h-6" /></Button></Link>
+          <div><h1 className="text-2xl font-headline font-bold uppercase">{t.title}</h1></div>
+        </header>
+        <div className="py-20 opacity-30 flex flex-col items-center gap-6">
+           <Lock className="w-16 h-16" />
+           <p className="text-xs font-black uppercase tracking-widest">{t.offline}</p>
+        </div>
+      </div>
+    );
+  }
 
   const handleToggleLobby = async () => {
     if (!user || isActionLoading) return;
