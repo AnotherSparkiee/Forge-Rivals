@@ -21,7 +21,7 @@ type RankingTab = 'menu' | 'my_league' | 'my_pyramid' | 'all_pyramids' | 'cup';
 export default function RankingsPage() {
   const router = useRouter();
   const { 
-    leagueLevel, groupId, isLoaded, language, 
+    leagueLevel, groupId, isLoaded, language, id: userId,
     selectedLeagueId, clubName, clubLogo, rank, isDataReady,
     seasonNumber
   } = useGameState();
@@ -39,9 +39,17 @@ export default function RankingsPage() {
   const standings = useMemo(() => {
     if (!isLoaded || !selectedLeagueId) return [];
 
-    const teams = getStableGroupTeams(contextLevel, contextGroup, contextLeagueId, [
-      { id: 'local-manager', name: clubName || "Local Manager", rank: rank || 1, logo: clubLogo, isBot: false }
-    ]);
+    // ПРОВЕРКА: Является ли просматриваемая группа "родной" для игрока
+    const isViewingOwnGroup = 
+      contextLevel === leagueLevel && 
+      contextGroup === groupId && 
+      contextLeagueId === selectedLeagueId;
+
+    const realPlayersInGroup = isViewingOwnGroup ? [
+      { id: userId, name: clubName || "My Club", rank: rank || 1, logo: clubLogo, isBot: false }
+    ] : [];
+
+    const teams = getStableGroupTeams(contextLevel, contextGroup, contextLeagueId, realPlayersInGroup);
 
     return teams.map((t) => {
       let wins = 0, draws = 0, losses = 0, pts = 0;
@@ -62,7 +70,7 @@ export default function RankingsPage() {
         diff: wins * 2 - losses
       };
     }).sort((a, b) => b.points - a.points || b.diff - a.diff);
-  }, [isLoaded, contextLevel, contextGroup, contextLeagueId, clubName, clubLogo, rank, selectedLeagueId, seasonNumber]);
+  }, [isLoaded, contextLevel, contextGroup, contextLeagueId, clubName, clubLogo, rank, selectedLeagueId, seasonNumber, leagueLevel, groupId, userId]);
 
   const t = {
     en: {
@@ -159,7 +167,7 @@ export default function RankingsPage() {
              </div>
              {standings.map((entry: any, i: number) => {
                const pos = i + 1;
-               const isMe = entry.id === 'local-manager';
+               const isMe = entry.id === userId;
                const isPromoZone = pos === 1 && contextLevel > 1;
                const isRelegationZone = pos >= 7 && contextLevel < MAX_LEVELS;
 
