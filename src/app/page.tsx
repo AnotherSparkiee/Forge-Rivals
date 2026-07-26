@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useGameState } from './lib/store';
@@ -80,15 +81,18 @@ export default function Home() {
     <div className="relative h-[calc(100dvh-3.5rem-5rem)] flex flex-col overflow-hidden bg-[#0a0d14]">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,_hsl(var(--primary)/0.1),_transparent_70%)] -z-10" />
       <div className="flex-1 w-full max-w-md mx-auto px-4 flex flex-col pt-4 overflow-hidden">
+        
+        {/* NEXT MATCH WIDGET */}
         {currentNextMatch ? (
           <Card className="glass-card mb-4 border-primary/30 bg-primary/5 overflow-hidden animate-in fade-in slide-in-from-top-4 duration-700 shrink-0">
             <CardContent className="p-3 flex items-center justify-between">
               <div className="flex items-center gap-3 min-w-0">
                 <div className="w-10 h-10 rounded-xl bg-secondary/50 border border-primary/20 flex items-center justify-center p-1.5 shrink-0 shadow-lg">
-                  {currentNextMatch.homeId === user?.uid ? 
-                    (currentNextMatch.awayLogo ? <img src={currentNextMatch.awayLogo} className="w-full h-full object-contain" alt="" /> : <Swords className="w-5 h-5 text-accent" />) :
-                    (currentNextMatch.homeLogo ? <img src={currentNextMatch.homeLogo} className="w-full h-full object-contain" alt="" /> : <Swords className="w-5 h-5 text-accent" />)
-                  }
+                  {nextMatch.opponentLogo ? (
+                    <img src={nextMatch.opponentLogo} className="w-full h-full object-contain" alt="" />
+                  ) : (
+                    <Swords className="w-5 h-5 text-accent" />
+                  )}
                 </div>
                 <div className="min-w-0">
                   <p className="text-[8px] font-black text-primary uppercase tracking-[0.2em] leading-none mb-1">
@@ -120,6 +124,7 @@ export default function Home() {
             </CardContent>
           </Card>
         )}
+
         <div className="flex-1 flex items-center justify-center overflow-hidden">
           <div className="grid grid-cols-4 gap-2 w-full max-h-full py-2">
             {menuItems.map((item) => (

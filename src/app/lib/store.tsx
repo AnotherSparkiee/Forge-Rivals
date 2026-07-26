@@ -1,8 +1,9 @@
+
 'use client';
 
 /**
- * Глобальное облачное хранилище v210 (Firebase Server Sync).
- * Все данные теперь синхронизируются с Firestore для работы в режиме "локального сервера".
+ * Глобальное облачное хранилище v211 (Firebase Server Sync).
+ * Добавлена логика автоматического определения следующего матча.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useMemo, useRef } from 'react';
@@ -131,10 +132,12 @@ const DEFAULT_STATE: GameState = {
   strategy: 'Balanced Play', lineSettings: { carry: 'standard', mid: 'standard', offlane: 'standard' },
   rewardDay: 1, lastRewardClaimDate: null, matchHistory: [], lastSeenMatchDay: 0,
   managerSkills: { sponsors: 0, agents: 0, training: 0, medical: 0 },
+  managerLevel: 1,
+  experiencePoints: 0,
   arena: { capacity: 5000 }, hq: {}, bootcamp: {}, academy: {}, medical: {},
   country: null, isPremium: false, premiumUntil: null, activeSeasonNumber: 1, seasonNumber: 1, seasonDay: 1, isSyncing: false, language: 'ru',
   isDataReady: false, allSeasonMatches: [], nextMatch: null, isMatchesLoading: true,
-  lastProcessedSeason: 0, trophies: [], version: 210,
+  lastProcessedSeason: 0, trophies: [], version: 211,
   availableGiftsToSend: [], receivedGifts: [], lastGiftGenDate: null,
   addCrystals: () => {}, addCredits: () => {}, updatePlayer: () => {}, removePlayer: () => {}, assignToRole: () => {}, updateLineup: () => {}, updateTactics: () => {},
   claimReward: () => {}, setLanguage: () => {}, purchaseLicense: () => false, purchasePremium: () => false,
@@ -204,6 +207,34 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     return () => unsub();
   }, [db, user?.uid, isAuthLoading, staticSeasonInfo]);
 
+  // LOGIC: Find Next Match
+  useEffect(() => {
+    if (state.allSeasonMatches && state.allSeasonMatches.length > 0 && state.id) {
+      const now = getMoscowTime().getTime();
+      const myMatches = state.allSeasonMatches
+        .filter(m => (m.homeId === state.id || m.awayId === state.id) && !m.isFinished)
+        .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+      
+      const foundNext = myMatches[0];
+      if (foundNext) {
+        const isHome = foundNext.homeId === state.id;
+        const opponentName = isHome ? foundNext.awayName : foundNext.homeName;
+        const opponentLogo = isHome ? foundNext.awayLogo : foundNext.homeLogo;
+        
+        setState(prev => ({
+          ...prev,
+          nextMatch: {
+            match: foundNext,
+            opponentName,
+            opponentLogo
+          }
+        }));
+      } else {
+        setState(prev => ({ ...prev, nextMatch: null }));
+      }
+    }
+  }, [state.allSeasonMatches, state.id]);
+
   const saveToFirestore = useCallback(async (updates: Partial<GameState>) => {
     if (!db || !user?.uid) return;
     try {
@@ -211,7 +242,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       await updateDoc(docRef, cleanData(updates));
     } catch (e) {
       console.error("Save to Firestore failed:", e);
-      // Fallback: update local state if firestore fails
       setState(prev => ({ ...prev, ...updates }));
     }
   }, [db, user?.uid]);
@@ -391,7 +421,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       crystals: 50,
       managerLevel: 1,
       experiencePoints: 0,
-      version: 210
+      version: 211
     }));
   }, [db, user?.uid, user?.email, state.displayName]);
 
@@ -451,6 +481,48 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     return true;
   }, [state.credits, state.arena, saveToFirestore]);
 
+  const generateDailyGifts = useCallback((gifts: Gift[]) => {
+    saveToFirestore({ availableGiftsToSend: gifts, lastGiftGenDate: getMoscowDateString() });
+  }, [saveToFirestore]);
+
+  const sendGift = useCallback(async (gift: Gift, friendId: string, friendName: string) => {
+    if (!db) return false;
+    try {
+      const now = new Date().toISOString();
+      const giftId = `received_${friendId}_${Date.now()}`;
+      await setDoc(doc(db, 'received_gifts_v1', giftId), {
+        ...gift,
+        id: giftId,
+        senderId: state.id,
+        senderName: state.clubName || state.displayName,
+        receiverId: friendId,
+        claimed: false,
+        createdAt: now
+      });
+      saveToFirestore({ availableGiftsToSend: state.availableGiftsToSend.filter(g => g.id !== gift.id) });
+      return true;
+    } catch (e) {
+      console.error(e);
+      return false;
+    }
+  }, [db, state.id, state.clubName, state.displayName, state.availableGiftsToSend, saveToFirestore]);
+
+  const claimGift = useCallback(async (gift: Gift) => {
+    if (!db) return false;
+    try {
+      // Implement gift logic based on type (e.g., speed up construction, add credits)
+      if (gift.type === 'grant') addCredits(gift.value);
+      if (gift.type === 'shard') addCrystals(gift.value);
+      
+      await updateDoc(doc(db, 'received_gifts_v1', gift.id), { claimed: true });
+      saveToFirestore({ receivedGifts: state.receivedGifts.filter(g => g.id !== gift.id) });
+      return true;
+    } catch (e) {
+      console.error(e);
+      return false;
+    }
+  }, [db, state.receivedGifts, addCredits, addCrystals, saveToFirestore]);
+
   const checkConstructions = useCallback(() => {}, []);
 
   const setWorldReady = useCallback((ready: boolean) => { setState(prev => ({ ...prev, isDataReady: ready })); }, []);
@@ -459,8 +531,9 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     ...state,
     isLoaded: isDataInitialized,
     addCrystals, addCredits, updatePlayer, removePlayer, assignToRole, updateLineup, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage, setTrainingFocus, startDailyPlayerTraining, claimDailyPlayerTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, trainHeroSkill, addPlayerDirectly, addYouthPlayerDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, healPlayer, launchFanCampaign, scoutCandidates, recruitCandidate, clearScoutingReport, upgradeManagerSkill, startArenaConstruction, resetProfile, addTrophy, setWorldReady,
+    generateDailyGifts, sendGift, claimGift,
     saveToLocal: (updates: any) => saveToFirestore(updates)
-  }), [state, isDataInitialized, addCrystals, addCredits, updatePlayer, removePlayer, assignToRole, updateLineup, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage, setTrainingFocus, startDailyPlayerTraining, claimDailyPlayerTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, trainHeroSkill, addPlayerDirectly, addYouthPlayerDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, healPlayer, launchFanCampaign, scoutCandidates, recruitCandidate, clearScoutingReport, upgradeManagerSkill, startArenaConstruction, resetProfile, addTrophy, setWorldReady, saveToFirestore]);
+  }), [state, isDataInitialized, addCrystals, addCredits, updatePlayer, removePlayer, assignToRole, updateLineup, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage, setTrainingFocus, startDailyPlayerTraining, claimDailyPlayerTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, trainHeroSkill, addPlayerDirectly, addYouthPlayerDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, healPlayer, launchFanCampaign, scoutCandidates, recruitCandidate, clearScoutingReport, upgradeManagerSkill, startArenaConstruction, resetProfile, addTrophy, setWorldReady, generateDailyGifts, sendGift, claimGift, saveToFirestore]);
 
   return <GameStateContext.Provider value={value}>{children}</GameStateContext.Provider>;
 }
