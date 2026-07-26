@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { useUser, useFirestore, useDoc, useMemoFirebase, useCollection } from '@/firebase';
-import { doc, updateDoc, collection, query, where, arrayUnion } from 'firebase/firestore';
+import { doc, setDoc, collection, query, where, arrayUnion } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { 
@@ -143,9 +143,9 @@ export default function IronBrickPage() {
         };
 
         if (userRef) {
-          updateDoc(userRef, {
+          setDoc(userRef, {
             tournamentHistory: arrayUnion(activeRecord)
-          }).catch(e => console.error("Failed to add active tour record", e));
+          }, { merge: true }).catch(e => console.error("Failed to add active tour record", e));
         }
       }
     }
@@ -182,10 +182,10 @@ export default function IronBrickPage() {
       const updatedTours = (profile.tournaments || []).filter((t: string) => t !== TOUR_ID);
 
       if (userRef) {
-        updateDoc(userRef, {
+        setDoc(userRef, {
           tournamentHistory: updatedHistory,
           tournaments: updatedTours
-        });
+        }, { merge: true });
       }
 
       toast({
@@ -205,9 +205,9 @@ export default function IronBrickPage() {
     setIsJoining(true);
     try {
       if (userRef) {
-        await updateDoc(userRef, {
+        await setDoc(userRef, {
           tournaments: arrayUnion(TOUR_ID)
-        });
+        }, { merge: true });
         addCredits(-TOURNAMENT_FEE);
         toast({ title: language === 'ru' ? "Вы зарегистрированы!" : "Successfully registered!" });
       }

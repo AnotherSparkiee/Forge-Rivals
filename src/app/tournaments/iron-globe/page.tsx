@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { useUser, useFirestore, useDoc, useMemoFirebase, useCollection } from '@/firebase';
-import { doc, updateDoc, collection, query, where, arrayUnion } from 'firebase/firestore';
+import { doc, setDoc, collection, query, where, arrayUnion } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { 
@@ -167,7 +167,7 @@ export default function IronGlobePage() {
           startDate: new Date(getMoscowTime().setHours(21, 5)).toISOString(),
           status: 'active'
         };
-        updateDoc(userRef, { tournamentHistory: arrayUnion(activeRecord) }).catch(() => {});
+        setDoc(userRef, { tournamentHistory: arrayUnion(activeRecord) }, { merge: true }).catch(() => {});
       }
     }
   }, [isRegClosed, isJoined, hasFinished, userRef, profile, language]);
@@ -187,7 +187,10 @@ export default function IronGlobePage() {
         return h;
       });
       if (userRef) {
-        updateDoc(userRef, { tournamentHistory: updatedHistory, tournaments: (profile.tournaments || []).filter((t: string) => t !== 'iron-globe') });
+        setDoc(userRef, { 
+          tournamentHistory: updatedHistory, 
+          tournaments: (profile.tournaments || []).filter((t: string) => t !== 'iron-globe') 
+        }, { merge: true });
       }
       toast({ title: language === 'ru' ? "Турнир окончен" : "Tournament Ended" });
     }
@@ -197,7 +200,7 @@ export default function IronGlobePage() {
     if (!user || !profile || isJoining || isRegClosed || credits < TOURNAMENT_FEE || !userRef) return;
     setIsJoining(true);
     try {
-      await updateDoc(userRef, { tournaments: arrayUnion('iron-globe') });
+      await setDoc(userRef, { tournaments: arrayUnion('iron-globe') }, { merge: true });
       addCredits(-TOURNAMENT_FEE);
       toast({ title: language === 'ru' ? "Вы зарегистрированы!" : "Successfully registered!" });
     } finally { setIsJoining(false); }

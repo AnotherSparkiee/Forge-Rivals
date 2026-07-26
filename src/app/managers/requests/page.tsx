@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser, useFirestore, useCollection, useMemoFirebase, addDocumentNonBlocking } from '@/firebase';
 import { useGameState } from '@/app/lib/store';
-import { collection, query, where, doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, query, where, doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { 
   ChevronLeft, UserPlus, Shield, User,
   Check, X, Loader2, Lock
@@ -88,7 +88,7 @@ export default function FriendRequestsPage() {
   if (!db) {
     return (
       <div className="max-w-md mx-auto px-4 pt-8 text-center">
-        <header className="mb-6 flex items-center gap-4">
+        <header className="mb-6 flex items-center gap-4 text-left">
           <Link href="/managers"><Button variant="ghost" size="icon" className="rounded-full"><ChevronLeft className="w-6 h-6" /></Button></Link>
           <div><h1 className="text-2xl font-headline font-bold uppercase">{t.title}</h1></div>
         </header>
@@ -107,10 +107,10 @@ export default function FriendRequestsPage() {
       const requestRef = doc(db, 'friend_requests_v4', request.id);
       if (accept) {
         const nowIso = new Date().toISOString();
-        await updateDoc(requestRef, {
+        await setDoc(requestRef, {
           status: 'accepted',
           updatedAt: nowIso
-        });
+        }, { merge: true });
         
         sendNotification(
           request.fromId,

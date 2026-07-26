@@ -1,6 +1,7 @@
 /**
- * @fileOverview РЫНОК PRO-ИГРОКОВ (v900).
+ * @fileOverview РЫНОК PRO-ИГРОКОВ (v901).
  * Специализированная торговая площадка для элитных атлетов.
+ * Замена updateDoc на setDoc(merge) для отказоустойчивости.
  */
 
 'use client';
@@ -17,7 +18,7 @@ import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
 import { 
   collection, query, doc, arrayUnion, serverTimestamp, 
-  setDoc, getDoc, updateDoc, getDocs, deleteDoc, where 
+  setDoc, getDoc, getDocs, deleteDoc, where 
 } from 'firebase/firestore';
 import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
@@ -132,11 +133,11 @@ export default function ProTransfersPage() {
         finalExpiresAt = new Date(mskNow + 600000).toISOString(); 
       }
 
-      await updateDoc(doc(db, 'market_v7', agent.id), { 
+      await setDoc(doc(db, 'market_v7', agent.id), { 
         currentBid: amount, highestBidderId: user.uid, highestBidderName: profile.displayName || "Unknown Manager", 
         bidders: arrayUnion(user.uid), updatedAt: serverTimestamp(),
         expiresAt: finalExpiresAt
-      });
+      }, { merge: true });
 
       if (currency === 'crystals') {
         addCrystals(-amount);
