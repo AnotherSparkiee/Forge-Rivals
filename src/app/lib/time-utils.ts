@@ -10,8 +10,8 @@ let syncPoint = {
 };
 
 const MSK_OFFSET = 3 * 60 * 60 * 1000;
-// Скорректировано на 11 февраля 2025, чтобы текущий день был концом цикла
-export const GLOBAL_EPOCH_ISO = '2025-02-11T21:00:00Z'; 
+// Скорректировано для сокращения обратного отсчета до ~15 часов
+export const GLOBAL_EPOCH_ISO = '2025-02-02T09:00:00Z'; 
 
 export function setServerTime(serverMs: number) {
   if (typeof performance !== 'undefined') {
