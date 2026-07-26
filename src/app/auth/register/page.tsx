@@ -3,9 +3,6 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useAuth, useFirestore, useUser } from '@/firebase';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -16,41 +13,26 @@ import { useGameState } from '@/app/lib/store';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 
-/**
- * Очистка данных для Firestore.
- * Удаляет undefined и NaN, которые вызывают ошибки разрешений.
- */
-function cleanData(obj: any): any {
-  return JSON.parse(JSON.stringify(obj, (key, value) => {
-    if (value === undefined) return null;
-    if (typeof value === 'number' && isNaN(value)) return null;
-    return value;
-  }));
-}
-
 export default function RegisterPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   
-  const auth = useAuth();
-  const db = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
-  const { language } = useGameState();
-  const { user, isUserLoading } = useUser();
+  const { language, isLoaded, saveToLocal, id } = useGameState();
 
   const t = {
     en: {
-      title: "Initiate Profile", subtitle: "Instant access to the command center", callsign: "Team Name", emailLabel: "Email Address", passLabel: "Access Key",
+      title: "Initiate Profile", subtitle: "Local operational node bypass active", callsign: "Team Name", emailLabel: "Email Address", passLabel: "Access Key",
       submitBtn: "INITIALIZE PROFILE", alreadyRegistered: "Already registered?", loginLink: "Sync Link", successTitle: "Profile Initialized",
-      welcomeBack: "Authorized Session Detected", enterHub: "ENTER COMMAND CENTER"
+      welcomeBack: "Local Session Detected", enterHub: "ENTER COMMAND CENTER"
     },
     ru: {
-      title: "Инициация профиля", subtitle: "Мгновенный доступ к командному центру", callsign: "Название клуба", emailLabel: "Почта (Email)", passLabel: "Пароль",
+      title: "Инициация профиля", subtitle: "Локальный обход регистрации активен", callsign: "Название клуба", emailLabel: "Почта (Email)", passLabel: "Пароль",
       submitBtn: "СОЗДАТЬ ПРОФИЛЬ", alreadyRegistered: "Уже зарегистрированы?", loginLink: "Войти", successTitle: "Профиль инициализирован",
-      welcomeBack: "Сессия авторизована", enterHub: "ВОЙТИ В КОМАНДНЫЙ ЦЕНТР"
+      welcomeBack: "Локальная сессия обнаружена", enterHub: "ВОЙТИ В КОМАНДНЫЙ ЦЕНТР"
     }
   }[language as 'en' | 'ru'] || { title: "Register", subtitle: "Join", callsign: "Team", emailLabel: "Email", passLabel: "Pass", submitBtn: "Join", alreadyRegistered: "Have account?", loginLink: "Login", successTitle: "Success", welcomeBack: "Welcome", enterHub: "Go" };
 
@@ -69,37 +51,25 @@ export default function RegisterPage() {
     setIsLoading(true);
     try {
       const { seasonNumber } = getGlobalSeasonInfo();
-      // 1. Создаем аккаунт в Firebase Auth
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const uid = userCredential.user.uid;
       
-      const rootRef = doc(db, 'players_v10', uid);
-      
-      const profileData = {
-        id: uid, 
-        displayName: trimmedUsername, 
-        email, 
-        lastLoginDate: new Date().toISOString(), 
-        createdAt: new Date().toISOString(),
+      // LOCAL SIMULATION - BYPASS FIREBASE
+      saveToLocal({
+        id: `local_${Date.now()}`,
+        displayName: trimmedUsername,
+        email: email,
         lastProcessedSeason: Number(seasonNumber || 1),
-        version: 80 
-      };
-      
-      // 2. Прямой setDoc надежнее батч-запроса сразу после создания пользователя.
-      await setDoc(rootRef, cleanData(profileData));
+      });
 
       toast({ title: t.successTitle });
       
-      // Перенаправляем на настройку
       setTimeout(() => {
         router.push('/setup');
       }, 500);
       
     } catch (error: any) {
-      console.error("[REGISTER CRITICAL ERROR]", error.code, error.message);
       toast({ 
         variant: "destructive", 
-        title: "Registration Error", 
+        title: "Simulation Error", 
         description: error.message 
       });
     } finally { 
@@ -107,9 +77,10 @@ export default function RegisterPage() {
     }
   };
 
-  if (isUserLoading) return <LoadingScreen />;
+  if (!isLoaded) return <LoadingScreen />;
 
-  if (user) {
+  // If we already have a pseudo-id (meaning we registered locally), show welcome back
+  if (id && id !== 'local-manager') {
     return (
       <Card className="glass-card border-primary/20 bg-primary/5 p-8 text-center">
         <h2 className="text-xl font-headline font-bold text-white uppercase mb-4">{t.welcomeBack}</h2>

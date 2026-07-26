@@ -15,7 +15,6 @@ import { useGameState } from '@/app/lib/store';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 import { getRandomStartingSquad } from '@/app/lib/moba-data';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
-import { findStrategicPlacement } from '@/app/actions/season-init';
 
 const CLUBS = [
   { id: 'parivision', name: 'Parivision', logo: 'https://iili.io/CYIAgVa.webp' },
@@ -49,8 +48,9 @@ export default function SetupPage() {
       const selectedClub = CLUBS.find(c => c.id === selectedClubId);
       const { activeSeasonNumber } = getGlobalSeasonInfo();
       
-      // Стратегическое размещение: ищем свободное место сверху вниз (Див 1 -> Див 9)
-      const placement = await findStrategicPlacement(selectedLeagueId);
+      // LOCAL PLACEMENT LOGIC (Simulated bypass)
+      // New players are assigned to Division 1 for a fast prestige start in local mode
+      const placement = { tier: 1, group: 1, rank: 1 };
       
       const hasSquad = (ownedPlayers || []).length > 0;
       const startingSquad = hasSquad ? ownedPlayers : getRandomStartingSquad();
@@ -92,7 +92,7 @@ export default function SetupPage() {
       name: 'НАЗВАНИЕ КЛУБА',
       continue: 'ПРОДОЛЖИТЬ',
       finalize: 'ЗАВЕРШИТЬ ПРОФИЛЬ',
-      protocol: 'Стратегический протокол v49',
+      protocol: 'Локальный протокол v49 (Bypass)',
       msk: 'МСК',
       namePlaceholder: 'Введите название клуба...',
     },
@@ -103,7 +103,7 @@ export default function SetupPage() {
       name: 'CLUB NAME',
       continue: 'CONTINUE',
       finalize: 'FINALIZE PROFILE',
-      protocol: 'Strategic Protocol v49',
+      protocol: 'Local Protocol v49 (Bypass)',
       msk: 'MSK',
       namePlaceholder: 'Enter club name...',
     }

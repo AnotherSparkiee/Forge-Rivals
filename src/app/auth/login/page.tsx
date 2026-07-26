@@ -3,9 +3,6 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useAuth, useFirestore, useUser } from '@/firebase';
-import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import { collection, query, where, getDocs, limit, doc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -21,35 +18,32 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   
-  const auth = useAuth();
-  const db = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
-  const { language, isLoaded: storeIsLoaded } = useGameState();
-  const { user, isUserLoading } = useUser();
+  const { language, isLoaded: storeIsLoaded, id, resetProfile } = useGameState();
 
   const translations = {
     en: {
-      title: "Sync Credentials",
+      title: "Local Access",
       navLogin: "Login",
       navRegister: "Register",
-      emailLabel: "Email or Team Name",
-      passLabel: "Access Key (Password)",
+      emailLabel: "Username or Email",
+      passLabel: "Access Key",
       submitBtn: "ESTABLISH LINK",
-      welcomeBack: "Authorized Session Detected",
+      welcomeBack: "Local Session Active",
       enterHub: "ENTER COMMAND CENTER",
-      signOut: "SIGN OUT"
+      signOut: "CLEAR LOCAL CACHE"
     },
     ru: {
-      title: "Синхронизация данных",
+      title: "Локальный доступ",
       navLogin: "Вход",
       navRegister: "Регистрация",
-      emailLabel: "Почта или Название команды",
-      passLabel: "Ключ доступа (Пароль)",
+      emailLabel: "Почта или Имя",
+      passLabel: "Ключ доступа",
       submitBtn: "УСТАНОВИТЬ СВЯЗЬ",
-      welcomeBack: "Сессия авторизована",
+      welcomeBack: "Локальная сессия активна",
       enterHub: "ВОЙТИ В КОМАНДНЫЙ ЦЕНТР",
-      signOut: "ВЫЙТИ ИЗ АККАУНТА"
+      signOut: "ОЧИСТИТЬ КЭШ"
     }
   };
 
@@ -62,17 +56,14 @@ export default function LoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    let emailToUse = identifier;
     try {
-      if (!identifier.includes('@')) {
-        const usersRef = collection(db, 'players_v10');
-        const q = query(usersRef, where('displayName', '==', identifier), limit(1));
-        const querySnapshot = await getDocs(q);
-        if (querySnapshot.empty) throw new Error("Team not found");
-        emailToUse = querySnapshot.docs[0].data().email;
+      // SIMULATED LOGIN
+      // Since it's local, we just pretend it worked if fields are filled
+      if (identifier && password.length >= 6) {
+        handleEnter();
+      } else {
+        throw new Error("Invalid credentials format");
       }
-      await signInWithEmailAndPassword(auth, emailToUse, password);
-      handleEnter();
     } catch (error: any) {
       toast({ variant: "destructive", title: "Denied", description: error.message });
     } finally {
@@ -80,9 +71,10 @@ export default function LoginPage() {
     }
   };
 
-  if (isUserLoading || !storeIsLoaded) return <LoadingScreen />;
+  if (!storeIsLoaded) return <LoadingScreen />;
 
-  if (user) {
+  // If already "logged in" locally
+  if (id && id !== 'local-manager') {
     return (
       <div className="space-y-4 animate-in fade-in zoom-in duration-500">
         <Card className="glass-card border-primary/20 bg-primary/5">
@@ -91,7 +83,7 @@ export default function LoginPage() {
               <ShieldCheck className="w-8 h-8 text-primary" />
             </div>
             <CardTitle className="font-headline uppercase tracking-widest text-white text-lg">{t.welcomeBack}</CardTitle>
-            <p className="text-[10px] text-muted-foreground uppercase font-bold mt-2">ID: {user.uid.slice(0, 12)}...</p>
+            <p className="text-[10px] text-muted-foreground uppercase font-bold mt-2">LOCAL_NODE_ID: {id.slice(0, 12)}...</p>
           </CardHeader>
           <CardFooter>
             <Button onClick={handleEnter} className="w-full h-14 hero-gradient font-black text-xs tracking-widest">
@@ -100,7 +92,7 @@ export default function LoginPage() {
           </CardFooter>
         </Card>
         <p className="text-center">
-          <button onClick={() => signOut(auth)} className="text-[10px] font-black text-red-400 uppercase tracking-widest hover:underline flex items-center justify-center gap-2 mx-auto">
+          <button onClick={() => resetProfile()} className="text-[10px] font-black text-red-400 uppercase tracking-widest hover:underline flex items-center justify-center gap-2 mx-auto">
             <LogOut className="w-3.5 h-3.5" /> {t.signOut}
           </button>
         </p>
@@ -127,7 +119,7 @@ export default function LoginPage() {
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="identifier">{t.emailLabel}</Label>
-              <Input id="identifier" placeholder="Team Name or Email" value={identifier} onChange={(e) => setIdentifier(e.target.value)} required className="bg-secondary/50" />
+              <Input id="identifier" placeholder="Name or Email" value={identifier} onChange={(e) => setIdentifier(e.target.value)} required className="bg-secondary/50" />
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">{t.passLabel}</Label>
@@ -139,7 +131,7 @@ export default function LoginPage() {
               {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : t.submitBtn}
             </Button>
             <p className="text-xs text-center text-muted-foreground mt-2">
-              New manager? <Link href="/auth/register" className="text-primary hover:underline">Initialize new profile</Link>
+              New manager? <Link href="/auth/register" className="text-primary hover:underline">Initialize local node</Link>
             </p>
           </CardFooter>
         </form>
