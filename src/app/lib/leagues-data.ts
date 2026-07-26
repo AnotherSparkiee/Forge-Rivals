@@ -1,5 +1,5 @@
 /**
- * @fileOverview Ядро лиг v52: Математическая пирамида с экспоненциальным ростом групп.
+ * @fileOverview Ядро лиг v55: Математическая пирамида с экспоненциальным ростом групп и логикой миграции.
  */
 
 import { GLOBAL_EPOCH_ISO } from './time-utils';
@@ -35,10 +35,34 @@ export const LEAGUES: LeagueOption[] = [
 
 /**
  * Возвращает количество групп в конкретном дивизионе.
- * Див 1 = 1, Див 2 = 2, Див 3 = 4...
+ * Див 1 = 1, Див 2 = 2, Див 3 = 4... 2^(level-1)
  */
 export function getGroupsCountInLevel(level: number): number {
   return Math.pow(2, level - 1);
+}
+
+/**
+ * Рассчитывает целевую группу при повышении (1 место).
+ * Группа G в уровне L переходит в ceil(G/2) в уровне L-1.
+ */
+export function getPromotionTarget(level: number, group: number): { level: number, group: number } {
+  if (level <= 1) return { level, group }; // Уже в элите
+  return {
+    level: level - 1,
+    group: Math.ceil(group / 2)
+  };
+}
+
+/**
+ * Рассчитывает целевую группу при понижении (7-8 место).
+ * Группа G в уровне L переходит в G*2-1 или G*2 в уровне L+1.
+ */
+export function getRelegationTarget(level: number, group: number, rank: number): { level: number, group: number } {
+  if (level >= MAX_LEVELS) return { level, group }; // Дно пирамиды
+  return {
+    level: level + 1,
+    group: rank === 7 ? (group * 2 - 1) : (group * 2)
+  };
 }
 
 /**
@@ -105,7 +129,6 @@ export function generateSeasonCalendar(teams: any[], seasonNumber: number, leagu
       const createMatch = (day: number, hIdx: number, aIdx: number, tour: number) => {
         const h = teams[hIdx];
         const a = teams[aIdx];
-        // Время матча фиксировано для лиги
         const startTime = new Date(seasonStartMs + (day - 1) * dayMs + hh * 60 * 60 * 1000 + mm * 60 * 1000);
         return {
           day,
@@ -121,13 +144,10 @@ export function generateSeasonCalendar(teams: any[], seasonNumber: number, leagu
         };
       };
 
-      // Первый круг
       matches.push(createMatch(round + 1, homeIdx, awayIdx, round + 1));
-      // Второй круг (реванш)
       matches.push(createMatch(round + 8, awayIdx, homeIdx, round + 8));
     }
     
-    // Вращение Бергера
     const last = pool.pop()!;
     pool.splice(1, 0, last);
   }
@@ -150,7 +170,6 @@ export function getMatchResult(idA: string, idB: string, season: number, tour: n
   const absHash = Math.abs(hash);
   const roll = absHash % 100;
   
-  // 30% - Победа A, 30% - Победа B, 40% - Ничья
   if (roll < 30) return [2, 0];
   if (roll < 60) return [0, 2];
   return [1, 1];

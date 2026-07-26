@@ -6,12 +6,12 @@ import { useGameState } from '../lib/store';
 import { 
   Trophy, ChevronLeft, ChevronRight, 
   Shield, Globe, Layers, Medal, Loader2,
-  User, Bot, Target, AlertCircle
+  User, Bot, Target, AlertCircle, ArrowUpCircle, ArrowDownCircle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { LEAGUES, MAX_LEVELS, getStableGroupTeams, getGroupsCountInLevel } from '../lib/leagues-data';
+import { LEAGUES, MAX_LEVELS, getStableGroupTeams, getGroupsCountInLevel, getMatchResult } from '../lib/leagues-data';
 import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import Link from 'next/link';
@@ -22,7 +22,8 @@ export default function RankingsPage() {
   const router = useRouter();
   const { 
     leagueLevel, groupId, isLoaded, language, 
-    selectedLeagueId, clubName, clubLogo, rank, isDataReady
+    selectedLeagueId, clubName, clubLogo, rank, isDataReady,
+    seasonNumber
   } = useGameState();
   
   const [activeTab, setActiveTab] = useState<RankingTab>('menu');
@@ -34,7 +35,7 @@ export default function RankingsPage() {
   const contextLevel = Number(navLevel || leagueLevel || 9);
   const contextGroup = Number(navGroup || groupId || 1);
 
-  // Генерируем локальные данные таблицы для отображения
+  // Генерируем данные таблицы с учетом зон повышения/понижения
   const standings = useMemo(() => {
     if (!isLoaded || !selectedLeagueId) return [];
 
@@ -42,19 +43,26 @@ export default function RankingsPage() {
       { id: 'local-manager', name: clubName || "Local Manager", rank: rank || 1, logo: clubLogo, isBot: false }
     ]);
 
-    return teams.map((t, i) => {
-      const isMe = t.id === 'local-manager';
+    return teams.map((t) => {
+      let wins = 0, draws = 0, losses = 0, pts = 0;
+      // Симулируем текущий прогресс сезона (например, 10 туров сыграно)
+      const played = 10;
+      for (let tour = 1; tour <= played; tour++) {
+        const [sA, sB] = getMatchResult(t.id, "opp", seasonNumber, tour);
+        if (sA > sB) { wins++; pts += 3; }
+        else if (sA === sB) { draws++; pts += 1; }
+        else losses++;
+      }
+
       return {
         ...t,
-        matchesPlayed: 14,
-        wins: isMe ? 8 : Math.floor(Math.random() * 6) + 4,
-        draws: 2,
-        losses: isMe ? 4 : Math.floor(Math.random() * 4) + 4,
-        points: isMe ? 26 : Math.floor(Math.random() * 20) + 10,
-        diff: isMe ? 12 : Math.floor(Math.random() * 10) - 5
+        matchesPlayed: played,
+        wins, draws, losses,
+        points: pts,
+        diff: wins * 2 - losses
       };
-    }).sort((a, b) => b.points - a.points);
-  }, [isLoaded, contextLevel, contextGroup, contextLeagueId, clubName, clubLogo, rank, selectedLeagueId]);
+    }).sort((a, b) => b.points - a.points || b.diff - a.diff);
+  }, [isLoaded, contextLevel, contextGroup, contextLeagueId, clubName, clubLogo, rank, selectedLeagueId, seasonNumber]);
 
   const t = {
     en: {
@@ -135,7 +143,14 @@ export default function RankingsPage() {
         <div className="space-y-4 animate-in fade-in duration-500">
            <div className="flex items-center justify-between px-1">
              <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase italic">DIV {contextLevel} • G {contextGroup}</Badge>
-             <span className="text-[10px] font-mono text-muted-foreground uppercase">LOCAL STANDINGS</span>
+             <div className="flex gap-2">
+                <div className="flex items-center gap-1 text-[7px] font-black uppercase text-green-400">
+                  <ArrowUpCircle className="w-2 h-2" /> {language === 'ru' ? 'ПОВЫШЕНИЕ' : 'PROMOTION'}
+                </div>
+                <div className="flex items-center gap-1 text-[7px] font-black uppercase text-red-400">
+                  <ArrowDownCircle className="w-2 h-2" /> {language === 'ru' ? 'ВЫЛЕТ' : 'RELEGATION'}
+                </div>
+             </div>
            </div>
            
            <div className="space-y-1">
@@ -145,12 +160,20 @@ export default function RankingsPage() {
              {standings.map((entry: any, i: number) => {
                const pos = i + 1;
                const isMe = entry.id === 'local-manager';
+               const isPromoZone = pos === 1 && contextLevel > 1;
+               const isRelegationZone = pos >= 7 && contextLevel < MAX_LEVELS;
+
                return (
                 <div key={entry.id + i} className={cn(
                   "grid grid-cols-[24px_1fr_25px_60px_35px] gap-1 items-center p-2.5 rounded-xl border mb-1 transition-all", 
-                  isMe ? "bg-primary/20 border-primary/40" : "bg-secondary/20 border-white/5"
+                  isMe ? "bg-primary/20 border-primary/40 ring-1 ring-primary/10" : "bg-secondary/20 border-white/5",
+                  isPromoZone && !isMe && "border-green-500/20 bg-green-500/5",
+                  isRelegationZone && !isMe && "border-red-500/20 bg-red-500/5"
                 )}>
-                  <div className="text-[10px] font-black italic text-muted-foreground">{pos}</div>
+                  <div className={cn(
+                    "text-[10px] font-black italic",
+                    isPromoZone ? "text-green-400" : (isRelegationZone ? "text-red-400" : "text-muted-foreground")
+                  )}>{pos}</div>
                   <div className="truncate flex items-center gap-1.5 min-w-0">
                     <div className="w-4 h-4 rounded-full bg-secondary overflow-hidden shrink-0">
                        {entry.logo ? <img src={entry.logo} alt="" className="w-full h-full object-contain" /> : <Bot className="w-2.5 h-2.5 opacity-30 mx-auto mt-0.5" />}
@@ -172,9 +195,9 @@ export default function RankingsPage() {
       {activeTab === 'all_pyramids' && !navLeague && (
         <div className="grid grid-cols-2 gap-2">
           {LEAGUES.map(l => (
-            <Card key={l.id} className="glass-card border-white/5 hover:bg-white/5 cursor-pointer" onClick={() => setNavLeague(l.id)}>
+            <Card key={l.id} className="glass-card border-white/5 hover:bg-white/5 cursor-pointer group" onClick={() => setNavLeague(l.id)}>
               <CardContent className="p-4 text-center">
-                <p className="text-sm font-headline font-bold text-white italic tracking-widest">{l.id}</p>
+                <p className="text-sm font-headline font-bold text-white italic tracking-widest group-hover:text-primary transition-colors">{l.id}</p>
               </CardContent>
             </Card>
           ))}
@@ -184,12 +207,12 @@ export default function RankingsPage() {
       {(activeTab === 'my_pyramid' || (activeTab === 'all_pyramids' && navLeague)) && !navLevel && (
         <div className="space-y-2">
           {Array.from({ length: MAX_LEVELS }, (_, i) => i + 1).map(lvl => (
-            <Card key={lvl} className="glass-card border-white/5 hover:bg-white/5 cursor-pointer" onClick={() => setNavLevel(lvl)}>
+            <Card key={lvl} className="glass-card border-white/5 hover:bg-white/5 cursor-pointer group" onClick={() => setNavLevel(lvl)}>
               <CardContent className="p-4 flex justify-between items-center">
-                <span className="text-sm font-bold uppercase">Division {lvl}</span>
+                <span className="text-sm font-bold uppercase group-hover:text-white transition-colors">Division {lvl}</span>
                 <div className="flex items-center gap-2">
-                  <Badge variant="secondary" className="text-[8px] bg-white/5">{getGroupsCountInLevel(lvl)} GR</Badge>
-                  <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                  <Badge variant="secondary" className="text-[8px] bg-white/5 font-black uppercase">{getGroupsCountInLevel(lvl)} GR</Badge>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-all" />
                 </div>
               </CardContent>
             </Card>
@@ -200,7 +223,7 @@ export default function RankingsPage() {
       {navLevel && !navGroup && (
         <div className="grid grid-cols-4 gap-2 h-[50vh] overflow-y-auto pr-2 scrollbar-hide">
           {Array.from({ length: getGroupsCountInLevel(navLevel) }, (_, i) => i + 1).map(g => (
-            <Button key={g} variant="outline" className="h-10 border-white/5 text-[10px] font-bold" onClick={() => setNavGroup(g)}>
+            <Button key={g} variant="outline" className="h-10 border-white/5 text-[10px] font-bold hover:bg-primary/10 hover:text-primary" onClick={() => setNavGroup(g)}>
               {g}
             </Button>
           ))}
