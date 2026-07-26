@@ -8,7 +8,7 @@ import { collection, query, where, doc, getDocs, writeBatch } from 'firebase/fir
 import { 
   ChevronLeft, UserCheck, Shield, User,
   Mail, MessageSquare, ChevronRight, Loader2,
-  UserMinus, History, Search, Filter, Gift as GiftIcon, X
+  UserMinus, History, Search, Filter, Gift as GiftIcon, X, Lock
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -40,9 +40,9 @@ export default function FriendsListPage() {
 
   const isSTier = activeLicenseTier === 1;
 
-  // Query for accepted requests
+  // Query for accepted requests - protected from null db
   const outgoingQuery = useMemoFirebase(() => {
-    if (!user?.uid) return null;
+    if (!db || !user?.uid) return null;
     return query(
       collection(db, 'friend_requests_v4'),
       where('fromId', '==', user.uid),
@@ -51,7 +51,7 @@ export default function FriendsListPage() {
   }, [db, user?.uid]);
 
   const incomingQuery = useMemoFirebase(() => {
-    if (!user?.uid) return null;
+    if (!db || !user?.uid) return null;
     return query(
       collection(db, 'friend_requests_v4'),
       where('toId', '==', user.uid),
@@ -79,6 +79,72 @@ export default function FriendsListPage() {
     }
   }, [user, isUserLoading, router]);
 
+  const t = {
+    en: {
+      title: "MY FRIENDS",
+      subtitle: "Trusted Alliance Network",
+      noFriends: "No friends in network",
+      noFriendsDesc: "Search for managers in the 'All Managers' terminal to establish contact.",
+      findFriends: "FIND MANAGERS",
+      userMenuDesc: "Direct command options for",
+      pm: "Private Messages",
+      pmDesc: "Direct encrypted transmission",
+      gift: "Send Gift",
+      giftDesc: "S-Tier exclusive diplomat cargo",
+      remove: "Remove Friend",
+      removeDesc: "Terminate tactical alliance",
+      profile: "Manager Profile",
+      profileDesc: "Operational statistics",
+      close: "CLOSE",
+      giftTitle: "DIPLOMATIC CARGO",
+      giftSub: "Select a gift to send to",
+      noGifts: "No gifts available today",
+      noGiftsDesc: "Gifts reset every 24 hours at 00:00 MSK.",
+      offline: "OFFLINE: Alliance node unavailable."
+    },
+    ru: {
+      title: "МОИ ДРУЗЬЯ",
+      subtitle: "Доверенная сеть альянса",
+      noFriends: "Друзей пока нет",
+      noFriendsDesc: "Используйте поиск в терминале «Все менеджеры», чтобы найти союзников.",
+      findFriends: "НАЙТИ МЕНЕДЖЕРОВ",
+      userMenuDesc: "Команды взаимодействия с",
+      pm: "Личные сообщения",
+      pmDesc: "Прямая зашифрованная связь",
+      gift: "Отправить подарок",
+      giftDesc: "Дипломатический груз S-Tier",
+      remove: "Удалить из друзей",
+      removeDesc: "Разорвать тактический альянс",
+      profile: "Профиль менеджера",
+      profileDesc: "Оперативная статистика",
+      close: "ЗАКРЫТЬ",
+      giftTitle: "ДИПЛОМАТИЧЕСКИЙ ГРУЗ",
+      giftSub: "Выберите подарок для",
+      noGifts: "На сегодня подарков нет",
+      noGiftsDesc: "Подарки выдаются каждые 24 часа в 00:00 МСК.",
+      offline: "ОФЛАЙН: Узел альянса недоступен."
+    }
+  }[language as 'en' | 'ru'];
+
+  if (isUserLoading || !isLoaded || !user) {
+    return <LoadingScreen />;
+  }
+
+  if (!db) {
+    return (
+      <div className="max-w-md mx-auto px-4 pt-8 text-center">
+        <header className="mb-6 flex items-center gap-4">
+          <Link href="/managers"><Button variant="ghost" size="icon" className="rounded-full"><ChevronLeft className="w-6 h-6" /></Button></Link>
+          <div><h1 className="text-2xl font-headline font-bold uppercase">{t.title}</h1></div>
+        </header>
+        <div className="py-20 opacity-30 flex flex-col items-center gap-6">
+           <Lock className="w-16 h-16" />
+           <p className="text-xs font-black uppercase tracking-widest">{t.offline}</p>
+        </div>
+      </div>
+    );
+  }
+
   const handleSendGiftToFriend = async (gift: Gift) => {
     if (!selectedFriend || isSending) return;
     setIsSending(true);
@@ -97,7 +163,7 @@ export default function FriendsListPage() {
   };
 
   const handleRemoveFriend = async () => {
-    if (!selectedFriend || !user || isActionProcessing) return;
+    if (!db || !selectedFriend || !user || isActionProcessing) return;
     
     setIsActionProcessing(true);
     try {
@@ -128,55 +194,6 @@ export default function FriendsListPage() {
       router.push(`/chats/private?uid=${selectedFriend.id}&name=${encodeURIComponent(selectedFriend.name)}`);
     }
   };
-
-  if (isUserLoading || !isLoaded || !user) {
-    return <LoadingScreen />;
-  }
-
-  const t = {
-    en: {
-      title: "MY FRIENDS",
-      subtitle: "Trusted Alliance Network",
-      noFriends: "No friends in network",
-      noFriendsDesc: "Search for managers in the 'All Managers' terminal to establish contact.",
-      findFriends: "FIND MANAGERS",
-      userMenuDesc: "Direct command options for",
-      pm: "Private Messages",
-      pmDesc: "Direct encrypted transmission",
-      gift: "Send Gift",
-      giftDesc: "S-Tier exclusive diplomat cargo",
-      remove: "Remove Friend",
-      removeDesc: "Terminate tactical alliance",
-      profile: "Manager Profile",
-      profileDesc: "Operational statistics",
-      close: "CLOSE",
-      giftTitle: "DIPLOMATIC CARGO",
-      giftSub: "Select a gift to send to",
-      noGifts: "No gifts available today",
-      noGiftsDesc: "Gifts reset every 24 hours at 00:00 MSK."
-    },
-    ru: {
-      title: "МОИ ДРУЗЬЯ",
-      subtitle: "Доверенная сеть альянса",
-      noFriends: "Друзей пока нет",
-      noFriendsDesc: "Используйте поиск в терминале «Все менеджеры», чтобы найти союзников.",
-      findFriends: "НАЙТИ МЕНЕДЖЕРОВ",
-      userMenuDesc: "Команды взаимодействия с",
-      pm: "Личные сообщения",
-      pmDesc: "Прямая зашифрованная связь",
-      gift: "Отправить подарок",
-      giftDesc: "Дипломатический груз S-Tier",
-      remove: "Удалить из друзей",
-      removeDesc: "Разорвать тактический альянс",
-      profile: "Профиль менеджера",
-      profileDesc: "Оперативная статистика",
-      close: "ЗАКРЫТЬ",
-      giftTitle: "ДИПЛОМАТИЧЕСКИЙ ГРУЗ",
-      giftSub: "Выберите подарок для",
-      noGifts: "На сегодня подарков нет",
-      noGiftsDesc: "Подарки выдаются каждые 24 часа в 00:00 МСК."
-    }
-  }[language as 'en' | 'ru'];
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-20">
@@ -360,7 +377,7 @@ export default function FriendsListPage() {
               </Card>
             )) : (
               <div className="py-12 text-center opacity-30 border border-dashed border-white/10 rounded-2xl flex flex-col items-center gap-4 px-6">
-                 <History className="w-10 h-10" />
+                 <HistoryIcon className="w-10 h-10" />
                  <div>
                    <p className="text-sm font-bold uppercase text-white">{t.noGifts}</p>
                    <p className="text-[9px] font-black uppercase mt-1 leading-relaxed">{t.noGiftsDesc}</p>

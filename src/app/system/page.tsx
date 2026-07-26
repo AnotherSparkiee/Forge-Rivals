@@ -19,8 +19,12 @@ export default function SystemPage() {
   const { language } = useGameState();
   const db = useFirestore();
 
-  // Запрос всех игроков для подсчета статистики
-  const playersQuery = useMemoFirebase(() => query(collection(db, 'players_v10')), [db]);
+  // Запрос всех игроков для подсчета статистики - защищен от null db
+  const playersQuery = useMemoFirebase(() => {
+    if (!db) return null;
+    return query(collection(db, 'players_v10'));
+  }, [db]);
+  
   const { data: players, isLoading } = useCollection(playersQuery);
 
   const stats = useMemo(() => {
@@ -37,7 +41,7 @@ export default function SystemPage() {
     }).length;
 
     // Для прототипа всегда показываем минимум 1 (текущий пользователь)
-    return { total, online: Math.max(onlineCount, 1) };
+    return { total: Math.max(total, 1), online: Math.max(onlineCount, 1) };
   }, [players]);
 
   const t = {

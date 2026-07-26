@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { 
   ChevronLeft, Send, Loader2, MessageSquare, 
   User, Mail, Shield, History, AlertTriangle, 
-  CornerUpLeft, ChevronRight, UserPlus, Crown, UserMinus
+  CornerUpLeft, ChevronRight, UserPlus, Crown, UserMinus, Lock
 } from 'lucide-react';
 import Link from 'next/link';
 import { collection, query, orderBy, limit, doc, where, getDocs, writeBatch } from 'firebase/firestore';
@@ -37,10 +37,15 @@ export default function GlobalChatPage() {
   const [selectedUser, setSelectedUser] = useState<{id: string, name: string, clubName?: string, clubLogo?: string} | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => {
+    if (!db || !user) return null;
+    return doc(db, 'players_v10', user.uid);
+  }, [db, user]);
+  
   const { data: profile } = useDoc(userRef);
 
   const chatQuery = useMemoFirebase(() => {
+    if (!db) return null;
     return query(
       collection(db, 'global_chat_v2'),
       orderBy('createdAt', 'desc'),
@@ -50,9 +55,8 @@ export default function GlobalChatPage() {
 
   const { data: messages, isLoading: isChatLoading } = useCollection(chatQuery);
 
-  // Load friends to identify status
   const outgoingFriendsQuery = useMemoFirebase(() => {
-    if (!user?.uid) return null;
+    if (!db || !user?.uid) return null;
     return query(
       collection(db, 'friend_requests_v4'),
       where('fromId', '==', user.uid),
@@ -61,7 +65,7 @@ export default function GlobalChatPage() {
   }, [db, user?.uid]);
 
   const incomingFriendsQuery = useMemoFirebase(() => {
-    if (!user?.uid) return null;
+    if (!db || !user?.uid) return null;
     return query(
       collection(db, 'friend_requests_v4'),
       where('toId', '==', user.uid),
@@ -93,7 +97,7 @@ export default function GlobalChatPage() {
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!message.trim() || !user || !profile || isSending) return;
+    if (!db || !message.trim() || !user || !profile || isSending) return;
 
     setIsSending(true);
     try {
@@ -129,7 +133,7 @@ export default function GlobalChatPage() {
   };
 
   const handleAddFriend = async () => {
-    if (!selectedUser || !user || !profile || isActionProcessing) return;
+    if (!db || !selectedUser || !user || !profile || isActionProcessing) return;
     
     setIsActionProcessing(true);
     try {
@@ -163,7 +167,7 @@ export default function GlobalChatPage() {
   };
 
   const handleRemoveFriend = async () => {
-    if (!selectedUser || !user || isActionProcessing) return;
+    if (!db || !selectedUser || !user || isActionProcessing) return;
     
     setIsActionProcessing(true);
     try {
@@ -189,10 +193,6 @@ export default function GlobalChatPage() {
     }
   };
 
-  if (userIsLoading || !isLoaded || !user) {
-    return <LoadingScreen />;
-  }
-
   const translations = {
     en: {
       title: "GLOBAL CHAT",
@@ -210,7 +210,8 @@ export default function GlobalChatPage() {
       reply: "Reply",
       replyDesc: "Direct mention in public chat",
       pm: "Private Messages",
-      pmDesc: "Direct encrypted transmission"
+      pmDesc: "Direct encrypted transmission",
+      offline: "OFFLINE: Global communication network restricted."
     },
     ru: {
       title: "ОБЩИЙ ЧАТ",
@@ -228,11 +229,31 @@ export default function GlobalChatPage() {
       reply: "Ответить",
       replyDesc: "Упомянуть в общем канале",
       pm: "Личные сообщения",
-      pmDesc: "Прямая зашифрованная связь"
+      pmDesc: "Прямая зашифрованная связь",
+      offline: "ОФЛАЙН: Сеть общей связи недоступна."
     }
   };
 
   const t = translations[language as keyof typeof translations] || translations.ru;
+
+  if (userIsLoading || !isLoaded || !user) {
+    return <LoadingScreen />;
+  }
+
+  if (!db) {
+    return (
+      <div className="max-w-md mx-auto h-[calc(100dvh-3.5rem-4rem)] flex flex-col overflow-hidden relative">
+        <header className="px-4 py-3 flex items-center gap-4 border-b border-white/5 bg-background/50 backdrop-blur-sm sticky top-0 z-10 flex-shrink-0">
+          <Link href="/chats"><Button variant="ghost" size="icon" className="rounded-full h-8 w-8"><ChevronLeft className="w-5 h-5" /></Button></Link>
+          <div><h1 className="text-lg font-headline font-bold uppercase tracking-tighter leading-none">{t.title}</h1></div>
+        </header>
+        <div className="flex-1 flex flex-col items-center justify-center opacity-30 gap-6">
+           <Lock className="w-16 h-16" />
+           <p className="text-xs font-black uppercase tracking-widest">{t.offline}</p>
+        </div>
+      </div>
+    );
+  }
 
   const sortedMessages = messages ? [...messages].sort((a, b) => {
     const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -8,7 +7,7 @@ import { useGameState } from '@/app/lib/store';
 import { collection, query, where, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { 
   ChevronLeft, UserPlus, Shield, User,
-  Check, X, Loader2
+  Check, X, Loader2, Lock
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -27,7 +26,7 @@ export default function FriendRequestsPage() {
   const [isProcessing, setIsProcessing] = useState<string | null>(null);
 
   const requestsQuery = useMemoFirebase(() => {
-    if (!user?.uid) return null;
+    if (!db || !user?.uid) return null;
     return query(
       collection(db, 'friend_requests_v4'),
       where('toId', '==', user.uid),
@@ -38,6 +37,7 @@ export default function FriendRequestsPage() {
   const { data: requests, isLoading: isRequestsLoading } = useCollection(requestsQuery);
 
   const sendNotification = useCallback((targetUserId: string, title: string, description: string) => {
+    if (!db) return;
     addDocumentNonBlocking(collection(db, 'notifications_v7'), {
       userId: targetUserId,
       title,
@@ -54,10 +54,6 @@ export default function FriendRequestsPage() {
     }
   }, [user, isUserLoading, router]);
 
-  if (isUserLoading || !isLoaded || !user) {
-    return <LoadingScreen />;
-  }
-
   const translations = {
     en: {
       title: "FRIEND REQUESTS",
@@ -67,7 +63,8 @@ export default function FriendRequestsPage() {
       noRequests: "No pending requests",
       noRequestsDesc: "Managers will appear here when they send you a friendship proposal.",
       success: "Friend request accepted",
-      rejected: "Request declined"
+      rejected: "Request declined",
+      offline: "OFFLINE: Friendship terminal restricted."
     },
     ru: {
       title: "ХОТЯТ ДРУЖИТЬ",
@@ -77,13 +74,34 @@ export default function FriendRequestsPage() {
       noRequests: "Нет активных запросов",
       noRequestsDesc: "Здесь появятся менеджеры, которые предложат вам дружбу.",
       success: "Запрос в друзья принят",
-      rejected: "Запрос отклонен"
+      rejected: "Запрос отклонен",
+      offline: "ОФЛАЙН: Терминал дружбы недоступен."
     }
   };
 
   const t = translations[language as keyof typeof translations] || translations.ru;
 
+  if (isUserLoading || !isLoaded || !user) {
+    return <LoadingScreen />;
+  }
+
+  if (!db) {
+    return (
+      <div className="max-w-md mx-auto px-4 pt-8 text-center">
+        <header className="mb-6 flex items-center gap-4">
+          <Link href="/managers"><Button variant="ghost" size="icon" className="rounded-full"><ChevronLeft className="w-6 h-6" /></Button></Link>
+          <div><h1 className="text-2xl font-headline font-bold uppercase">{t.title}</h1></div>
+        </header>
+        <div className="py-20 opacity-30 flex flex-col items-center gap-6">
+           <Lock className="w-16 h-16" />
+           <p className="text-xs font-black uppercase tracking-widest">{t.offline}</p>
+        </div>
+      </div>
+    );
+  }
+
   const handleRequest = async (request: any, accept: boolean) => {
+    if (!db) return;
     setIsProcessing(request.id);
     try {
       const requestRef = doc(db, 'friend_requests_v4', request.id);

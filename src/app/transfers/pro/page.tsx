@@ -10,7 +10,7 @@ import { useGameState } from '@/app/lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { 
-  ChevronLeft, Crown, Zap, Target, Trophy, Info, Users
+  ChevronLeft, Crown, Zap, Target, Trophy, Info, Users, Lock
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
@@ -41,16 +41,20 @@ export default function ProTransfersPage() {
   }, []);
 
   const marketQuery = useMemoFirebase(() => {
-    if (!user?.uid) return null;
+    if (!db || !user?.uid) return null;
     return query(collection(db, 'market_v7'), where('isPro', '==', true));
   }, [db, user?.uid]);
 
   const { data: agents, isLoading: isMarketLoading } = useCollection(marketQuery);
-  const userDocRef = useMemoFirebase(() => user?.uid ? doc(db, 'players_v10', user.uid) : null, [db, user?.uid]);
+  const userDocRef = useMemoFirebase(() => {
+    if (!db || !user?.uid) return null;
+    return doc(db, 'players_v10', user.uid);
+  }, [db, user?.uid]);
+  
   const { data: profile } = useDoc(userDocRef);
 
   useEffect(() => {
-    if (!user?.uid || !isStoreLoaded) return;
+    if (!db || !user?.uid || !isStoreLoaded) return;
 
     const checkAndDropLegends = async () => {
       const today = getMoscowDateString();
@@ -105,9 +109,9 @@ export default function ProTransfersPage() {
   }, [user?.uid, isStoreLoaded, db]);
 
   const handleGlobalBid = useCallback(async (agent: any, amount: number) => {
-    if (!user || !profile) return;
+    if (!db || !user || !profile) return;
     
-    const currency = agent.currency || 'credits';
+    const currency = agent.currency || 'crystals';
     const balance = currency === 'crystals' ? crystals : credits;
 
     if (balance < amount) { 
@@ -154,6 +158,34 @@ export default function ProTransfersPage() {
     }
   }, [user, profile, credits, crystals, language, toast, db, addCredits, addCrystals]);
 
+  const t = {
+    title: language === 'ru' ? 'ЭЛИТНЫЕ ПРОФИ' : 'PRO MARKET',
+    subtitle: language === 'ru' ? 'РЫНОК ЛЕГЕНДАРНЫХ АТЛЕТОВ' : 'Elite Strategic Assets',
+    benefits: language === 'ru' ? 'ПРЕИМУЩЕСТВА PRO-СТАТУСА' : 'PRO UNIT ADVANTAGES',
+    talent: language === 'ru' ? 'Запредельный талант (до 100 единиц)' : 'Extreme Talent (Up to 100 units)',
+    tactics: language === 'ru' ? 'Тактическая точность в важных моментах' : 'Tactical Precision (Clutch moments)',
+    status: language === 'ru' ? 'Высокий статус (Буст посещаемости)' : 'High Media Status (Attendance boost)',
+    noUnits: language === 'ru' ? 'Все легенды законтрактованы' : 'All elite assets commissioned',
+    offline: language === 'ru' ? "ОФЛАЙН: Рынок элитных атлетов недоступен." : "OFFLINE: Elite asset market restricted."
+  };
+
+  if (isUserLoading || !isStoreLoaded) return <LoadingScreen />;
+
+  if (!db) {
+    return (
+      <div className="max-w-md mx-auto px-4 pt-8 text-center">
+        <header className="mb-6 flex items-center gap-4">
+          <Link href="/transfers"><Button variant="ghost" size="icon" className="rounded-full"><ChevronLeft className="w-6 h-6" /></Button></Link>
+          <div><h1 className="text-2xl font-headline font-bold uppercase">{t.title}</h1></div>
+        </header>
+        <div className="py-20 opacity-30 flex flex-col items-center gap-6">
+           <Lock className="w-16 h-16" />
+           <p className="text-xs font-black uppercase tracking-widest">{t.offline}</p>
+        </div>
+      </div>
+    );
+  }
+
   const proAgents = useMemo(() => {
     if (!agents) return [];
     
@@ -164,18 +196,6 @@ export default function ProTransfersPage() {
       return true;
     }).sort((a, b) => new Date(a.expiresAt).getTime() - new Date(b.expiresAt).getTime());
   }, [agents, now]);
-
-  const t = {
-    title: language === 'ru' ? 'ЭЛИТНЫЕ ПРОФИ' : 'PRO MARKET',
-    subtitle: language === 'ru' ? 'РЫНОК ЛЕГЕНДАРНЫХ АТЛЕТОВ' : 'Elite Strategic Assets',
-    benefits: language === 'ru' ? 'ПРЕИМУЩЕСТВА PRO-СТАТУСА' : 'PRO UNIT ADVANTAGES',
-    talent: language === 'ru' ? 'Запредельный талант (до 100 единиц)' : 'Extreme Talent (Up to 100 units)',
-    tactics: language === 'ru' ? 'Тактическая точность в важных моментах' : 'Tactical Precision (Clutch moments)',
-    status: language === 'ru' ? 'Высокий статус (Буст посещаемости)' : 'High Media Status (Attendance boost)',
-    noUnits: language === 'ru' ? 'Все легенды законтрактованы' : 'All elite assets commissioned'
-  };
-
-  if (isUserLoading || !isStoreLoaded) return <LoadingScreen />;
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-32">

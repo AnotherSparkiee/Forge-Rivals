@@ -67,10 +67,18 @@ export default function AssociationPage() {
     return () => clearInterval(timer);
   }, []);
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => {
+    if (!db || !user) return null;
+    return doc(db, 'players_v10', user.uid);
+  }, [db, user]);
+  
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
 
-  const allAssocsQuery = useMemoFirebase(() => query(collection(db, 'associations_v4')), [db]);
+  const allAssocsQuery = useMemoFirebase(() => {
+    if (!db) return null;
+    return query(collection(db, 'associations_v4'));
+  }, [db]);
+  
   const { data: allAssocs, isLoading: isAllAssocsLoading } = useCollection(allAssocsQuery);
 
   const currentAssocId = useMemo(() => {
@@ -99,7 +107,6 @@ export default function AssociationPage() {
   const isDeputy = myAssoc?.deputyId === user?.uid;
   const canManage = isOwner || isDeputy;
 
-  // Permissions based on license
   const canJoin = useMemo(() => isPremium || (activeLicenseTier !== null && activeLicenseTier <= 3), [activeLicenseTier, isPremium]);
   const canCreate = useMemo(() => isPremium || (activeLicenseTier !== null && activeLicenseTier <= 1), [activeLicenseTier, isPremium]);
 
@@ -158,6 +165,7 @@ export default function AssociationPage() {
       removeDeputy: "Remove from Position", removeDeputyDesc: "Demotes deputy back to regular member", kickPlayer: "Kick from Association", kickDesc: "Removes player from alliance immediately",
       disband: "Disband Association", disbandDesc: "Complete alliance liquidation", disbandConfirmTitle: "DESTRUCTIVE PROTOCOL", disbandConfirmDesc: "This action will permanently delete the association and remove all members. This cannot be undone.", disbandBtn: "DISBAND ALLIANCE", alreadyMember: "You are already a member of an association",
       lockedJoin: "B-Tier License Required", lockedCreate: "S-Tier License Required",
+      offline: "OFFLINE MODE: Alliance terminal restricted.",
       tabs: {
         my_assoc: { label: "My Association", desc: "Manage your current alliance", icon: ShieldCheck, color: "text-primary" },
         news: { label: "News Feed", desc: "Recent alliance events", icon: Newspaper, color: "text-accent" },
@@ -176,6 +184,7 @@ export default function AssociationPage() {
       removeDeputy: "Снять с должности", removeDeputyDesc: "Понижает заместителя до обычного участника", kickPlayer: "Исключить из ассоциации", kickDesc: "Немедленно удаляет игрока из альянса",
       disband: "Распустить ассоциацию", disbandDesc: "Полное удаление альянса", disbandConfirmTitle: "ПРОТОКОЛ ЛИКВИДАЦИИ", disbandConfirmDesc: "Это действие навсегда удалит ассоциацию и исключит всех участников. Это действие нельзя отменить.", disbandBtn: "ЛИКВИДИРОВАТЬ АЛЬЯНС", alreadyMember: "Вы уже состоите в ассоциации",
       lockedJoin: "Нужна Лицензия B-Tier", lockedCreate: "Нужна Лицензия S-Tier",
+      offline: "ОФЛАЙН: Терминал ассоциаций недоступен.",
       tabs: {
         my_assoc: { label: "Моя ассоциация", desc: "Управление вашим альянсом", icon: ShieldCheck, color: "text-primary" },
         news: { label: "Лента новостей", desc: "Последние события альянса", icon: Newspaper, color: "text-accent" },
@@ -186,6 +195,21 @@ export default function AssociationPage() {
       }
     }
   }[language as 'en' | 'ru'];
+
+  if (!db) {
+    return (
+      <div className="max-w-md mx-auto px-4 pt-8 text-center">
+        <header className="mb-8 flex items-center gap-4">
+          <Link href="/"><Button variant="ghost" size="icon" className="rounded-full"><ChevronLeft className="w-6 h-6" /></Button></Link>
+          <div><h1 className="text-2xl font-headline font-bold uppercase">{t.title}</h1></div>
+        </header>
+        <div className="py-20 opacity-40 flex flex-col items-center gap-6">
+           <Lock className="w-16 h-16" />
+           <p className="text-xs font-black uppercase tracking-widest">{t.offline}</p>
+        </div>
+      </div>
+    );
+  }
 
   const handleCreateAssoc = async () => {
     if (!canCreate) return;
@@ -263,7 +287,7 @@ export default function AssociationPage() {
   };
 
   const handleProcessRequest = async (applicant: any, accept: boolean) => {
-    if (!myAssoc || !canManage || isProcessing) return;
+    if (!myAssoc || !canManage || !db || isProcessing) return;
     setIsProcessing(true);
     try {
       const assocRef = doc(db, 'associations_v4', myAssoc.id);
@@ -292,7 +316,7 @@ export default function AssociationPage() {
   };
 
   const handleLeave = async () => {
-    if (!myAssoc || !myMemberInfo || !canLeave || isProcessing) return;
+    if (!myAssoc || !myMemberInfo || !canLeave || !db || isProcessing) return;
     setIsProcessing(true);
     try {
       const assocRef = doc(db, 'associations_v4', myAssoc.id);
@@ -313,7 +337,7 @@ export default function AssociationPage() {
   };
 
   const handleKick = async () => {
-    if (!myAssoc || !canManage || !selectedPlayer || isProcessing) return;
+    if (!myAssoc || !canManage || !selectedPlayer || !db || isProcessing) return;
     setIsProcessing(true);
     try {
       const assocRef = doc(db, 'associations_v4', myAssoc.id);
@@ -336,7 +360,7 @@ export default function AssociationPage() {
   };
 
   const handleAppointDeputy = async () => {
-    if (!myAssoc || !isOwner || !selectedPlayer || isProcessing) return;
+    if (!myAssoc || !isOwner || !selectedPlayer || !db || isProcessing) return;
     setIsProcessing(true);
     try {
       const assocRef = doc(db, 'associations_v4', myAssoc.id);
@@ -357,7 +381,7 @@ export default function AssociationPage() {
   };
 
   const handleRemoveDeputy = async () => {
-    if (!myAssoc || !isOwner || !selectedPlayer || isProcessing) return;
+    if (!myAssoc || !isOwner || !selectedPlayer || !db || isProcessing) return;
     setIsProcessing(true);
     try {
       const assocRef = doc(db, 'associations_v4', myAssoc.id);
@@ -378,7 +402,7 @@ export default function AssociationPage() {
   };
 
   const handleDisbandAssoc = async () => {
-    if (!myAssoc || !isOwner || isProcessing) return;
+    if (!myAssoc || !isOwner || !db || isProcessing) return;
     setIsProcessing(true);
     try {
       const batch = writeBatch(db);
@@ -535,8 +559,8 @@ export default function AssociationPage() {
             )}
             <Card className="glass-card border-green-500/20 bg-green-500/5">
               <CardContent className="p-6 space-y-4">
-                <div className="space-y-2"><label className="text-[10px] font-black uppercase text-muted-foreground">{language === 'ru' ? 'НАЗВАНИЕ' : 'NAME'}</label><Input value={assocName} onChange={e => setAssocName(e.target.value)} placeholder={t.namePlaceholder} className="bg-background/50 border-white/10 h-12" disabled={!canJoinNew} /></div>
-                <div className="space-y-2"><label className="text-[10px] font-black uppercase text-muted-foreground">{language === 'ru' ? 'ОПИСАНИЕ' : 'DESCRIPTION'}</label><Textarea value={assocDesc} onChange={e => setAssocDesc(e.target.value)} placeholder={t.descPlaceholder} className="bg-background/50 border-white/10 min-h-[100px]" disabled={!canJoinNew} /></div>
+                <div className="space-y-2"><label className="text-[10px] font-black uppercase text-muted-foreground ml-1">{language === 'ru' ? 'НАЗВАНИЕ' : 'NAME'}</label><Input value={assocName} onChange={e => setAssocName(e.target.value)} placeholder={t.namePlaceholder} className="bg-background/50 border-white/10 h-12" disabled={!canJoinNew} /></div>
+                <div className="space-y-2"><label className="text-[10px] font-black uppercase text-muted-foreground ml-1">{language === 'ru' ? 'ОПИСАНИЕ' : 'DESCRIPTION'}</label><Textarea value={assocDesc} onChange={e => setAssocDesc(e.target.value)} placeholder={t.descPlaceholder} className="bg-background/50 border-white/10 min-h-[100px]" disabled={!canJoinNew} /></div>
                 <div className="pt-4 text-center"><p className="text-[10px] font-black text-yellow-500 uppercase tracking-widest mb-4">{t.costLabel}</p><Button className="w-full h-14 hero-gradient font-black text-xs tracking-widest shadow-xl" onClick={handleCreateAssoc} disabled={isProcessing || assocName.trim().length < 3 || !canJoinNew}>{isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : t.confirmCreate}</Button></div>
               </CardContent>
             </Card>

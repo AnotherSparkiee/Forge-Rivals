@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { 
   ChevronLeft, Send, Loader2, Mail, 
-  User, ChevronRight, Crown
+  User, ChevronRight, Crown, Lock
 } from 'lucide-react';
 import Link from 'next/link';
 import { collection, query, serverTimestamp, doc, where, limit } from 'firebase/firestore';
@@ -45,11 +45,15 @@ export default function PrivateMessagesPage() {
   const [isSending, setIsSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => {
+    if (!db || !user) return null;
+    return doc(db, 'players_v10', user.uid);
+  }, [db, user]);
+  
   const { data: profile } = useDoc(userRef);
 
   const messagesQuery = useMemoFirebase(() => {
-    if (!user?.uid) return null;
+    if (!db || !user?.uid) return null;
     return query(
       collection(db, 'private_messages_v3'),
       where('participants', 'array-contains', user.uid),
@@ -102,7 +106,7 @@ export default function PrivateMessagesPage() {
   }, [searchParams, user]);
 
   useEffect(() => {
-    if (selectedChatId && allMessages && user) {
+    if (db && selectedChatId && allMessages && user) {
       const unreadFromTarget = allMessages.filter(
         msg => msg.senderId === selectedChatId && msg.receiverId === user.uid && !msg.read
       );
@@ -122,7 +126,7 @@ export default function PrivateMessagesPage() {
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!message.trim() || !user || !profile || !selectedChatId || isSending) return;
+    if (!db || !message.trim() || !user || !profile || !selectedChatId || isSending) return;
 
     setIsSending(true);
     try {
@@ -145,10 +149,6 @@ export default function PrivateMessagesPage() {
     }
   };
 
-  if (isUserLoading || !isLoaded || !user) {
-    return <LoadingScreen />;
-  }
-
   const translations = {
     en: {
       title: "PRIVATE MESSAGES",
@@ -158,7 +158,8 @@ export default function PrivateMessagesPage() {
       placeholder: "Type message...",
       unread: "NEW",
       you: "YOU",
-      connecting: "Syncing data..."
+      connecting: "Syncing data...",
+      offline: "OFFLINE: Encryption node unavailable."
     },
     ru: {
       title: "ЛИЧНЫЕ СООБЩЕНИЯ",
@@ -168,11 +169,31 @@ export default function PrivateMessagesPage() {
       placeholder: "Введите сообщение...",
       unread: "НОВОЕ",
       you: "ВЫ",
-      connecting: "Синхронизация..."
+      connecting: "Синхронизация...",
+      offline: "ОФЛАЙН: Узел шифрования недоступен."
     }
   };
 
   const t = translations[language as keyof typeof translations] || translations.ru;
+
+  if (isUserLoading || !isLoaded || !user) {
+    return <LoadingScreen />;
+  }
+
+  if (!db) {
+    return (
+      <div className="max-w-md mx-auto h-[calc(100dvh-3.5rem-4rem)] flex flex-col overflow-hidden relative">
+        <header className="px-4 py-3 flex items-center gap-4 border-b border-white/5 bg-background/50 backdrop-blur-sm sticky top-0 z-10 flex-shrink-0">
+          <Button variant="ghost" size="icon" className="rounded-full h-8 w-8" onClick={() => router.push('/chats')}><ChevronLeft className="w-5 h-5" /></Button>
+          <div><h1 className="text-lg font-headline font-bold uppercase tracking-tighter leading-none">{t.title}</h1></div>
+        </header>
+        <div className="flex-1 flex flex-col items-center justify-center opacity-30 gap-6">
+           <Lock className="w-16 h-16" />
+           <p className="text-xs font-black uppercase tracking-widest">{t.offline}</p>
+        </div>
+      </div>
+    );
+  }
 
   const currentChatMessages = allMessages.filter(msg => 
     (msg.senderId === user.uid && msg.receiverId === selectedChatId) ||

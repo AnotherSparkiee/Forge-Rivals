@@ -1,10 +1,5 @@
 'use client';
 
-/**
- * @fileOverview Терминал скаутинга v7. 
- * Реализована жесткая тировая система распределения талантов и исправлены ошибки рендеринга.
- */
-
 import { useState, useEffect, useMemo } from 'react';
 import { useGameState } from '../../lib/store';
 import { Button } from '@/components/ui/button';
@@ -50,7 +45,6 @@ export default function ScoutingPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
 
-  // Use Academy Scouts Level
   const scoutLevel = Number(academy?.scoutsLevel || 0);
 
   const rolesRu: Record<string, string> = {

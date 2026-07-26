@@ -10,7 +10,7 @@ import {
   Timer, Star, ShoppingCart, X, Check, Search, Info, Users,
   ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon,
   ChevronsLeft, ChevronsRight, Target, Eye, Map, Zap, Sparkles, Sword,
-  Brain, TrendingUp, Crosshair, User, ShieldAlert, HeartPulse, Activity, Gem
+  Brain, TrendingUp, Crosshair, User, ShieldAlert, HeartPulse, Activity, Gem, Lock
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
@@ -256,7 +256,7 @@ const YouthTransferCard = memo(({
 
             <section>
               <h3 className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2 opacity-80 px-1">
-                <ActivityIcon className="w-3.5 h-3.5" /> {language === 'ru' ? 'НАВЫКИ' : 'SKILLS'}
+                <Activity className="w-3.5 h-3.5" /> {language === 'ru' ? 'НАВЫКИ' : 'SKILLS'}
               </h3>
               <div className="space-y-3">
                 {STAT_KEYS.map((key) => { 
@@ -421,13 +421,39 @@ export default function YouthTransfersPage() {
   }, []);
 
   const marketQuery = useMemoFirebase(() => {
-    if (!user?.uid) return null;
+    if (!db || !user?.uid) return null;
     return query(collection(db, 'market_v7'), where('isYouth', '==', true));
   }, [db, user?.uid]);
 
   const { data: allAgents, isLoading: isMarketLoading } = useCollection(marketQuery);
-  const userDocRef = useMemoFirebase(() => user?.uid ? doc(db, 'players_v10', user.uid) : null, [db, user?.uid]);
+  const userDocRef = useMemoFirebase(() => {
+    if (!db || !user?.uid) return null;
+    return doc(db, 'players_v10', user.uid);
+  }, [db, user?.uid]);
+  
   const { data: profile } = useDoc(userDocRef);
+
+  const t = {
+    title: language === 'ru' ? 'ТРАНСФЕРЫ ЮНИОРОВ' : 'YOUTH TRANSFERS',
+    offline: language === 'ru' ? "ОФЛАЙН: Рынок юниоров недоступен." : "OFFLINE: Youth market restricted."
+  };
+
+  if (isUserLoading || !isStoreLoaded || isMarketLoading) return <LoadingScreen />;
+
+  if (!db) {
+    return (
+      <div className="max-w-md mx-auto px-4 pt-8 text-center">
+        <header className="mb-6 flex items-center gap-4">
+          <Button variant="ghost" size="icon" className="rounded-full" onClick={() => router.push('/youth-academy')}><ChevronLeft className="w-6 h-6" /></Button>
+          <div><h1 className="text-2xl font-headline font-bold uppercase">{t.title}</h1></div>
+        </header>
+        <div className="py-20 opacity-30 flex flex-col items-center gap-6">
+           <Lock className="w-16 h-16" />
+           <p className="text-xs font-black uppercase tracking-widest">{t.offline}</p>
+        </div>
+      </div>
+    );
+  }
 
   const youthAgents = useMemo(() => {
     return (allAgents || [])
@@ -446,7 +472,7 @@ export default function YouthTransfersPage() {
   const totalPages = Math.ceil(youthAgents.length / ITEMS_PER_PAGE);
 
   const handleGlobalBid = useCallback(async (agent: any, amount: number) => {
-    if (!user || !profile) return;
+    if (!db || !user || !profile) return;
     if (credits < amount) { 
       toast({ title: language === 'ru' ? "Недостаточно средств" : "Insufficient funds", variant: "destructive" }); 
       return; 
@@ -488,8 +514,6 @@ export default function YouthTransfersPage() {
     }
   }, [user, profile, credits, language, toast, db, addCredits]);
 
-  if (isUserLoading || !isStoreLoaded || isMarketLoading) return <LoadingScreen />;
-
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-32">
       <header className="mb-6 flex items-center gap-4">
@@ -497,7 +521,7 @@ export default function YouthTransfersPage() {
         <div>
           <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-primary flex items-center gap-2">
             <ShoppingCart className="w-6 h-6 text-primary" />
-            {language === 'ru' ? 'ТРАНСФЕРЫ ЮНИОРОВ' : 'YOUTH TRANSFERS'}
+            {t.title}
           </h1>
           <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-bold opacity-60">
             Academy Market Stream

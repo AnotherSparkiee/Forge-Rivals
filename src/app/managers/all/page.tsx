@@ -8,7 +8,7 @@ import { collection, query, orderBy, limit, where, doc, onSnapshot, getDocs, wri
 import { 
   ChevronLeft, Users, Search, Shield, Calendar,
   Loader2, UserPlus, User, Mail, ChevronRight, Info,
-  SlidersHorizontal, ArrowUpDown, Filter, UserMinus
+  SlidersHorizontal, ArrowUpDown, Filter, UserMinus, Lock
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -53,11 +53,15 @@ export default function AllManagersPage() {
   const [isActionProcessing, setIsActionProcessing] = useState(false);
   const [selectedManager, setSelectedManager] = useState<{id: string, name: string} | null>(null);
 
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v10', user.uid) : null, [db, user]);
+  const userRef = useMemoFirebase(() => {
+    if (!db || !user) return null;
+    return doc(db, 'players_v10', user.uid);
+  }, [db, user]);
+  
   const { data: profile } = useDoc(userRef);
 
-  // Load managers - limit to 100
   const managersQuery = useMemoFirebase(() => {
+    if (!db) return null;
     return query(
       collection(db, 'players_v10'),
       limit(100)
@@ -66,13 +70,15 @@ export default function AllManagersPage() {
 
   const { data: managers, isLoading: isManagersLoading } = useCollection(managersQuery);
 
-  // Load associations for names
-  const assocsQuery = useMemoFirebase(() => query(collection(db, 'associations_v4')), [db]);
+  const assocsQuery = useMemoFirebase(() => {
+    if (!db) return null;
+    return query(collection(db, 'associations_v4'));
+  }, [db]);
+  
   const { data: allAssocs } = useCollection(assocsQuery);
 
-  // Load friends to identify status
   const outgoingFriendsQuery = useMemoFirebase(() => {
-    if (!user?.uid) return null;
+    if (!db || !user?.uid) return null;
     return query(
       collection(db, 'friend_requests_v4'),
       where('fromId', '==', user.uid),
@@ -81,7 +87,7 @@ export default function AllManagersPage() {
   }, [db, user?.uid]);
 
   const incomingFriendsQuery = useMemoFirebase(() => {
-    if (!user?.uid) return null;
+    if (!db || !user?.uid) return null;
     return query(
       collection(db, 'friend_requests_v4'),
       where('toId', '==', user.uid),
@@ -116,7 +122,7 @@ export default function AllManagersPage() {
   }, [user, isUserLoading, router]);
 
   const handleAddFriend = async () => {
-    if (!selectedManager || !user || !profile || isActionProcessing) return;
+    if (!db || !selectedManager || !user || !profile || isActionProcessing) return;
     
     setIsActionProcessing(true);
     try {
@@ -150,7 +156,7 @@ export default function AllManagersPage() {
   };
 
   const handleRemoveFriend = async () => {
-    if (!selectedManager || !user || isActionProcessing) return;
+    if (!db || !selectedManager || !user || isActionProcessing) return;
     
     setIsActionProcessing(true);
     try {
@@ -207,7 +213,8 @@ export default function AllManagersPage() {
       pm: "Private Messages",
       pmDesc: "Direct encrypted transmission",
       close: "CLOSE",
-      lvl: "Ур"
+      lvl: "Ур",
+      offline: "OFFLINE: Database access restricted."
     },
     ru: {
       title: "ВСЕ МЕНЕДЖЕРЫ",
@@ -233,11 +240,31 @@ export default function AllManagersPage() {
       pm: "Личные сообщения",
       pmDesc: "Прямая зашифрованная связь",
       close: "ЗАКРЫТЬ",
-      lvl: "Ур"
+      lvl: "Ур",
+      offline: "ОФЛАЙН: Доступ к базе ограничен."
     }
   };
 
   const t = translations[language as keyof typeof translations] || translations.ru;
+
+  if (isUserLoading || !isLoaded || !user) {
+    return <LoadingScreen />;
+  }
+
+  if (!db) {
+    return (
+      <div className="max-w-md mx-auto px-4 pt-8 text-center">
+        <header className="mb-6 flex items-center gap-4">
+          <Link href="/managers"><Button variant="ghost" size="icon" className="rounded-full"><ChevronLeft className="w-6 h-6" /></Button></Link>
+          <div><h1 className="text-2xl font-headline font-bold uppercase">{t.title}</h1></div>
+        </header>
+        <div className="py-20 opacity-30 flex flex-col items-center gap-6">
+           <Lock className="w-16 h-16" />
+           <p className="text-xs font-black uppercase tracking-widest">{t.offline}</p>
+        </div>
+      </div>
+    );
+  }
 
   const filteredAndSortedManagers = useMemo(() => {
     if (!managers) return [];
@@ -279,10 +306,6 @@ export default function AllManagersPage() {
 
     return list;
   }, [managers, search, statusFilter, sortField, sortOrder]);
-
-  if (isUserLoading || !isLoaded || !user) {
-    return <LoadingScreen />;
-  }
 
   const isSelectedFriend = friendsIds.has(selectedManager?.id || '');
 
