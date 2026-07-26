@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { createContext, useContext, ReactNode, useMemo, useState, useEffect } from 'react';
@@ -6,8 +7,8 @@ import { Firestore } from 'firebase/firestore';
 import { Auth, onAuthStateChanged, User } from 'firebase/auth';
 
 /**
- * ОФИЦИАЛЬНЫЙ ПРОВАЙДЕР FIREBASE v3.0.
- * Поддерживает работу с реальной базой данных (Локальный сервер/Cloud).
+ * ПРОВАЙДЕР FIREBASE v3.1 (Passive Mode).
+ * Теперь не блокирует локальную работу приложения, если Firebase недоступен.
  */
 
 interface UserAuthState {
@@ -35,12 +36,17 @@ export const FirebaseProvider: React.FC<{ children: ReactNode; firebaseApp: Fire
   auth,
 }) => {
   const [userAuthState, setUserAuthState] = useState<UserAuthState>({
-    user: auth.currentUser,
-    isUserLoading: !auth.currentUser,
+    user: auth?.currentUser || null,
+    isUserLoading: !!auth,
     userError: null,
   });
 
   useEffect(() => {
+    if (!auth) {
+      setUserAuthState({ user: null, isUserLoading: false, userError: null });
+      return;
+    }
+
     const unsubscribe = onAuthStateChanged(
       auth,
       (user) => {
@@ -82,7 +88,8 @@ export const FirebaseProvider: React.FC<{ children: ReactNode; firebaseApp: Fire
 export const useFirebase = () => {
   const context = useContext(FirebaseContext);
   if (context === undefined) {
-    throw new Error('useFirebase must be used within a FirebaseProvider');
+    // В локальном режиме возвращаем пустые сервисы без ошибки
+    return { areServicesAvailable: false, firebaseApp: null, firestore: null, auth: null, user: null, isUserLoading: false, userError: null };
   }
   return context;
 };

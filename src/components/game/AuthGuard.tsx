@@ -1,14 +1,14 @@
+
 'use client';
 
-import { useUser } from '@/firebase';
 import { useRouter, usePathname } from 'next/navigation';
 import { useEffect, ReactNode, useState } from 'react';
 import { LoadingScreen } from './LoadingScreen';
 import { useGameState } from '@/app/lib/store';
 
 /**
- * ЛОКАЛЬНЫЙ ГАРД v2.0
- * Работает без Firebase, проверяет только наличие настроенного профиля в локальном хранилище.
+ * ЛОКАЛЬНЫЙ ГАРД v2.1
+ * Полностью автономная проверка состояния. Не зависит от Firebase Auth.
  */
 export function AuthGuard({ children }: { children: ReactNode }) {
   const { isLoaded, selectedLeagueId, country } = useGameState();
@@ -23,7 +23,7 @@ export function AuthGuard({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!isLoaded) return;
 
-    // В локальном режиме мы всегда "авторизованы" как local-manager
+    // В автономном режиме "авторизация" — это наличие настроенного клуба в localStorage
     const needsSetup = !selectedLeagueId || !country;
     
     if (needsSetup) {
