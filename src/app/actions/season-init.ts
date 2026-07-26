@@ -1,12 +1,13 @@
 'use server';
 
 /**
- * @fileOverview Серверный модуль инициализации мира v48.
- * Реализует логику стратегического размещения игроков в пирамиде лиг.
+ * @fileOverview Серверный модуль инициализации мира v49.
+ * Реализует логику стратегического размещения игроков с приоритетом в высшие дивизионы (1 -> 9).
  */
 
-import { collection, getDocs, query, where, doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, getDocs, query, where } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
+import { getGroupsCountInLevel } from '@/app/lib/leagues-data';
 
 /**
  * Находит первое свободное место (занятое ботом) в иерархии лиги.
@@ -19,43 +20,41 @@ export async function findStrategicPlacement(leagueId: string) {
   const q = query(collection(db, 'players_v10'), where('selectedLeagueId', '==', leagueId));
   const snap = await getDocs(q);
   
-  const occupiedIndices = new Set<number>();
+  // Создаем карту занятых слотов: "level_group_rank"
+  const occupiedSlots = new Set<string>();
   
   snap.forEach(d => {
     const data = d.data();
-    const tier = Number(data.leagueLevel || 9);
-    const group = Number(data.groupId || 1);
-    const rank = Number(data.rank || 1);
-    
-    // Формула глобального индекса слота (0-4087)
-    const groupsBefore = Math.pow(2, tier - 1) - 1;
-    const globalIndex = (groupsBefore * 8) + (group - 1) * 8 + (rank - 1);
-    occupiedIndices.add(globalIndex);
+    if (data.leagueLevel && data.groupId && data.rank) {
+      occupiedSlots.add(`${data.leagueLevel}_${data.groupId}_${data.rank}`);
+    }
   });
 
-  // 2. Ищем первый свободный индекс (сверху вниз)
-  let foundIndex = 0;
-  for (let i = 0; i < 4088; i++) {
-    if (!occupiedIndices.has(i)) {
-      foundIndex = i;
-      break;
+  // 2. Ищем первый свободный слот (сверху вниз: Див 1 -> Див 9)
+  for (let tier = 1; tier <= 9; tier++) {
+    const groupsInTier = getGroupsCountInLevel(tier);
+    for (let group = 1; group <= groupsInTier; group++) {
+      for (let rank = 1; group <= 8; rank++) {
+        // Мы используем ботов для заполнения пустых мест, поэтому любое место, 
+        // не занятое реальным игроком, считается доступным для "захвата".
+        const key = `${tier}_${group}_${rank}`;
+        if (!occupiedSlots.has(key)) {
+          console.log(`[PLACEMENT v49] Assigning player to: League ${leagueId}, Tier ${tier}, Group ${group}, Rank ${rank}`);
+          return { tier, group, rank };
+        }
+        
+        // Лимит 8 команд в группе
+        if (rank === 8) break;
+      }
     }
   }
 
-  // 3. Конвертируем индекс обратно в координаты пирамиды
-  const groupIndex = Math.floor(foundIndex / 8);
-  const tier = Math.floor(Math.log2(groupIndex + 1)) + 1;
-  const groupsBefore = Math.pow(2, tier - 1) - 1;
-  const group = (groupIndex - groupsBefore) + 1;
-  const rank = (foundIndex % 8) + 1;
-
-  console.log(`[PLACEMENT v48] Assigning player to: League ${leagueId}, Tier ${tier}, Group ${group}, Slot ${rank}`);
-
-  return { tier, group, rank };
+  // Fallback (если все 4088 мест заняты, что маловероятно для прототипа)
+  return { tier: 9, group: 256, rank: 8 };
 }
 
 /**
- * Заглушка для совместимости, основная логика теперь в AutoMatchManager
+ * Заглушка для совместимости
  */
 export async function ensureWorldInitialized(seasonNum: number, leagueId: string, tier: number, group: number, userId: string) {
   return { success: true };

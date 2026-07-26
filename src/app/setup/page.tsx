@@ -15,6 +15,7 @@ import { useGameState } from '@/app/lib/store';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 import { getRandomStartingSquad } from '@/app/lib/moba-data';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
+import { findStrategicPlacement } from '@/app/actions/season-init';
 
 const CLUBS = [
   { id: 'parivision', name: 'Parivision', logo: 'https://iili.io/CYIAgVa.webp' },
@@ -43,19 +44,22 @@ export default function SetupPage() {
     if (!selectedLeagueId || !selectedCountryCode || !selectedClubId || customClubName.trim().length < 3) return;
     setIsUpdating(true);
     
-    setTimeout(() => {
+    try {
       const selectedCountry = COUNTRIES.find(c => c.code === selectedCountryCode);
       const selectedClub = CLUBS.find(c => c.id === selectedClubId);
       const { activeSeasonNumber } = getGlobalSeasonInfo();
       
-      const hasSquad = ownedPlayers.length > 0;
+      // Стратегическое размещение: ищем свободное место сверху вниз (Див 1 -> Див 9)
+      const placement = await findStrategicPlacement(selectedLeagueId);
+      
+      const hasSquad = (ownedPlayers || []).length > 0;
       const startingSquad = hasSquad ? ownedPlayers : getRandomStartingSquad();
 
       saveToLocal({
         selectedLeagueId,
-        leagueLevel: 9,
-        groupId: 1,
-        rank: 1,
+        leagueLevel: placement.tier,
+        groupId: placement.group,
+        rank: placement.rank,
         country: selectedCountry?.name || 'International',
         clubName: customClubName.trim(),
         displayName: customClubName.trim(),
@@ -66,9 +70,16 @@ export default function SetupPage() {
         lastProcessedSeason: activeSeasonNumber
       });
 
-      toast({ title: language === 'ru' ? "Клуб создан локально!" : "Club Created Locally!" });
+      toast({ 
+        title: language === 'ru' ? "Клуб создан!" : "Club Initialized!",
+        description: language === 'ru' ? `Назначен в Дивизион ${placement.tier}.${placement.group}` : `Assigned to Division ${placement.tier}.${placement.group}`
+      });
       router.push('/');
-    }, 1000);
+    } catch (e) {
+      console.error(e);
+      toast({ variant: "destructive", title: "Setup Error" });
+      setIsUpdating(false);
+    }
   };
 
   if (!isLoaded) return <LoadingScreen />;
@@ -81,7 +92,7 @@ export default function SetupPage() {
       name: 'НАЗВАНИЕ КЛУБА',
       continue: 'ПРОДОЛЖИТЬ',
       finalize: 'ЗАВЕРШИТЬ ПРОФИЛЬ',
-      protocol: 'Локальный протокол v200',
+      protocol: 'Стратегический протокол v49',
       msk: 'МСК',
       namePlaceholder: 'Введите название клуба...',
     },
@@ -92,7 +103,7 @@ export default function SetupPage() {
       name: 'CLUB NAME',
       continue: 'CONTINUE',
       finalize: 'FINALIZE PROFILE',
-      protocol: 'Local Protocol v200',
+      protocol: 'Strategic Protocol v49',
       msk: 'MSK',
       namePlaceholder: 'Enter club name...',
     }
@@ -126,7 +137,7 @@ export default function SetupPage() {
                   key={l.id} 
                   className={cn(
                     "glass-card border-white/5 cursor-pointer transition-all aspect-square flex items-center justify-center", 
-                    selectedLeagueId === l.id ? "ring-2 ring-primary bg-primary/10" : "hover:bg-white/5"
+                    selectedLeagueId === l.id ? "ring-2 ring-primary bg-primary/10 shadow-[0_0_15px_rgba(var(--primary),0.3)]" : "hover:bg-white/5"
                   )} 
                   onClick={() => setSelectedLeagueId(l.id)}
                 >
@@ -146,7 +157,7 @@ export default function SetupPage() {
                   key={c.code} 
                   className={cn(
                     "glass-card border-white/5 cursor-pointer transition-all aspect-square flex items-center justify-center", 
-                    selectedCountryCode === c.code ? "ring-2 ring-accent bg-accent/10" : "hover:bg-white/5"
+                    selectedCountryCode === c.code ? "ring-2 ring-accent bg-accent/10 shadow-[0_0_15px_rgba(var(--accent),0.3)]" : "hover:bg-white/5"
                   )} 
                   onClick={() => setSelectedCountryCode(c.code)}
                 >
@@ -166,7 +177,7 @@ export default function SetupPage() {
                   key={c.id} 
                   className={cn(
                     "glass-card border-white/5 cursor-pointer transition-all overflow-hidden aspect-square flex items-center justify-center", 
-                    selectedClubId === c.id ? "ring-2 ring-primary bg-primary/10" : "hover:bg-white/5"
+                    selectedClubId === c.id ? "ring-2 ring-primary bg-primary/10 shadow-[0_0_15px_rgba(var(--primary),0.3)]" : "hover:bg-white/5"
                   )} 
                   onClick={() => setSelectedClubId(c.id)}
                 >
@@ -190,17 +201,25 @@ export default function SetupPage() {
                         value={customClubName} 
                         onChange={(e) => setCustomClubName(e.target.value)} 
                         placeholder={t.namePlaceholder}
-                        className="pl-12 h-14 bg-background/50 border-white/10 text-lg font-bold"
+                        className="pl-12 h-14 bg-background/50 border-white/10 text-lg font-bold focus-visible:ring-primary shadow-inner"
                        />
                      </div>
                    </div>
                  </div>
                </Card>
+               <div className="p-4 bg-primary/5 rounded-2xl border border-dashed border-primary/20 flex gap-3 items-start">
+                  <Info className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+                  <p className="text-[10px] text-muted-foreground leading-relaxed italic">
+                    {language === 'ru' 
+                      ? "Новые клубы получают приоритетное распределение в максимально высокий дивизион для обеспечения спортивной конкуренции." 
+                      : "New clubs receive priority placement in the highest possible division to ensure competitive parity."}
+                  </p>
+               </div>
             </div>
           )}
         </div>
         
-        <footer className="fixed bottom-0 left-0 right-0 p-4 bg-background/80 backdrop-blur-xl border-t border-white/10 z-50">
+        <footer className="fixed bottom-0 left-0 right-0 p-4 bg-background/80 backdrop-blur-xl border-t border-white/10 z-50 shadow-[0_-10px_30px_rgba(0,0,0,0.5)]">
           <div className="max-w-md mx-auto">
             <Button 
               disabled={
@@ -216,7 +235,7 @@ export default function SetupPage() {
                 else if (step === 'club') setStep('name');
                 else handleCompleteSetup();
               }} 
-              className="w-full h-16 hero-gradient font-black text-xs tracking-[0.2em] uppercase shadow-2xl"
+              className="w-full h-16 hero-gradient font-black text-xs tracking-[0.2em] uppercase shadow-2xl active:scale-95 transition-all"
             >
               {isUpdating ? <Loader2 className="animate-spin" /> : (step === 'name' ? t.finalize : t.continue)}
             </Button>

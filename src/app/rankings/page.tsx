@@ -11,17 +11,13 @@ import {
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { LEAGUES, MAX_LEVELS, getStableGroupTeams } from '../lib/leagues-data';
+import { LEAGUES, MAX_LEVELS, getStableGroupTeams, getGroupsCountInLevel } from '../lib/leagues-data';
 import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import Link from 'next/link';
 
 type RankingTab = 'menu' | 'my_league' | 'my_pyramid' | 'all_pyramids' | 'cup';
 
-/**
- * Локальная страница рейтингов v2.0.
- * Удалены зависимости от Firebase, используется локальная генерация таблицы.
- */
 export default function RankingsPage() {
   const router = useRouter();
   const { 
@@ -47,7 +43,6 @@ export default function RankingsPage() {
     ]);
 
     return teams.map((t, i) => {
-      // Имитируем случайную статистику для ботов
       const isMe = t.id === 'local-manager';
       return {
         ...t,
@@ -192,7 +187,10 @@ export default function RankingsPage() {
             <Card key={lvl} className="glass-card border-white/5 hover:bg-white/5 cursor-pointer" onClick={() => setNavLevel(lvl)}>
               <CardContent className="p-4 flex justify-between items-center">
                 <span className="text-sm font-bold uppercase">Division {lvl}</span>
-                <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary" className="text-[8px] bg-white/5">{getGroupsCountInLevel(lvl)} GR</Badge>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                </div>
               </CardContent>
             </Card>
           ))}
@@ -200,9 +198,9 @@ export default function RankingsPage() {
       )}
 
       {navLevel && !navGroup && (
-        <div className="grid grid-cols-4 gap-2">
-          {Array.from({ length: 8 }, (_, i) => i + 1).map(g => (
-            <Button key={g} variant="outline" className="h-10 border-white/5" onClick={() => setNavGroup(g)}>
+        <div className="grid grid-cols-4 gap-2 h-[50vh] overflow-y-auto pr-2 scrollbar-hide">
+          {Array.from({ length: getGroupsCountInLevel(navLevel) }, (_, i) => i + 1).map(g => (
+            <Button key={g} variant="outline" className="h-10 border-white/5 text-[10px] font-bold" onClick={() => setNavGroup(g)}>
               {g}
             </Button>
           ))}

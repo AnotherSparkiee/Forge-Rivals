@@ -1,5 +1,5 @@
 /**
- * @fileOverview Ядро лиг v51: Канонический генератор FMO с фиксированной эпохой.
+ * @fileOverview Ядро лиг v52: Математическая пирамида с экспоненциальным ростом групп.
  */
 
 import { GLOBAL_EPOCH_ISO } from './time-utils';
@@ -32,6 +32,14 @@ export const LEAGUES: LeagueOption[] = [
   { id: 'OMICRON', startTime: '22:00', description: 'Late night operations.' },
   { id: 'PI', startTime: '23:00', description: 'Midnight operations.' },
 ];
+
+/**
+ * Возвращает количество групп в конкретном дивизионе.
+ * Див 1 = 1, Див 2 = 2, Див 3 = 4...
+ */
+export function getGroupsCountInLevel(level: number): number {
+  return Math.pow(2, level - 1);
+}
 
 /**
  * Генерирует стабильный состав группы. 
