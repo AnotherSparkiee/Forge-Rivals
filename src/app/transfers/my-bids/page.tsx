@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, Loader2, Package, Search } from 'lucide-react';
+import { ChevronLeft, Loader2, Package, Search, Lock } from 'lucide-react';
 import Link from 'next/link';
 import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
 import { collection, query, where, doc, updateDoc, arrayUnion, serverTimestamp } from 'firebase/firestore';
@@ -26,16 +26,20 @@ export default function MyBidsPage() {
   }, []);
 
   const marketQuery = useMemoFirebase(() => {
-    if (!user?.uid) return null;
+    if (!db || !user?.uid) return null;
     return query(collection(db, 'market_v7'), where('bidders', 'array-contains', user.uid));
   }, [db, user?.uid]);
 
   const { data: agents, isLoading: isMarketLoading } = useCollection(marketQuery);
-  const userDocRef = useMemoFirebase(() => user?.uid ? doc(db, 'players_v10', user.uid) : null, [db, user?.uid]);
+  const userDocRef = useMemoFirebase(() => {
+    if (!db || !user?.uid) return null;
+    return doc(db, 'players_v10', user.uid);
+  }, [db, user?.uid]);
+  
   const { data: profile } = useDoc(userDocRef);
 
   const handleGlobalBid = useCallback(async (agent: any, amount: number) => {
-    if (!user || !profile) return;
+    if (!db || !user || !profile) return;
     if (credits < amount) { 
       toast({ title: language === 'ru' ? "Недостаточно средств" : "Insufficient funds", variant: "destructive" }); 
       return; 
@@ -84,7 +88,27 @@ export default function MyBidsPage() {
     }).sort((a, b) => new Date(a.expiresAt).getTime() - new Date(b.expiresAt).getTime());
   }, [agents, now]);
 
-  if (isUserLoading || !isStoreLoaded || isMarketLoading) return <LoadingScreen />;
+  if (isUserLoading || !isStoreLoaded) return <LoadingScreen />;
+
+  const t = {
+    title: language === 'ru' ? 'МОИ ПОКУПКИ' : 'MY BIDS',
+    offline: language === 'ru' ? "ОФЛАЙН: Ваши ставки недоступны." : "OFFLINE: Personal bids restricted."
+  };
+
+  if (!db) {
+    return (
+      <div className="max-w-md mx-auto px-4 pt-8 text-center">
+        <header className="mb-6 flex items-center gap-4 text-left">
+          <Link href="/transfers"><Button variant="ghost" size="icon" className="rounded-full"><ChevronLeft className="w-6 h-6" /></Button></Link>
+          <div><h1 className="text-2xl font-headline font-bold uppercase">{t.title}</h1></div>
+        </header>
+        <div className="py-20 opacity-30 flex flex-col items-center gap-6">
+           <Lock className="w-16 h-16" />
+           <p className="text-xs font-black uppercase tracking-widest">{t.offline}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-32">
@@ -96,9 +120,9 @@ export default function MyBidsPage() {
         </Link>
         <div>
           <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-white">
-            {language === 'ru' ? 'МОИ ПОКУПКИ' : 'MY BIDS'}
+            {t.title}
           </h1>
-          <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-bold opacity-60">Personal Bidding Records</p>
+          <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-black opacity-60">Personal Bidding Records</p>
         </div>
       </header>
 

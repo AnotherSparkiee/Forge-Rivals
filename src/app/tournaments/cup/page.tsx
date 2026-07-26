@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Терминал Кубка v46.3. 
- * Сетка раундов (1/16) отображается сразу.
+ * @fileOverview Терминал Кубка v46.4. 
+ * Добавлена защита от пустой базы данных.
  */
 
 import { useState, useEffect } from 'react';
@@ -10,7 +10,7 @@ import { useRouter } from 'next/navigation';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { useGameState } from '@/app/lib/store';
 import { 
-  ChevronLeft, Trophy, Swords, Loader2, Medal
+  ChevronLeft, Trophy, Swords, Loader2, Medal, Lock
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -28,7 +28,11 @@ export default function PyramidCupPage() {
   const [activeRound, setActiveRound] = useState('r1');
 
   const cupDocId = `cup_s${activeSeasonNumber}_l${selectedLeagueId}`;
-  const cupRef = useMemoFirebase(() => selectedLeagueId ? doc(db, 'cup_pyramid_v1', cupDocId) : null, [db, cupDocId, selectedLeagueId]);
+  const cupRef = useMemoFirebase(() => {
+    if (!db || !selectedLeagueId) return null;
+    return doc(db, 'cup_pyramid_v1', cupDocId);
+  }, [db, cupDocId, selectedLeagueId]);
+  
   const { data: cupData, isLoading: isCupLoading } = useDoc(cupRef);
 
   useEffect(() => {
@@ -45,7 +49,8 @@ export default function PyramidCupPage() {
       final: "Final",
       waiting: "TBD",
       noGrid: "Bracket Pending",
-      noGridDesc: "Syncing data with league server v46.3...",
+      noGridDesc: "Syncing data with league server v46.4...",
+      offline: "OFFLINE: Tournament bracket restricted."
     },
     ru: {
       title: "КУБОК ПИРАМИДЫ",
@@ -54,9 +59,25 @@ export default function PyramidCupPage() {
       final: "Финал",
       waiting: "TBD",
       noGrid: "Сетка формируется",
-      noGridDesc: "Синхронизация данных с сервером лиги v46.3...",
+      noGridDesc: "Синхронизация данных с сервером лиги v46.4...",
+      offline: "ОФЛАЙН: Сетка турнира недоступна."
     }
   }[language as 'en' | 'ru'] || { title: "Cup" };
+
+  if (!db) {
+    return (
+      <div className="max-w-md mx-auto px-4 pt-8 text-center">
+        <header className="mb-8 flex items-center gap-4 text-left">
+          <Link href="/"><Button variant="ghost" size="icon" className="rounded-full border border-white/5 bg-secondary/50"><ChevronLeft className="w-6 h-6" /></Button></Link>
+          <div><h1 className="text-2xl font-headline font-bold uppercase">{t.title}</h1></div>
+        </header>
+        <div className="py-20 opacity-30 flex flex-col items-center gap-6">
+           <Lock className="w-16 h-16" />
+           <p className="text-xs font-black uppercase tracking-widest">{t.offline}</p>
+        </div>
+      </div>
+    );
+  }
 
   const matches = cupData?.rounds?.[activeRound] || [];
 

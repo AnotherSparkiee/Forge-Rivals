@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { 
-  ChevronLeft, Search, Loader2, Filter, 
+  ChevronLeft, Search, Loader2, Filter, Lock,
   ChevronsLeft, ChevronsRight, ChevronLeft as ChevronLeftIcon, 
   ChevronRight as ChevronRightIcon, SlidersHorizontal, X
 } from 'lucide-react';
@@ -53,19 +53,22 @@ export default function AdvancedSearchPage() {
   }, []);
 
   const marketQuery = useMemoFirebase(() => {
-    if (!user?.uid) return null;
+    if (!db || !user?.uid) return null;
     return query(collection(db, 'market_v7'));
   }, [db, user?.uid]);
 
   const { data: agents, isLoading: isMarketLoading } = useCollection(marketQuery);
-  const userDocRef = useMemoFirebase(() => user?.uid ? doc(db, 'players_v10', user.uid) : null, [db, user?.uid]);
+  const userDocRef = useMemoFirebase(() => {
+    if (!db || !user?.uid) return null;
+    return doc(db, 'players_v10', user.uid);
+  }, [db, user?.uid]);
+  
   const { data: profile } = useDoc(userDocRef);
 
   const filteredAgents = useMemo(() => {
     if (!agents) return [];
     
     return agents.filter(a => {
-      // ONLY V900 SYSTEM VERSION
       if (a.isSystem && !a.id.includes('v900')) return false;
 
       const expiry = new Date(a.expiresAt).getTime();
@@ -99,7 +102,7 @@ export default function AdvancedSearchPage() {
   const totalPages = Math.ceil(filteredAgents.length / ITEMS_PER_PAGE);
 
   const handleGlobalBid = useCallback(async (agent: any, amount: number) => {
-    if (!user || !profile) return;
+    if (!db || !user || !profile) return;
     if (credits < amount) { 
       toast({ title: language === 'ru' ? "Недостаточно средств" : "Insufficient funds", variant: "destructive" }); 
       return; 
@@ -151,7 +154,27 @@ export default function AdvancedSearchPage() {
     setPage(0);
   };
 
-  if (isUserLoading || !isStoreLoaded || isMarketLoading) return <LoadingScreen />;
+  if (isUserLoading || !isStoreLoaded) return <LoadingScreen />;
+
+  const t = {
+    title: language === 'ru' ? 'РАСШИРЕННЫЙ ПОИСК' : 'ADVANCED SEARCH',
+    offline: language === 'ru' ? "ОФЛАЙН: Глобальный рынок недоступен." : "OFFLINE: Global market restricted."
+  };
+
+  if (!db) {
+    return (
+      <div className="max-w-md mx-auto px-4 pt-8 text-center">
+        <header className="mb-6 flex items-center gap-4 text-left">
+          <Link href="/transfers"><Button variant="ghost" size="icon" className="rounded-full"><ChevronLeft className="w-6 h-6" /></Button></Link>
+          <div><h1 className="text-2xl font-headline font-bold uppercase">{t.title}</h1></div>
+        </header>
+        <div className="py-20 opacity-30 flex flex-col items-center gap-6">
+           <Lock className="w-16 h-16" />
+           <p className="text-xs font-black uppercase tracking-widest">{t.offline}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-32">
@@ -161,9 +184,9 @@ export default function AdvancedSearchPage() {
         </Link>
         <div className="flex-1">
           <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-white">
-            {language === 'ru' ? 'РАСШИРЕННЫЙ ПОИСК' : 'ADVANCED SEARCH'}
+            {t.title}
           </h1>
-          <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-bold opacity-60">Global Roster Scouting</p>
+          <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-black opacity-60">Global Roster Scouting</p>
         </div>
         <Button variant="ghost" size="icon" onClick={resetFilters} className="text-muted-foreground"><X className="w-5 h-5" /></Button>
       </header>
@@ -231,7 +254,7 @@ export default function AdvancedSearchPage() {
       <div className="space-y-3 animate-in fade-in duration-500">
         <div className="flex items-center justify-between px-1 mb-2">
            <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-accent flex items-center gap-2 px-1">
-             <Search className="w-3 h-3" /> {language === 'ru' ? 'РЕЗУЛЬТАТЫ ПОИСКА' : 'SEARCH RESULTS'}
+             <Search className="w-3" /> {language === 'ru' ? 'РЕЗУЛЬТАТЫ ПОИСКА' : 'SEARCH RESULTS'}
            </h2>
            <Badge variant="outline" className="text-[8px] border-white/10 opacity-60 uppercase">{filteredAgents.length} UNITS FOUND</Badge>
         </div>

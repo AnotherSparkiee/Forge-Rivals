@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, Loader2, Coins, Search } from 'lucide-react';
+import { ChevronLeft, Loader2, Coins, Search, Lock } from 'lucide-react';
 import Link from 'next/link';
 import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
 import { collection, query, where, doc } from 'firebase/firestore';
@@ -23,12 +23,16 @@ export default function MySalesPage() {
   }, []);
 
   const marketQuery = useMemoFirebase(() => {
-    if (!user?.uid) return null;
+    if (!db || !user?.uid) return null;
     return query(collection(db, 'market_v7'), where('sellerId', '==', user.uid));
   }, [db, user?.uid]);
 
   const { data: agents, isLoading: isMarketLoading } = useCollection(marketQuery);
-  const userDocRef = useMemoFirebase(() => user?.uid ? doc(db, 'players_v10', user.uid) : null, [db, user?.uid]);
+  const userDocRef = useMemoFirebase(() => {
+    if (!db || !user?.uid) return null;
+    return doc(db, 'players_v10', user.uid);
+  }, [db, user?.uid]);
+  
   const { data: profile } = useDoc(userDocRef);
 
   const activeSales = useMemo(() => {
@@ -36,7 +40,27 @@ export default function MySalesPage() {
       .sort((a, b) => new Date(a.expiresAt).getTime() - new Date(b.expiresAt).getTime());
   }, [agents, now]);
 
-  if (isUserLoading || !isStoreLoaded || isMarketLoading) return <LoadingScreen />;
+  if (isUserLoading || !isStoreLoaded) return <LoadingScreen />;
+
+  const t = {
+    title: language === 'ru' ? 'МОИ ПРОДАЖИ' : 'MY SALES',
+    offline: language === 'ru' ? "ОФЛАЙН: Ваши лоты недоступны." : "OFFLINE: Personal listings restricted."
+  };
+
+  if (!db) {
+    return (
+      <div className="max-w-md mx-auto px-4 pt-8 text-center">
+        <header className="mb-6 flex items-center gap-4 text-left">
+          <Link href="/transfers"><Button variant="ghost" size="icon" className="rounded-full"><ChevronLeft className="w-6 h-6" /></Button></Link>
+          <div><h1 className="text-2xl font-headline font-bold uppercase">{t.title}</h1></div>
+        </header>
+        <div className="py-20 opacity-30 flex flex-col items-center gap-6">
+           <Lock className="w-16 h-16" />
+           <p className="text-xs font-black uppercase tracking-widest">{t.offline}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-32">
@@ -48,9 +72,9 @@ export default function MySalesPage() {
         </Link>
         <div>
           <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-white">
-            {language === 'ru' ? 'МОИ ПРОДАЖИ' : 'MY SALES'}
+            {t.title}
           </h1>
-          <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-bold opacity-60">Personal Asset Auctions</p>
+          <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-black opacity-60">Personal Asset Auctions</p>
         </div>
       </header>
 
