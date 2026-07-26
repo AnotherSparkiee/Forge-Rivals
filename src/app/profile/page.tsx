@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useGameState, getLevelThreshold, Gift } from '../lib/store';
@@ -146,6 +147,8 @@ export default function ProfilePage() {
     try {
       await resetProfile();
       toast({ title: language === 'ru' ? "Профиль сброшен" : "Profile Reset Complete" });
+      // Redirect to setup page for immediate action
+      router.push('/setup');
     } catch (e) {
       toast({ variant: "destructive", title: "Reset Failed" });
     } finally {

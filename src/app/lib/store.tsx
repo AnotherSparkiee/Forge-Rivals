@@ -2,8 +2,8 @@
 'use client';
 
 /**
- * Глобальное облачное хранилище v211 (Firebase Server Sync).
- * Добавлена логика автоматического определения следующего матча.
+ * Глобальное облачное хранилище v212 (Firebase Server Sync).
+ * Исправлена логика полного сброса профиля и синхронизации стейта.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useMemo, useRef } from 'react';
@@ -132,12 +132,10 @@ const DEFAULT_STATE: GameState = {
   strategy: 'Balanced Play', lineSettings: { carry: 'standard', mid: 'standard', offlane: 'standard' },
   rewardDay: 1, lastRewardClaimDate: null, matchHistory: [], lastSeenMatchDay: 0,
   managerSkills: { sponsors: 0, agents: 0, training: 0, medical: 0 },
-  managerLevel: 1,
-  experiencePoints: 0,
   arena: { capacity: 5000 }, hq: {}, bootcamp: {}, academy: {}, medical: {},
   country: null, isPremium: false, premiumUntil: null, activeSeasonNumber: 1, seasonNumber: 1, seasonDay: 1, isSyncing: false, language: 'ru',
   isDataReady: false, allSeasonMatches: [], nextMatch: null, isMatchesLoading: true,
-  lastProcessedSeason: 0, trophies: [], version: 211,
+  lastProcessedSeason: 0, trophies: [], version: 212,
   availableGiftsToSend: [], receivedGifts: [], lastGiftGenDate: null,
   addCrystals: () => {}, addCredits: () => {}, updatePlayer: () => {}, removePlayer: () => {}, assignToRole: () => {}, updateLineup: () => {}, updateTactics: () => {},
   claimReward: () => {}, setLanguage: () => {}, purchaseLicense: () => false, purchasePremium: () => false,
@@ -186,7 +184,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       if (snap.exists()) {
         const data = snap.data();
         setState(prev => ({
-          ...prev,
+          ...DEFAULT_STATE, // Reset to defaults before merging to ensure "missing" fields are cleared
           ...data,
           id: user.uid,
           isLoaded: true,
@@ -196,7 +194,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
           seasonDay: staticSeasonInfo.seasonDay
         }));
       } else {
-        setState(prev => ({ ...prev, id: user.uid, isLoaded: true }));
+        setState(prev => ({ ...DEFAULT_STATE, id: user.uid, isLoaded: true }));
       }
       setIsDataReady(true);
     }, (error) => {
@@ -413,7 +411,10 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   const resetProfile = useCallback(async () => {
     if (!db || !user?.uid) return;
-    await setDoc(doc(db, 'players_v10', user.uid), cleanData({
+    
+    // Explicitly overwrite everything with defaults for a clean start
+    const resetData = {
+      ...DEFAULT_STATE,
       id: user.uid,
       displayName: state.displayName || "Manager",
       email: user.email,
@@ -421,8 +422,21 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       crystals: 50,
       managerLevel: 1,
       experiencePoints: 0,
-      version: 211
-    }));
+      version: 212,
+      selectedLeagueId: null, // Critical for AuthGuard
+      country: null,          // Critical for AuthGuard
+      clubName: null,
+      clubLogo: null,
+      ownedPlayers: [],
+      youthAcademyPlayers: [],
+      matchHistory: [],
+      trophies: []
+    };
+
+    await setDoc(doc(db, 'players_v10', user.uid), cleanData(resetData));
+    
+    // Immediately clear local state to prevent "merging" with old data
+    setState(resetData);
   }, [db, user?.uid, user?.email, state.displayName]);
 
   const recordMatch = useCallback((w: string, res: any, rew: number, opp: string, t: string, p: string, mId?: string, extra?: any) => {
