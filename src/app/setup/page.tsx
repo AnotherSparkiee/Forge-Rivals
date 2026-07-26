@@ -50,36 +50,30 @@ export default function SetupPage() {
       
       const placement = { tier: 1, group: 1, rank: 1 };
       
-      // Генерируем 10 игроков (по 2 на роль)
+      // Генерируем 10 игроков (по 2 на роль, рейтинг 28-37)
       const startingSquad = getRandomStartingSquad();
       
-      // АВТО-РАСПРЕДЕЛЕНИЕ ВСЕГО СОСТАВА
-      // Берем по 1-му представителю каждой роли в основу
-      const coreCarry = startingSquad.filter(p => p.role === 'Carry')[0];
-      const coreMid = startingSquad.filter(p => p.role === 'Midlaner')[0];
-      const coreTank = startingSquad.filter(p => p.role === 'Tank')[0];
-      const coreJungler = startingSquad.filter(p => p.role === 'Jungler')[0];
-      const coreSupport = startingSquad.filter(p => p.role === 'Support')[0];
-
-      // Вторые представители идут в запас и резерв
-      const subCarry = startingSquad.filter(p => p.role === 'Carry')[1];
-      const subMid = startingSquad.filter(p => p.role === 'Midlaner')[1];
-      const resTank = startingSquad.filter(p => p.role === 'Tank')[1];
-      const resJungler = startingSquad.filter(p => p.role === 'Jungler')[1];
-      const resSupport = startingSquad.filter(p => p.role === 'Support')[1];
+      // АВТО-РАСПРЕДЕЛЕНИЕ ВСЕГО СОСТАВА (ОСНОВА + ЗАПАС)
+      const carryPlayers = startingSquad.filter(p => p.role === 'Carry');
+      const midPlayers = startingSquad.filter(p => p.role === 'Midlaner');
+      const tankPlayers = startingSquad.filter(p => p.role === 'Tank');
+      const junglerPlayers = startingSquad.filter(p => p.role === 'Jungler');
+      const supportPlayers = startingSquad.filter(p => p.role === 'Support');
 
       const initialLineup: Record<LineupSlot, string | null> = {
-        carry: coreCarry?.id || null,
-        mid: coreMid?.id || null,
-        offlane: coreTank?.id || null,
-        support: coreJungler?.id || null,
-        full_support: coreSupport?.id || null,
-        sub1: subCarry?.id || null,
-        sub2: subMid?.id || null,
-        res1: resTank?.id || null,
-        res2: resJungler?.id || null,
-        res3: resSupport?.id || null,
-        res4: null, res5: null, res6: null, res7: null, res8: null
+        carry: carryPlayers[0]?.id || null,
+        mid: midPlayers[0]?.id || null,
+        offlane: tankPlayers[0]?.id || null,
+        support: junglerPlayers[0]?.id || null,
+        full_support: supportPlayers[0]?.id || null,
+        
+        sub_carry: carryPlayers[1]?.id || null,
+        sub_mid: midPlayers[1]?.id || null,
+        sub_offlane: tankPlayers[1]?.id || null,
+        sub_support: junglerPlayers[1]?.id || null,
+        sub_full_support: supportPlayers[1]?.id || null,
+        
+        res1: null, res2: null, res3: null, res4: null, res5: null, res6: null, res7: null, res8: null
       };
 
       saveToLocal({
@@ -100,7 +94,7 @@ export default function SetupPage() {
 
       toast({ 
         title: language === 'ru' ? "Клуб создан!" : "Club Initialized!",
-        description: language === 'ru' ? `Сформирован сбалансированный состав (10 игроков, OVR 28-37).` : `Balanced squad formed (10 players, OVR 28-37).`
+        description: language === 'ru' ? `Сформирован полный состав: Основа + Запас (10 игроков).` : `Full roster formed: Core + Subs (10 players).`
       });
       router.push('/');
     } catch (e) {
@@ -239,8 +233,8 @@ export default function SetupPage() {
                   <Info className="w-4 h-4 text-primary shrink-0 mt-0.5" />
                   <p className="text-[10px] text-muted-foreground leading-relaxed italic">
                     {language === 'ru' 
-                      ? "В начале карьеры вам выдается сбалансированный ростер из 10 специалистов (рейтинг 28-37) с дублерами на каждую позицию." 
-                      : "At the start, you receive a balanced roster of 10 specialists (rating 28-37) with backups for each position."}
+                      ? "В начале карьеры вам выдается полный ростер из 10 специалистов (рейтинг 28-37): по 2 на каждую игровую позицию." 
+                      : "At the start, you receive a full roster of 10 specialists (rating 28-37): 2 for each gameplay position."}
                   </p>
                </div>
             </div>

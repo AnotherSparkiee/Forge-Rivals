@@ -69,12 +69,12 @@ export default function SquadPage() {
   const { data: profile } = useDoc(userRef);
 
   const squadLimit = useMemo(() => {
-    if (isPremium) return 15;
+    if (isPremium) return 18;
     const tier = activeLicenseTier || 4;
-    if (tier === 1) return 12;
-    if (tier === 2) return 10;
-    if (tier === 3) return 8;
-    return 7;
+    if (tier === 1) return 15;
+    if (tier === 2) return 12;
+    if (tier === 3) return 10;
+    return 10;
   }, [isPremium, activeLicenseTier]);
 
   const allAvailablePlayers = useMemo(() => {
@@ -85,16 +85,12 @@ export default function SquadPage() {
     return new Set(Object.values(lineup).filter(Boolean) as string[]);
   }, [lineup]);
 
-  const unassignedPlayers = useMemo(() => {
-    return ownedPlayers.filter(p => !assignedPlayerIds.has(p.id) && !p.isYouth);
-  }, [ownedPlayers, assignedPlayerIds]);
-
   const t = {
     title: language === 'ru' ? "СОСТАВ ИГРОКОВ" : "PLAYER ROSTER",
     subtitle: language === 'ru' ? "Управление активным ростером" : "Direct roster management",
-    activeLabel: language === 'ru' ? "Основа (5)" : "Core (5)",
-    subsLabel: language === 'ru' ? "Запас (2)" : "Subs (2)",
-    reservesLabel: language === 'ru' ? `Резерв (${squadLimit - 7})` : `Reserves (${squadLimit - 7})`,
+    activeLabel: language === 'ru' ? "Основа (Core 5)" : "Core Five (5)",
+    subsLabel: language === 'ru' ? "Запас (Subs 5)" : "Direct Subs (5)",
+    reservesLabel: language === 'ru' ? `Резерв (${squadLimit - 10})` : `Reserves (${squadLimit - 10})`,
     fullSquadLabel: language === 'ru' ? "ВСЕ ИГРОКИ КЛУБА" : "ALL CLUB PLAYERS",
     emptySlot: language === 'ru' ? "Назначить" : "Assign",
     teamOverall: language === 'ru' ? "ОБЩ" : "OVR",
@@ -117,16 +113,21 @@ export default function SquadPage() {
       offlane: { label: language === 'ru' ? "Танк (Off)" : "Offlaner", icon: Shield, color: "text-orange-400" },
       support: { label: language === 'ru' ? "Лес (Pos 4)" : "Support", icon: Zap, color: "text-yellow-400" },
       full_support: { label: language === 'ru' ? "Саппорт (Pos 5)" : "Full Support", icon: HeartPulse, color: "text-green-400" },
-      sub1: { label: language === 'ru' ? "Зап. Керри" : "Sub Carry", icon: Sword, color: "text-red-400" },
-      sub2: { label: language === 'ru' ? "Зап. Мидер" : "Sub Midlaner", icon: Sparkles, color: "text-blue-400" },
-      res1: { label: language === 'ru' ? "Рез. Танк" : "Res Offlaner", icon: Shield, color: "text-orange-400" },
-      res2: { label: language === 'ru' ? "Рез. Лес" : "Res Support", icon: Zap, color: "text-yellow-400" },
-      res3: { label: language === 'ru' ? "Рез. Саппорт" : "Res Full Support", icon: HeartPulse, color: "text-green-400" },
-      res4: { label: language === 'ru' ? "Рез. Керри" : "Res Carry", icon: Sword, color: "text-red-400" },
-      res5: { label: language === 'ru' ? "Рез. Мидер" : "Res Midlaner", icon: Sparkles, color: "text-blue-400" },
-      res6: { label: language === 'ru' ? "Рез. Танк" : "Res Offlaner", icon: Shield, color: "text-orange-400" },
-      res7: { label: language === 'ru' ? "Рез. Лес" : "Res Support", icon: Zap, color: "text-yellow-400" },
-      res8: { label: language === 'ru' ? "Рез. Саппорт" : "Res Full Support", icon: HeartPulse, color: "text-green-400" },
+      
+      sub_carry: { label: language === 'ru' ? "Зап. Керри" : "Sub Carry", icon: Sword, color: "text-red-400" },
+      sub_mid: { label: language === 'ru' ? "Зап. Мидер" : "Sub Midlaner", icon: Sparkles, color: "text-blue-400" },
+      sub_offlane: { label: language === 'ru' ? "Зап. Танк" : "Sub Offlaner", icon: Shield, color: "text-orange-400" },
+      sub_support: { label: language === 'ru' ? "Зап. Лес" : "Sub Support", icon: Zap, color: "text-yellow-400" },
+      sub_full_support: { label: language === 'ru' ? "Зап. Саппорт" : "Sub Full Support", icon: HeartPulse, color: "text-green-400" },
+      
+      res1: { label: language === 'ru' ? "Резерв" : "Reserve", icon: User, color: "text-muted-foreground" },
+      res2: { label: language === 'ru' ? "Резерв" : "Reserve", icon: User, color: "text-muted-foreground" },
+      res3: { label: language === 'ru' ? "Резерв" : "Reserve", icon: User, color: "text-muted-foreground" },
+      res4: { label: language === 'ru' ? "Резерв" : "Reserve", icon: User, color: "text-muted-foreground" },
+      res5: { label: language === 'ru' ? "Резерв" : "Reserve", icon: User, color: "text-muted-foreground" },
+      res6: { label: language === 'ru' ? "Резерв" : "Reserve", icon: User, color: "text-muted-foreground" },
+      res7: { label: language === 'ru' ? "Резерв" : "Reserve", icon: User, color: "text-muted-foreground" },
+      res8: { label: language === 'ru' ? "Резерв" : "Reserve", icon: User, color: "text-muted-foreground" },
     },
     proStatsLabels: {
       lastHitting: language === 'ru' ? "Добив крипов" : "Last Hitting",
@@ -146,7 +147,7 @@ export default function SquadPage() {
 
   const roleMapping: Record<LineupSlot, string[]> = {
     carry: ['Carry'], mid: ['Midlaner'], offlane: ['Tank'], support: ['Jungler'], full_support: ['Support'],
-    sub1: ['Carry'], sub2: ['Midlaner'],
+    sub_carry: ['Carry'], sub_mid: ['Midlaner'], sub_offlane: ['Tank'], sub_support: ['Jungler'], sub_full_support: ['Support'],
     res1: ALL_ROLES, res2: ALL_ROLES, res3: ALL_ROLES, res4: ALL_ROLES, res5: ALL_ROLES, res6: ALL_ROLES, res7: ALL_ROLES, res8: ALL_ROLES,
   };
 
@@ -274,7 +275,7 @@ export default function SquadPage() {
   };
 
   const reserveSlots: LineupSlot[] = [];
-  for (let i = 1; i <= squadLimit - 7; i++) { reserveSlots.push(`res${i}` as LineupSlot); }
+  for (let i = 1; i <= squadLimit - 10; i++) { reserveSlots.push(`res${i}` as LineupSlot); }
 
   if (!isLoaded) return <LoadingScreen />;
 
@@ -319,14 +320,18 @@ export default function SquadPage() {
           <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-accent px-1 flex items-center gap-2"><ShieldCheck className="w-3.5 h-3.5" /> {t.activeLabel}</h2>
           <div className="space-y-1.5">{ (['carry', 'mid', 'offlane', 'support', 'full_support'] as LineupSlot[]).map(renderSlot) }</div>
         </section>
+        
         <section className="space-y-2">
-          <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground px-1 flex items-center gap-2"><UserPlus className="w-3.5 h-3.5" /> {t.subsLabel}</h2>
-          <div className="space-y-1.5">{ (['sub1', 'sub2'] as LineupSlot[]).map(renderSlot) }</div>
+          <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary/80 px-1 flex items-center gap-2"><UserPlus className="w-3.5 h-3.5" /> {t.subsLabel}</h2>
+          <div className="space-y-1.5">{ (['sub_carry', 'sub_mid', 'sub_offlane', 'sub_support', 'sub_full_support'] as LineupSlot[]).map(renderSlot) }</div>
         </section>
-        <section className="space-y-2">
-          <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/50 px-1 flex items-center gap-2"><Users className="w-3.5 h-3.5" /> {t.reservesLabel}</h2>
-          <div className="space-y-1.5">{ reserveSlots.map(renderSlot) }</div>
-        </section>
+        
+        {reserveSlots.length > 0 && (
+          <section className="space-y-2">
+            <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/50 px-1 flex items-center gap-2"><Users className="w-3.5 h-3.5" /> {t.reservesLabel}</h2>
+            <div className="space-y-1.5">{ reserveSlots.map(renderSlot) }</div>
+          </section>
+        )}
 
         {/* FULL SQUAD LISTING */}
         <section className="space-y-3 pt-4 border-t border-white/5">

@@ -1,8 +1,7 @@
-
 'use client';
 
 /**
- * Глобальное локальное хранилище v216 (Autonomous Mode).
+ * Глобальное локальное хранилище v217 (Autonomous Mode).
  * Полностью удалена зависимость от облачной синхронизации для устранения ошибок доступа.
  * Все данные сохраняются в localStorage.
  */
@@ -19,7 +18,10 @@ export const STAT_KEYS = [
   'tiltResistance', 'versatility', 'ganking'
 ];
 
-export type LineupSlot = 'carry' | 'mid' | 'offlane' | 'support' | 'full_support' | 'sub1' | 'sub2' | 'res1' | 'res2' | 'res3' | 'res4' | 'res5' | 'res6' | 'res7' | 'res8';
+export type LineupSlot = 
+  | 'carry' | 'mid' | 'offlane' | 'support' | 'full_support' 
+  | 'sub_carry' | 'sub_mid' | 'sub_offlane' | 'sub_support' | 'sub_full_support'
+  | 'res1' | 'res2' | 'res3' | 'res4' | 'res5' | 'res6' | 'res7' | 'res8';
 
 export interface Gift {
   id: string;
@@ -120,14 +122,18 @@ interface GameState {
   saveToLocal: (state: Partial<GameState>) => void;
 }
 
-const STORAGE_KEY = 'lote_game_state_v216';
+const STORAGE_KEY = 'lote_game_state_v217';
 
 const DEFAULT_STATE: GameState = {
   credits: 1000000, crystals: 50, experiencePoints: 0, managerLevel: 1,
   leagueLevel: 9, groupId: 1, selectedLeagueId: null,
   displayName: 'Local Manager', id: 'local-manager', isLoaded: false, isTeamLoaded: false,
   clubName: null, clubLogo: null,
-  lineup: { carry: null, mid: null, offlane: null, support: null, full_support: null, sub1: null, sub2: null, res1: null, res2: null, res3: null, res4: null, res5: null, res6: null, res7: null, res8: null },
+  lineup: { 
+    carry: null, mid: null, offlane: null, support: null, full_support: null, 
+    sub_carry: null, sub_mid: null, sub_offlane: null, sub_support: null, sub_full_support: null,
+    res1: null, res2: null, res3: null, res4: null, res5: null, res6: null, res7: null, res8: null 
+  },
   ownedPlayers: [], youthAcademyPlayers: [], scoutingCandidates: [], lastScoutDate: null,
   staff: { coach: null, analyst: null, scout: null, doctor: null, financier: null },
   strategy: 'Balanced Play', lineSettings: { carry: 'standard', mid: 'standard', offlane: 'standard' },
@@ -136,7 +142,7 @@ const DEFAULT_STATE: GameState = {
   arena: { capacity: 5000 }, hq: {}, bootcamp: {}, academy: {}, medical: {},
   country: null, isPremium: false, premiumUntil: null, activeSeasonNumber: 1, seasonNumber: 1, seasonDay: 1, isSyncing: false, language: 'ru',
   isDataReady: false, allSeasonMatches: [], nextMatch: null, isMatchesLoading: true,
-  lastProcessedSeason: 0, trophies: [], version: 216,
+  lastProcessedSeason: 0, trophies: [], version: 217,
   availableGiftsToSend: [], receivedGifts: [], lastGiftGenDate: null,
   addCrystals: () => {}, addCredits: () => {}, updatePlayer: () => {}, removePlayer: () => {}, assignToRole: () => {}, updateLineup: () => {}, updateTactics: () => {},
   claimReward: () => {}, setLanguage: () => {}, purchaseLicense: () => false, purchasePremium: () => false,

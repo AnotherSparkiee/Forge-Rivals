@@ -59,7 +59,7 @@ export default function SynergyPage() {
     // Все возможные слоты состава
     const allSlots: LineupSlot[] = [
       'carry', 'mid', 'offlane', 'support', 'full_support',
-      'sub1', 'sub2',
+      'sub_carry', 'sub_mid', 'sub_offlane', 'sub_support', 'sub_full_support',
       'res1', 'res2', 'res3', 'res4', 'res5', 'res6', 'res7', 'res8'
     ];
 
@@ -129,7 +129,8 @@ export default function SynergyPage() {
     ],
     rolesRu: {
       carry: "Керри", mid: "Мидер", offlane: "Танк", support: "Лес", full_support: "Саппорт",
-      sub1: "Запас 1", sub2: "Запас 2", res1: "Резерв", res2: "Резерв", res3: "Резерв", res4: "Резерв"
+      sub_carry: "Зап. Керри", sub_mid: "Зап. Мидер", sub_offlane: "Зап. Танк", sub_support: "Зап. Лес", sub_full_support: "Зап. Саппорт",
+      res1: "Резерв", res2: "Резерв", res3: "Резерв", res4: "Резерв"
     }
   };
 
