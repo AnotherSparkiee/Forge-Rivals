@@ -48,12 +48,21 @@ export default function SetupPage() {
       const selectedClub = CLUBS.find(c => c.id === selectedClubId);
       const { activeSeasonNumber } = getGlobalSeasonInfo();
       
-      // LOCAL PLACEMENT LOGIC (Simulated bypass)
-      // New players are assigned to Division 1 for a fast prestige start in local mode
       const placement = { tier: 1, group: 1, rank: 1 };
       
-      const hasSquad = (ownedPlayers || []).length > 0;
-      const startingSquad = hasSquad ? ownedPlayers : getRandomStartingSquad();
+      const startingSquad = getRandomStartingSquad();
+      
+      // AUTO-ASSIGN CORE 5
+      const initialLineup = {
+        carry: startingSquad.find(p => p.role === 'Carry')?.id || startingSquad[0]?.id || null,
+        mid: startingSquad.find(p => p.role === 'Midlaner')?.id || startingSquad[1]?.id || null,
+        offlane: startingSquad.find(p => p.role === 'Tank')?.id || startingSquad[2]?.id || null,
+        support: startingSquad.find(p => p.role === 'Jungler')?.id || startingSquad[3]?.id || null,
+        full_support: startingSquad.find(p => p.role === 'Support')?.id || startingSquad[4]?.id || null,
+        sub1: startingSquad[5]?.id || null,
+        sub2: startingSquad[6]?.id || null,
+        res1: null, res2: null, res3: null, res4: null, res5: null, res6: null, res7: null, res8: null
+      };
 
       saveToLocal({
         selectedLeagueId,
@@ -65,6 +74,7 @@ export default function SetupPage() {
         displayName: customClubName.trim(),
         clubLogo: selectedClub?.logo || null,
         ownedPlayers: startingSquad,
+        lineup: initialLineup,
         isDataReady: true,
         isTeamLoaded: true,
         lastProcessedSeason: activeSeasonNumber

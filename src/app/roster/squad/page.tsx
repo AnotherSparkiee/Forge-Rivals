@@ -81,12 +81,21 @@ export default function SquadPage() {
     return [...ownedPlayers, ...youthAcademyPlayers];
   }, [ownedPlayers, youthAcademyPlayers]);
 
+  const assignedPlayerIds = useMemo(() => {
+    return new Set(Object.values(lineup).filter(Boolean) as string[]);
+  }, [lineup]);
+
+  const unassignedPlayers = useMemo(() => {
+    return ownedPlayers.filter(p => !assignedPlayerIds.has(p.id) && !p.isYouth);
+  }, [ownedPlayers, assignedPlayerIds]);
+
   const t = {
     title: language === 'ru' ? "СОСТАВ ИГРОКОВ" : "PLAYER ROSTER",
     subtitle: language === 'ru' ? "Управление активным ростером" : "Direct roster management",
     activeLabel: language === 'ru' ? "Основа (5)" : "Core (5)",
     subsLabel: language === 'ru' ? "Запас (2)" : "Subs (2)",
     reservesLabel: language === 'ru' ? `Резерв (${squadLimit - 7})` : `Reserves (${squadLimit - 7})`,
+    fullSquadLabel: language === 'ru' ? "ВСЕ ИГРОКИ КЛУБА" : "ALL CLUB PLAYERS",
     emptySlot: language === 'ru' ? "Назначить" : "Assign",
     teamOverall: language === 'ru' ? "ОБЩ" : "OVR",
     selectPlayer: language === 'ru' ? "Выберите игрока" : "Select player",
@@ -287,7 +296,7 @@ export default function SquadPage() {
   };
 
   return (
-    <div className="max-w-md mx-auto px-4 pt-8 pb-20">
+    <div className="max-w-md mx-auto px-4 pt-8 pb-32">
       <header className="mb-6 flex items-center justify-between gap-4">
         <div className="flex items-center gap-4 flex-1 min-w-0">
           <Link href="/roster"><Button variant="ghost" size="icon" className="rounded-full shrink-0"><ChevronLeft className="w-6 h-6" /></Button></Link>
@@ -317,6 +326,45 @@ export default function SquadPage() {
         <section className="space-y-2">
           <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/50 px-1 flex items-center gap-2"><Users className="w-3.5 h-3.5" /> {t.reservesLabel}</h2>
           <div className="space-y-1.5">{ reserveSlots.map(renderSlot) }</div>
+        </section>
+
+        {/* FULL SQUAD LISTING */}
+        <section className="space-y-3 pt-4 border-t border-white/5">
+           <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-primary px-1 flex items-center gap-2">
+             <Users className="w-3.5 h-3.5" /> {t.fullSquadLabel}
+           </h2>
+           <div className="space-y-1.5">
+             {ownedPlayers.map(p => {
+               const isAssigned = assignedPlayerIds.has(p.id);
+               return (
+                 <Card key={p.id} className={cn(
+                   "glass-card border-white/5 transition-all overflow-hidden",
+                   isAssigned ? "opacity-50" : "hover:bg-white/5 cursor-pointer"
+                 )} onClick={() => !isAssigned && setProfilePlayer(p)}>
+                    <CardContent className="p-2 flex items-center justify-between gap-3">
+                       <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-lg overflow-hidden bg-secondary/50 border border-white/10 shrink-0">
+                            <img src={p.image} alt="" className="w-full h-full object-cover" />
+                          </div>
+                          <div>
+                            <h4 className="text-[11px] font-bold uppercase text-white truncate max-w-[120px]">{p.name}</h4>
+                            <div className="flex items-center gap-2 mt-0.5">
+                               <Badge variant="outline" className="text-[6px] h-3 px-1 border-white/10 uppercase opacity-60">
+                                 {rolesRu[p.role] || p.role}
+                               </Badge>
+                               {isAssigned && <span className="text-[7px] font-black text-primary uppercase">В СОСТАВЕ</span>}
+                            </div>
+                          </div>
+                       </div>
+                       <div className="flex flex-col items-end border-l border-white/5 pl-3 min-w-[40px]">
+                          <p className="text-[6px] font-black text-muted-foreground uppercase tracking-widest mb-0.5">OVR</p>
+                          <span className="text-sm font-headline font-bold text-accent italic leading-none">{p.overallRating}</span>
+                       </div>
+                    </CardContent>
+                 </Card>
+               );
+             })}
+           </div>
         </section>
       </div>
 
