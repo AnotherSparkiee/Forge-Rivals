@@ -1,4 +1,3 @@
-
 'use client';
 
 import type { Metadata } from 'next';
@@ -9,10 +8,7 @@ import { GameStateProvider, useGameState } from "@/app/lib/store";
 import { TopBar } from "@/components/game/TopBar";
 import { BottomNav } from "@/components/game/BottomNav";
 import { AutoMatchManager } from "@/components/game/AutoMatchManager";
-import { FriendlyMatchListener } from "@/components/game/FriendlyMatchListener";
-import { CWBasketListener } from "@/components/game/CWBasketListener";
 import { DailyRewardManager } from "@/components/game/DailyRewardManager";
-import { TransferResolver } from "@/components/game/TransferResolver";
 import { GiftGenerationManager } from "@/components/game/GiftGenerationManager";
 import { TelegramSyncHandler } from "@/components/game/TelegramSyncHandler";
 import { AuthGuard } from "@/components/game/AuthGuard";
@@ -25,18 +21,15 @@ import Script from 'next/script';
 
 function GameInterface({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { user, isUserLoading } = useUser();
   const { isLoaded, isDataReady } = useGameState();
   
   const isAuthOrSetup = pathname?.startsWith('/auth') || pathname === '/setup';
 
-  // Рендерим менеджер синхронизации ВСЕГДА, если юзер залогинен и это не страница входа/настройки.
-  const needsWorldSync = !!user && !isAuthOrSetup;
+  // В локальном режиме нам не нужен Firebase User для старта
+  const needsWorldSync = isLoaded && !isAuthOrSetup;
 
-  // Показываем прелоадер только если:
-  // 1. Грузится Firebase-юзер
-  // 2. Юзер есть, но мир еще не синхронизирован (isDataReady === false)
-  const showPreloader = isUserLoading || (needsWorldSync && !isDataReady);
+  // Показываем прелоадер только во время первичной инициализации стора
+  const showPreloader = !isLoaded || (needsWorldSync && !isDataReady);
 
   return (
     <>
@@ -50,10 +43,8 @@ function GameInterface({ children }: { children: React.ReactNode }) {
           {!isAuthOrSetup && isDataReady && <TopBar />}
           {!isAuthOrSetup && isDataReady && (
             <>
-              <FriendlyMatchListener />
-              <CWBasketListener />
+              {/* Firebase-зависимые слушатели временно отключены для локального режима */}
               <DailyRewardManager />
-              <TransferResolver />
               <GiftGenerationManager />
             </>
           )}
