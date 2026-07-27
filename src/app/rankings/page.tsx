@@ -11,7 +11,15 @@ import {
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { LEAGUES, MAX_LEVELS, getStableGroupTeams, getGroupsCountInLevel, getMatchResult } from '../lib/leagues-data';
+import { 
+  LEAGUES, 
+  MAX_LEVELS, 
+  getStableGroupTeams, 
+  getGroupsCountInLevel, 
+  getMatchResult,
+  generateSeasonCalendar
+} from '../lib/leagues-data';
+import { isMatchOverdue } from '../lib/time-utils';
 import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import Link from 'next/link';
@@ -35,7 +43,7 @@ export default function RankingsPage() {
   const contextLevel = Number(navLevel || leagueLevel || 9);
   const contextGroup = Number(navGroup || groupId || 1);
 
-  // Генерируем данные таблицы с учетом зон повышения/понижения
+  // Генерируем данные таблицы на основе реального времени и календаря
   const standings = useMemo(() => {
     if (!isLoaded || !selectedLeagueId) return [];
 
@@ -50,24 +58,44 @@ export default function RankingsPage() {
     ] : [];
 
     const teams = getStableGroupTeams(contextLevel, contextGroup, contextLeagueId, realPlayersInGroup);
+    
+    // Генерируем календарь для всей группы, чтобы посчитать сыгранные матчи на текущий момент
+    const groupCalendar = generateSeasonCalendar(teams, seasonNumber, contextLeagueId);
 
     return teams.map((t) => {
-      let wins = 0, draws = 0, losses = 0, pts = 0;
-      // Симулируем текущий прогресс сезона (например, 10 туров сыграно)
-      const played = 10;
-      for (let tour = 1; tour <= played; tour++) {
-        const [sA, sB] = getMatchResult(t.id, "opp", seasonNumber, tour);
-        if (sA > sB) { wins++; pts += 3; }
-        else if (sA === sB) { draws++; pts += 1; }
-        else losses++;
-      }
+      let wins = 0, draws = 0, losses = 0, pts = 0, played = 0;
+      
+      // Находим все матчи этой команды в календаре
+      const teamMatches = groupCalendar.filter(m => m.homeId === t.id || m.awayId === t.id);
+
+      teamMatches.forEach(m => {
+        // Матч считается сыгранным, если его время начала прошло (+45 минут на симуляцию)
+        if (isMatchOverdue(m.startTime)) {
+          played++;
+          const [scoreH, scoreA] = getMatchResult(m.homeId, m.awayId, seasonNumber, m.tour);
+          
+          const isHome = m.homeId === t.id;
+          const myScore = isHome ? scoreH : scoreA;
+          const oppScore = isHome ? scoreA : scoreH;
+
+          if (myScore > oppScore) {
+            wins++;
+            pts += 3;
+          } else if (myScore === oppScore) {
+            draws++;
+            pts += 1;
+          } else {
+            losses++;
+          }
+        }
+      });
 
       return {
         ...t,
         matchesPlayed: played,
         wins, draws, losses,
         points: pts,
-        diff: wins * 2 - losses
+        diff: (wins * 2) - losses // Условная разница для сортировки
       };
     }).sort((a, b) => b.points - a.points || b.diff - a.diff);
   }, [isLoaded, contextLevel, contextGroup, contextLeagueId, clubName, clubLogo, rank, selectedLeagueId, seasonNumber, leagueLevel, groupId, userId]);
