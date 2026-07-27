@@ -50,10 +50,8 @@ export default function SetupPage() {
       
       const placement = { tier: 1, group: 1, rank: 1 };
       
-      // Генерируем 10 игроков (по 2 на роль, рейтинг 28-37)
       const startingSquad = getRandomStartingSquad();
       
-      // АВТО-РАСПРЕДЕЛЕНИЕ ВСЕГО СОСТАВА (ОСНОВА + ЗАПАС)
       const carryPlayers = startingSquad.filter(p => p.role === 'Carry');
       const midPlayers = startingSquad.filter(p => p.role === 'Midlaner');
       const tankPlayers = startingSquad.filter(p => p.role === 'Tank');
@@ -132,10 +130,10 @@ export default function SetupPage() {
   }[language as 'ru' ? 'ru' : 'en'];
 
   return (
-    <div className="min-h-screen bg-background flex flex-col relative">
+    <div className="min-h-screen bg-background flex flex-col relative overflow-hidden">
       <div className="absolute inset-0 pointer-events-none opacity-20 bg-[radial-gradient(circle_at_50%_50%,_hsl(var(--primary)/0.15),_transparent_70%)]" />
-      <div className="relative z-10 w-full max-w-md mx-auto px-4 flex flex-col py-12">
-        <header className="text-center mb-10 relative">
+      <div className="relative z-10 w-full max-w-md mx-auto px-4 flex flex-col min-h-screen pt-12 pb-32">
+        <header className="text-center mb-8 relative shrink-0">
           {step !== 'league' && (
             <Button variant="ghost" size="icon" className="absolute left-0 top-0 rounded-full" onClick={() => {
               if (step === 'country') setStep('league');
@@ -148,12 +146,12 @@ export default function SetupPage() {
           <h1 className="text-2xl font-headline font-bold text-white uppercase tracking-tighter">
             {step === 'league' ? t.league : step === 'country' ? t.country : step === 'club' ? t.club : t.name}
           </h1>
-          <p className="text-muted-foreground text-[10px] uppercase tracking-widest mt-1 opacity-60 px-4">{t.protocol}</p>
+          <p className="text-muted-foreground text-[10px] uppercase tracking-widest mt-1 opacity-60 px-4 leading-tight">{t.protocol}</p>
         </header>
         
-        <div className="flex-1 pb-24">
+        <div className="flex-1 flex flex-col justify-center animate-in fade-in duration-700">
           {step === 'league' && (
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-4 gap-2 w-full">
               {LEAGUES.map((l, i) => {
                 const letter = String.fromCharCode(83 + Math.floor(i / 2));
                 const num = (i % 2) + 1;
@@ -169,8 +167,8 @@ export default function SetupPage() {
                     onClick={() => setSelectedLeagueId(l.id)}
                   >
                     <CardContent className="p-0 text-center flex flex-col items-center justify-center">
-                      <p className="text-[10px] font-black text-primary uppercase mb-1 leading-none">{leagueCode}</p>
-                      <span className="text-sm font-headline font-bold text-white leading-none">{l.startTime}</span>
+                      <p className="text-lg font-headline font-black text-primary italic uppercase leading-none mb-1.5">{leagueCode}</p>
+                      <span className="text-[10px] font-bold text-white/60 tracking-wider font-mono">{l.startTime}</span>
                     </CardContent>
                   </Card>
                 );
@@ -179,7 +177,7 @@ export default function SetupPage() {
           )}
 
           {step === 'country' && (
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-4 gap-2 w-full">
               {COUNTRIES.map((c) => (
                 <Card 
                   key={c.code} 
@@ -199,7 +197,7 @@ export default function SetupPage() {
           )}
 
           {step === 'club' && (
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-4 gap-2 w-full">
               {CLUBS.map((c) => (
                 <Card 
                   key={c.id} 
@@ -218,8 +216,8 @@ export default function SetupPage() {
           )}
 
           {step === 'name' && (
-            <div className="space-y-6 animate-in fade-in duration-500">
-               <Card className="glass-card border-primary/20 bg-primary/5 p-6">
+            <div className="space-y-6 w-full">
+               <Card className="glass-card border-primary/20 bg-primary/5 p-6 shadow-2xl">
                  <div className="space-y-4">
                    <div className="space-y-2">
                      <Label className="text-[10px] font-black uppercase text-muted-foreground ml-1">{t.name}</Label>
