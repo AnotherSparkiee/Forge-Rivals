@@ -116,7 +116,7 @@ export default function SetupPage() {
         league: 'Выберите удобное для вас время матчей лиги',
         country: 'Выберите страну которую будете представлять',
         club: 'Выберите логотип вашего будущего клуба',
-        name: 'Придумайте уникальный позывной для вашей организации',
+        name: 'Придумайте уникальное название вашей будущей команды',
       },
       msk: 'МСК',
       namePlaceholder: 'Введите название клуба...',
@@ -132,7 +132,7 @@ export default function SetupPage() {
         league: 'Select a convenient time for league matches',
         country: 'Select the country you will represent',
         club: 'Choose your future club logo',
-        name: 'Create a unique callsign for your organization',
+        name: 'Create a unique name for your future organization',
       },
       msk: 'MSK',
       namePlaceholder: 'Enter club name...',
@@ -245,14 +245,6 @@ export default function SetupPage() {
                    </div>
                  </div>
                </Card>
-               <div className="p-4 bg-primary/5 rounded-2xl border border-dashed border-primary/20 flex gap-3 items-start">
-                  <Info className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-                  <p className="text-[10px] text-muted-foreground leading-relaxed italic">
-                    {language === 'ru' 
-                      ? "В начале карьеры вам выдается полный ростер из 10 специалистов (рейтинг 28-37): по 2 на каждую игровую позицию." 
-                      : "At the start, you receive a full roster of 10 specialists (rating 28-37): 2 for each gameplay position."}
-                  </p>
-               </div>
             </div>
           )}
         </div>
