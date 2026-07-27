@@ -1,7 +1,7 @@
 /**
- * @fileOverview Ядро времени v89 (Infinite Season Sync). 
+ * @fileOverview Ядро времени v90 (Infinite Season Sync). 
  * Глобальная синхронизация цикла (15 дней).
- * Стабильная эпоха: Скорректирована для отображения актуальных таймеров.
+ * Эпоха скорректирована для начала Season 1.
  */
 
 let syncPoint = {
@@ -10,7 +10,7 @@ let syncPoint = {
 };
 
 const MSK_OFFSET = 3 * 60 * 60 * 1000;
-// Скорректировано для сокращения обратного отсчета до ~15 часов
+// Скорректировано: начало сезона зафиксировано на 2 февраля 2025
 export const GLOBAL_EPOCH_ISO = '2025-02-02T09:00:00Z'; 
 
 export function setServerTime(serverMs: number) {
@@ -95,7 +95,6 @@ export function getGlobalSeasonInfo() {
 
   const currentSeasonStart = new Date(epochUtc.getTime() + (seasonNumber - 1) * cycleMs);
   // Время генерации: 15-й день цикла в 16:00 MSK
-  // 15-й день начинается через 14 полных дней после начала цикла
   const generationTime = new Date(currentSeasonStart.getTime() + (14 * dayMs) + (16 * 3600000));
   const isGenerationReady = utcNow.getTime() >= generationTime.getTime();
 
@@ -115,6 +114,7 @@ export function getGlobalSeasonInfo() {
 export function isMatchOverdue(startTimeIso: string): boolean {
   const utcNow = getMoscowTime();
   const start = new Date(startTimeIso);
+  // Матч считается завершенным через 45 минут после начала
   return utcNow.getTime() > (start.getTime() + (45 * 60 * 1000));
 }
 

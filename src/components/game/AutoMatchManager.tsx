@@ -13,8 +13,9 @@ import {
 import { useToast } from '@/hooks/use-toast';
 
 /**
- * ЛОКАЛЬНЫЙ МЕНЕДЖЕР МАТЧЕЙ v5.0 (Auto-Resolution)
+ * ЛОКАЛЬНЫЙ МЕНЕДЖЕР МАТЧЕЙ v5.2 (Auto-Resolution & Season Transition)
  * Генерирует календарь и автоматически завершает прошедшие матчи.
+ * Добавлена очистка календаря при смене сезона.
  */
 export function AutoMatchManager() {
   const { 
@@ -32,16 +33,9 @@ export function AutoMatchManager() {
     const info = getGlobalSeasonInfo();
     const currentSeason = info.activeSeasonNumber;
 
-    // 1. ПЕРЕХОД СЕЗОНА (Межсезонье)
-    if (info.isOffseason && lastProcessedSeason < currentSeason) {
-      if (!info.isGenerationReady) {
-        if (allSeasonMatches && allSeasonMatches.length > 0) {
-          saveToLocal({ allSeasonMatches: [] });
-        }
-        return;
-      }
-
-      console.log("[LEAGUE] End of season. Calculating promotion/relegation...");
+    // 1. ПЕРЕХОД СЕЗОНА (Межсезонье или старт нового)
+    if (lastProcessedSeason < currentSeason) {
+      console.log(`[LEAGUE] Transitioning to Season ${currentSeason}. Processing promotion/relegation...`);
       
       const teamData = getStableGroupTeams(leagueLevel, groupId, selectedLeagueId, [{
         id: 'local-manager', name: clubName || "Local Club", rank: rank || 1, logo: clubLogo || null, isBot: false
@@ -85,15 +79,16 @@ export function AutoMatchManager() {
         leagueLevel: nextLevel,
         groupId: nextGroup,
         lastProcessedSeason: currentSeason,
-        allSeasonMatches: newCalendar
+        allSeasonMatches: newCalendar,
+        lastSeenMatchDay: 0 // Сброс просмотренных матчей для нового сезона
       });
       return;
     }
 
-    // 2. ИНИЦИАЛИЗАЦИЯ (Первый запуск)
+    // 2. ИНИЦИАЛИЗАЦИЯ (Первый запуск в рамках сезона)
     if (!initRef.current) {
       initRef.current = true;
-      if (!allSeasonMatches || allSeasonMatches.length === 0) {
+      if (!allSeasonMatches || allSeasonMatches.length === 0 || allSeasonMatches[0].tour > 14) {
         const teamData = getStableGroupTeams(leagueLevel, groupId, selectedLeagueId, [{
           id: 'local-manager', name: clubName || "Local Club", rank: rank || 1, logo: clubLogo || null, isBot: false
         }]);
@@ -113,7 +108,6 @@ export function AutoMatchManager() {
           const [sA, sB] = getMatchResult(m.homeId, m.awayId, currentSeason, m.tour);
           changed = true;
           
-          // Создаем фиктивную симуляцию для плеера
           const simulation = {
             winner: sA > sB ? m.homeName : (sB > sA ? m.awayName : "Draw"),
             seriesScore: `${sA}-${sB}`,
@@ -139,7 +133,6 @@ export function AutoMatchManager() {
       });
 
       if (changed) {
-        console.log("[LEAGUE] Auto-resolved matches due to time expiration.");
         saveToLocal({ allSeasonMatches: updatedMatches });
       }
     }, 60000);

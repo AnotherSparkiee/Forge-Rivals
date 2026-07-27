@@ -1,8 +1,9 @@
 'use client';
 
 /**
- * @fileOverview МАТЧ-ЦЕНТР v66 (Unified Group View).
- * Добавлена группировка по турам и визуализация всего календаря лиги.
+ * @fileOverview МАТЧ-ЦЕНТР v67 (Fixed Season View).
+ * Исправлено отображение: "Мой календарь" теперь содержит ровно 14 игр.
+ * "Календарь лиги" группируется по 14 турам.
  */
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -37,10 +38,9 @@ export default function MatchesPage() {
   const [now, setNow] = useState(getMoscowTime());
 
   useEffect(() => {
-    if (!isUserLoading && !user) router.push('/');
     const timer = setInterval(() => setNow(getMoscowTime()), 1000);
     return () => clearInterval(timer);
-  }, [user, isUserLoading, router]);
+  }, []);
 
   const t = {
     ru: {
@@ -85,8 +85,8 @@ export default function MatchesPage() {
   const renderMatchCard = useCallback((m: any, idx: number) => {
     const isLive = isMatchLive(m.startTime || m.playedAt);
     const isFinished = m.isFinished;
-    const isMeHome = m.homeId === user?.uid || m.homeId === 'local-manager';
-    const isMeAway = m.awayId === user?.uid || m.awayId === 'local-manager';
+    const isMeHome = m.homeId === 'local-manager';
+    const isMeAway = m.awayId === 'local-manager';
     
     const homeLogo = isMeHome ? myClubLogo : m.homeLogo;
     const awayLogo = isMeAway ? myClubLogo : m.awayLogo;
@@ -95,7 +95,7 @@ export default function MatchesPage() {
       <Card key={`${m.id || 'm'}-${idx}`} className={cn(
         "glass-card border-white/5 transition-all overflow-hidden mb-2",
         isLive && "border-primary/40 bg-primary/5",
-        (isMeHome || isMeAway) && "border-primary/20 bg-primary/5"
+        (isMeHome || isMeAway) && "border-primary/20 bg-primary/5 shadow-[0_0_10px_rgba(var(--primary),0.05)]"
       )}>
         <CardContent className="p-3">
           <div className="flex justify-between items-center mb-3">
@@ -144,7 +144,7 @@ export default function MatchesPage() {
         </CardContent>
       </Card>
     );
-  }, [user?.uid, myClubLogo, t.tour]);
+  }, [myClubLogo, t.tour]);
 
   const renderGroupedMatches = (matches: any[]) => {
     const tours = [...new Set(matches.map(m => m.tour))].sort((a, b) => a - b);

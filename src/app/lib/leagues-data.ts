@@ -1,6 +1,6 @@
 /**
  * @fileOverview Ядро лиг v56: Математическая пирамида с экспоненциальным ростом групп и логикой миграции.
- * Исправлена генерация календаря для обеспечения единого расписания группы.
+ * Исправлена генерация календаря для обеспечения единого расписания группы (ровно 14 туров).
  */
 
 import { GLOBAL_EPOCH_ISO } from './time-utils';
@@ -99,7 +99,7 @@ export function getStableGroupTeams(level: number, group: number, leagueId: stri
 
 /**
  * Генерация календаря на 14 дней по алгоритму Бергера.
- * Гарантирует единое расписание для всей группы.
+ * Гарантирует единое расписание для всей группы (ровно 14 туров).
  */
 export function generateSeasonCalendar(teams: any[], seasonNumber: number, leagueId: string) {
   const n = teams.length; // 8
@@ -142,9 +142,9 @@ export function generateSeasonCalendar(teams: any[], seasonNumber: number, leagu
         };
       };
 
-      // Первый круг (дома-выезд)
+      // Первый круг (дома-выезд) - туры 1-7
       matches.push(createMatch(round + 1, teams[hIdx], teams[aIdx], round + 1));
-      // Второй круг (выезд-дома)
+      // Второй круг (выезд-дома) - туры 8-14
       matches.push(createMatch(round + 8, teams[aIdx], teams[hIdx], round + 8));
     }
     
