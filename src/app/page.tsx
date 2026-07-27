@@ -83,33 +83,35 @@ export default function Home() {
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,_hsl(var(--primary)/0.1),_transparent_70%)] -z-10" />
       <div className="flex-1 w-full max-w-md mx-auto px-4 flex flex-col pt-4 overflow-hidden">
         
-        {/* NEXT MATCH / OFFSEASON WIDGET - SYMMETRIC VERSION */}
+        {/* NEXT MATCH / OFFSEASON WIDGET - COMPACT VERSION */}
         {currentNextMatch ? (
           <Card className="glass-card mb-4 border-primary/30 bg-primary/5 overflow-hidden animate-in fade-in slide-in-from-top-4 duration-700 shrink-0">
-            <CardContent className="p-6 flex items-center justify-between min-h-[140px]">
-              <div className="flex items-center gap-6 min-w-0 flex-1">
-                <div className="w-16 h-16 rounded-2xl bg-secondary/50 border border-primary/20 flex items-center justify-center p-2 shrink-0 shadow-lg">
+            <CardContent className="p-4 flex items-center justify-between min-h-[110px]">
+              <div className="flex items-center gap-4 min-w-0 flex-1">
+                <div className="w-14 h-14 rounded-xl bg-secondary/50 border border-primary/20 flex items-center justify-center p-2 shrink-0 shadow-lg">
                   {nextMatch.opponentLogo ? (
                     <img src={nextMatch.opponentLogo} className="w-full h-full object-contain" alt="" />
                   ) : (
-                    <Swords className="w-8 h-8 text-accent" />
+                    <Swords className="w-7 h-7 text-accent" />
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-[10px] font-black text-primary uppercase tracking-[0.2em] leading-none mb-2">
+                  <p className="text-[8px] font-black text-primary uppercase tracking-[0.2em] leading-none mb-1.5">
                     {language === 'ru' ? 'СЛЕДУЮЩИЙ СОПЕРНИК' : 'NEXT OPPONENT'}
                   </p>
-                  <h3 className="text-lg font-bold uppercase truncate text-white leading-tight">
+                  <h3 className="text-base font-bold uppercase truncate text-white leading-tight">
                     {nextMatch.opponentName}
                   </h3>
                 </div>
               </div>
-              <div className="text-right border-l border-white/5 pl-6 shrink-0 flex flex-col justify-center">
-                <div className="flex items-center justify-end gap-2 mb-2 text-muted-foreground">
-                  <Timer className="w-4 h-4" />
-                  <span className="text-[9px] font-black uppercase tracking-tighter">DEPLOYS_IN</span>
+              <div className="text-right border-l border-white/5 pl-4 shrink-0 flex flex-col justify-center">
+                <div className="flex items-center justify-end gap-1.5 mb-1.5 text-muted-foreground">
+                  <Timer className="w-3.5 h-3.5" />
+                  <span className="text-[8px] font-black uppercase tracking-tighter">
+                    {language === 'ru' ? 'ДО МАТЧА:' : 'UNTIL MATCH:'}
+                  </span>
                 </div>
-                <p className="text-2xl font-headline font-black text-primary italic tabular-nums leading-none">
+                <p className="text-xl font-headline font-black text-primary italic tabular-nums leading-none">
                   {getCountdown(currentNextMatch.startTime)}
                 </p>
               </div>
@@ -117,28 +119,30 @@ export default function Home() {
           </Card>
         ) : (
           <Card className="glass-card mb-4 border-accent/30 bg-accent/5 overflow-hidden animate-in fade-in slide-in-from-top-4 duration-700 shrink-0">
-            <CardContent className="p-6 flex items-center justify-between min-h-[140px]">
-               <div className="flex items-center gap-6 min-w-0 flex-1">
-                  <div className="w-16 h-16 rounded-2xl bg-secondary/50 border border-accent/20 flex items-center justify-center shrink-0 shadow-lg">
-                    <CalendarClock className="w-9 h-9 text-accent" />
+            <CardContent className="p-4 flex items-center justify-between min-h-[110px]">
+               <div className="flex items-center gap-4 min-w-0 flex-1">
+                  <div className="w-14 h-14 rounded-xl bg-secondary/50 border border-accent/20 flex items-center justify-center shrink-0 shadow-lg">
+                    <CalendarClock className="w-8 h-8 text-accent" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-[10px] font-black text-accent uppercase tracking-[0.2em] leading-none mb-2">
+                    <p className="text-[8px] font-black text-accent uppercase tracking-[0.2em] leading-none mb-1.5">
                       {language === 'ru' ? 'ОЖИДАНИЕ НОВОГО СЕЗОНА' : 'AWAITING NEW SEASON'}
                     </p>
-                    <h3 className="text-lg font-bold uppercase text-white leading-tight truncate">
+                    <h3 className="text-base font-bold uppercase text-white leading-tight truncate">
                       {seasonInfo.isOffseason && !seasonInfo.isGenerationReady 
-                        ? (language === 'ru' ? 'ФОРМИРОВАНИЕ ГРУПП' : 'LEAGUE GENERATION') 
-                        : (language === 'ru' ? 'ПОДГОТОВКА ТЕРМИНАЛА' : 'TERMINAL PREPARATION')}
+                        ? (language === 'ru' ? 'ГЕНЕРАЦИЯ ЛИГИ' : 'LEAGUE GENERATION') 
+                        : (language === 'ru' ? 'ПОДГОТОВКА СЕЗОНА' : 'SEASON PREPARATION')}
                     </h3>
                   </div>
                </div>
-               <div className="text-right border-l border-white/5 pl-6 shrink-0 flex flex-col justify-center">
-                 <div className="flex items-center justify-end gap-2 mb-2 text-muted-foreground">
-                    <Clock className="w-4 h-4" />
-                    <span className="text-[9px] font-black uppercase tracking-tighter">SYNC_IN</span>
+               <div className="text-right border-l border-white/5 pl-4 shrink-0 flex flex-col justify-center">
+                 <div className="flex items-center justify-end gap-1.5 mb-1.5 text-muted-foreground">
+                    <Clock className="w-3.5 h-3.5" />
+                    <span className="text-[8px] font-black uppercase tracking-tighter">
+                      {language === 'ru' ? 'СИНХР:' : 'SYNC IN:'}
+                    </span>
                  </div>
-                 <p className="text-2xl font-headline font-black text-accent italic tabular-nums leading-none">
+                 <p className="text-xl font-headline font-black text-accent italic tabular-nums leading-none">
                    {seasonInfo.isOffseason && !seasonInfo.isGenerationReady 
                     ? getCountdown(seasonInfo.generationTime) 
                     : getCountdown(seasonInfo.nextSeasonStart)}
