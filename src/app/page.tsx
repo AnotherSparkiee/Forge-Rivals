@@ -81,11 +81,11 @@ export default function Home() {
   return (
     <div className="relative h-[calc(100dvh-3.5rem-5rem)] flex flex-col overflow-hidden bg-[#0a0d14]">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,_hsl(var(--primary)/0.1),_transparent_70%)] -z-10" />
-      <div className="flex-1 w-full max-w-md mx-auto px-4 flex flex-col pt-6 overflow-hidden">
+      <div className="flex-1 w-full max-w-md mx-auto px-4 flex flex-col pt-3 overflow-hidden">
         
-        {/* NEXT MATCH / OFFSEASON WIDGET - ENLARGED VERSION */}
+        {/* NEXT MATCH / OFFSEASON WIDGET - ENLARGED VERSION WITH REDUCED SPACING */}
         {currentNextMatch ? (
-          <Card className="glass-card mb-6 border-primary/30 bg-primary/5 overflow-hidden animate-in fade-in slide-in-from-top-4 duration-700 shrink-0">
+          <Card className="glass-card mb-3 border-primary/30 bg-primary/5 overflow-hidden animate-in fade-in slide-in-from-top-4 duration-700 shrink-0">
             <CardContent className="p-10 flex items-center justify-between min-h-[160px]">
               <div className="flex items-center gap-6 min-w-0 flex-1">
                 <div className="w-16 h-16 rounded-2xl bg-secondary/50 border border-primary/20 flex items-center justify-center p-2 shrink-0 shadow-lg">
@@ -116,7 +116,7 @@ export default function Home() {
             </CardContent>
           </Card>
         ) : (
-          <Card className="glass-card mb-6 border-accent/30 bg-accent/5 overflow-hidden animate-in fade-in slide-in-from-top-4 duration-700 shrink-0">
+          <Card className="glass-card mb-3 border-accent/30 bg-accent/5 overflow-hidden animate-in fade-in slide-in-from-top-4 duration-700 shrink-0">
             <CardContent className="p-10 flex items-center justify-between min-h-[160px]">
                <div className="flex items-center gap-6 min-w-0 flex-1">
                   <div className="w-16 h-16 rounded-2xl bg-secondary/50 border border-accent/20 flex items-center justify-center shrink-0 shadow-lg">
