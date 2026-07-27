@@ -8,8 +8,8 @@ import { useRouter, usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 
 /**
- * ОПЕРАЦИОННЫЙ ТЕРМИНАЛ (Bottom Bar v39)
- * Обновлен: добавлена кнопка "ПРИНЯТЬ", упрощен вывод даты и времени.
+ * ОПЕРАЦИОННЫЙ ТЕРМИНАЛ (Bottom Bar v40)
+ * Обновлен: кнопка ПРИНЯТЬ теперь соответствует стилю кнопки НАЗАД, шрифт времени уменьшен.
  */
 export function BottomNav() {
   const router = useRouter();
@@ -20,7 +20,6 @@ export function BottomNav() {
 
   useEffect(() => {
     const updateTime = () => {
-      // getMoscowTime() возвращает время, синхронизированное с сервером
       const now = getMoscowTime();
       setTerminalTime(formatTerminalTime(now));
     };
@@ -43,19 +42,23 @@ export function BottomNav() {
     <nav className="fixed bottom-0 left-0 right-0 z-50 bg-background/90 backdrop-blur-xl border-t border-white/10 h-20 flex items-center shadow-[0_-10px_30px_rgba(0,0,0,0.5)]">
       <div className="w-full max-w-lg mx-auto px-6 grid grid-cols-3 items-center">
         
-        {/* LEFT: ACCEPT BUTTON */}
+        {/* LEFT: ACCEPT BUTTON (Matched style with BACK) */}
         <div className="flex justify-start">
           <Button 
-            className="h-10 px-4 hero-gradient font-black text-[10px] uppercase tracking-widest shadow-lg shadow-primary/20 active:scale-95 transition-all rounded-xl border-none"
+            variant="ghost" 
+            size="sm" 
+            className="group flex flex-col gap-0.5 h-auto py-1.5 px-4 hover:bg-white/5 transition-all active:scale-95 border border-transparent hover:border-white/5"
           >
-            <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
-            {t.accept}
+            <CheckCircle2 className="w-4 h-4 text-primary group-hover:scale-110 transition-transform" />
+            <span className="text-[8px] font-black tracking-widest text-muted-foreground group-hover:text-white uppercase">
+              {t.accept}
+            </span>
           </Button>
         </div>
 
-        {/* CENTER: TIME (HEADLINE STYLE LIKE MAIN MENU) */}
+        {/* CENTER: TIME (HEADLINE STYLE, REDUCED SIZE) */}
         <div className="flex flex-col items-center justify-center">
-          <p className="text-lg font-headline font-black text-primary italic whitespace-nowrap tabular-nums tracking-wider leading-none text-center uppercase">
+          <p className="text-base font-headline font-black text-primary italic whitespace-nowrap tabular-nums tracking-wider leading-none text-center uppercase">
             {terminalTime || '...'}
           </p>
         </div>
@@ -69,7 +72,7 @@ export function BottomNav() {
             className="group flex flex-col gap-0.5 h-auto py-1.5 px-4 hover:bg-white/5 transition-all active:scale-95 border border-transparent hover:border-white/5"
           >
             <ChevronLeft className="w-4 h-4 text-primary group-hover:-translate-x-1 transition-transform" />
-            <span className="text-[8px] font-black tracking-widest text-muted-foreground group-hover:text-white">
+            <span className="text-[8px] font-black tracking-widest text-muted-foreground group-hover:text-white uppercase">
               {t.back}
             </span>
           </Button>
