@@ -112,7 +112,12 @@ export default function SetupPage() {
       name: 'НАЗВАНИЕ КЛУБА',
       continue: 'ПРОДОЛЖИТЬ',
       finalize: 'ЗАВЕРШИТЬ ПРОФИЛЬ',
-      protocol: 'Выберите удобное для вас время матчей лиги',
+      subtitles: {
+        league: 'Выберите удобное для вас время матчей лиги',
+        country: 'Выберите страну которую будете представлять',
+        club: 'Выберите логотип вашего будущего клуба',
+        name: 'Придумайте уникальный позывной для вашей организации',
+      },
       msk: 'МСК',
       namePlaceholder: 'Введите название клуба...',
     },
@@ -123,11 +128,18 @@ export default function SetupPage() {
       name: 'CLUB NAME',
       continue: 'CONTINUE',
       finalize: 'FINALIZE PROFILE',
-      protocol: 'Select a convenient time for league matches',
+      subtitles: {
+        league: 'Select a convenient time for league matches',
+        country: 'Select the country you will represent',
+        club: 'Choose your future club logo',
+        name: 'Create a unique callsign for your organization',
+      },
       msk: 'MSK',
       namePlaceholder: 'Enter club name...',
     }
-  }[language as 'ru' ? 'ru' : 'en'];
+  }[language === 'ru' ? 'ru' : 'en'];
+
+  const currentSubtitle = t.subtitles[step as keyof typeof t.subtitles];
 
   return (
     <div className="min-h-screen bg-background flex flex-col relative overflow-hidden">
@@ -146,7 +158,7 @@ export default function SetupPage() {
           <h1 className="text-2xl font-headline font-bold text-white uppercase tracking-tighter">
             {step === 'league' ? t.league : step === 'country' ? t.country : step === 'club' ? t.club : t.name}
           </h1>
-          <p className="text-muted-foreground text-[10px] uppercase tracking-widest mt-1 opacity-60 px-4 leading-tight">{t.protocol}</p>
+          <p className="text-muted-foreground text-[10px] uppercase tracking-widest mt-1 opacity-60 px-4 leading-tight">{currentSubtitle}</p>
         </header>
         
         <div className="flex-1 flex flex-col justify-center animate-in fade-in duration-700">
