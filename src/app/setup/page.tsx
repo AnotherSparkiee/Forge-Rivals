@@ -108,24 +108,24 @@ export default function SetupPage() {
 
   const t = {
     ru: {
-      league: 'ВРЕМЯ МАТЧЕЙ',
+      league: 'ВЫБОР ЛИГИ',
       country: 'ФЛАГ КЛУБА',
       club: 'ВЫБОР КЛУБА',
       name: 'НАЗВАНИЕ КЛУБА',
       continue: 'ПРОДОЛЖИТЬ',
       finalize: 'ЗАВЕРШИТЬ ПРОФИЛЬ',
-      protocol: 'Локальный протокол v49 (Bypass)',
+      protocol: 'Выберите удобное для вас время матчей лиги',
       msk: 'МСК',
       namePlaceholder: 'Введите название клуба...',
     },
     en: {
-      league: 'MATCH TIME',
+      league: 'LEAGUE SELECTION',
       country: 'CLUB FLAG',
       club: 'CLUB CHOICE',
       name: 'CLUB NAME',
       continue: 'CONTINUE',
       finalize: 'FINALIZE PROFILE',
-      protocol: 'Local Protocol v49 (Bypass)',
+      protocol: 'Select a convenient time for league matches',
       msk: 'MSK',
       namePlaceholder: 'Enter club name...',
     }
@@ -148,27 +148,33 @@ export default function SetupPage() {
           <h1 className="text-2xl font-headline font-bold text-white uppercase tracking-tighter">
             {step === 'league' ? t.league : step === 'country' ? t.country : step === 'club' ? t.club : t.name}
           </h1>
-          <p className="text-muted-foreground text-[10px] uppercase tracking-widest mt-1 opacity-60">{t.protocol}</p>
+          <p className="text-muted-foreground text-[10px] uppercase tracking-widest mt-1 opacity-60 px-4">{t.protocol}</p>
         </header>
         
         <div className="flex-1 pb-24">
           {step === 'league' && (
             <div className="grid grid-cols-4 gap-2">
-              {LEAGUES.map((l) => (
-                <Card 
-                  key={l.id} 
-                  className={cn(
-                    "glass-card border-white/5 cursor-pointer transition-all aspect-square flex items-center justify-center", 
-                    selectedLeagueId === l.id ? "ring-2 ring-primary bg-primary/10 shadow-[0_0_15px_rgba(var(--primary),0.3)]" : "hover:bg-white/5"
-                  )} 
-                  onClick={() => setSelectedLeagueId(l.id)}
-                >
-                  <CardContent className="p-0 text-center flex flex-col items-center justify-center">
-                    <span className="text-sm font-headline font-bold text-white leading-none">{l.startTime}</span>
-                    <p className="text-[6px] text-muted-foreground uppercase mt-1 font-black">{t.msk}</p>
-                  </CardContent>
-                </Card>
-              ))}
+              {LEAGUES.map((l, i) => {
+                const letter = String.fromCharCode(83 + Math.floor(i / 2));
+                const num = (i % 2) + 1;
+                const leagueCode = `${letter}${num}`;
+
+                return (
+                  <Card 
+                    key={l.id} 
+                    className={cn(
+                      "glass-card border-white/5 cursor-pointer transition-all aspect-square flex items-center justify-center", 
+                      selectedLeagueId === l.id ? "ring-2 ring-primary bg-primary/10 shadow-[0_0_15px_rgba(var(--primary),0.3)]" : "hover:bg-white/5"
+                    )} 
+                    onClick={() => setSelectedLeagueId(l.id)}
+                  >
+                    <CardContent className="p-0 text-center flex flex-col items-center justify-center">
+                      <p className="text-[10px] font-black text-primary uppercase mb-1 leading-none">{leagueCode}</p>
+                      <span className="text-sm font-headline font-bold text-white leading-none">{l.startTime}</span>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           )}
 
