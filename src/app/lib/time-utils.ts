@@ -1,7 +1,7 @@
 /**
- * @fileOverview Ядро времени v90 (Infinite Season Sync). 
+ * @fileOverview Ядро времени v91 (Hard Reset). 
  * Глобальная синхронизация цикла (15 дней).
- * Эпоха скорректирована для начала Season 1.
+ * Эпоха установлена на завтрашний день (30 июня 2026) для старта нового сезона.
  */
 
 let syncPoint = {
@@ -10,8 +10,8 @@ let syncPoint = {
 };
 
 const MSK_OFFSET = 3 * 60 * 60 * 1000;
-// Скорректировано: начало сезона зафиксировано на 2 февраля 2025
-export const GLOBAL_EPOCH_ISO = '2025-02-02T09:00:00Z'; 
+// Установлено: старт сезона завтра - 30 июня 2026
+export const GLOBAL_EPOCH_ISO = '2026-06-30T00:00:00Z'; 
 
 export function setServerTime(serverMs: number) {
   if (typeof performance !== 'undefined') {
@@ -82,9 +82,15 @@ export function getGlobalSeasonInfo() {
 
   if (diffMs < 0) {
     return {
-      seasonDay: 1, dayOfCycle: 1, seasonNumber: 1, activeSeasonNumber: 1,
-      isOffseason: false, isGenerationWindow: false,
-      timeToStartMs: 0, currentSeasonStart: epochUtc, nextSeasonStart: new Date(epochUtc.getTime() + cycleMs),
+      seasonDay: 1, 
+      dayOfCycle: 1, 
+      seasonNumber: 1, 
+      activeSeasonNumber: 1,
+      isOffseason: false, 
+      isGenerationReady: false,
+      timeToStartMs: Math.abs(diffMs), 
+      currentSeasonStart: epochUtc, 
+      nextSeasonStart: new Date(epochUtc.getTime() + cycleMs),
       generationTime: new Date(epochUtc.getTime() + (14 * dayMs) + (16 * 3600000))
     };
   }

@@ -13,9 +13,9 @@ import {
 import { useToast } from '@/hooks/use-toast';
 
 /**
- * ЛОКАЛЬНЫЙ МЕНЕДЖЕР МАТЧЕЙ v5.2 (Auto-Resolution & Season Transition)
+ * ЛОКАЛЬНЫЙ МЕНЕДЖЕР МАТЧЕЙ v5.3 (Hard Reset Support)
  * Генерирует календарь и автоматически завершает прошедшие матчи.
- * Добавлена очистка календаря при смене сезона.
+ * Добавлена логика сброса при изменении эпохи.
  */
 export function AutoMatchManager() {
   const { 
@@ -33,41 +33,41 @@ export function AutoMatchManager() {
     const info = getGlobalSeasonInfo();
     const currentSeason = info.activeSeasonNumber;
 
-    // 1. ПЕРЕХОД СЕЗОНА (Межсезонье или старт нового)
-    if (lastProcessedSeason < currentSeason) {
-      console.log(`[LEAGUE] Transitioning to Season ${currentSeason}. Processing promotion/relegation...`);
+    // 1. ПЕРЕХОД СЕЗОНА ИЛИ ПРИНУДИТЕЛЬНЫЙ СБРОС (Если сохраненный сезон больше расчетного - значит эпоха сменилась)
+    if (lastProcessedSeason < currentSeason || (lastProcessedSeason > currentSeason && currentSeason === 1)) {
+      console.log(`[LEAGUE] Resetting world for Season ${currentSeason}...`);
       
       const teamData = getStableGroupTeams(leagueLevel, groupId, selectedLeagueId, [{
         id: 'local-manager', name: clubName || "Local Club", rank: rank || 1, logo: clubLogo || null, isBot: false
       }]);
 
-      const finalStandings = teamData.map(t => {
-        let pts = 0;
-        for (let tour = 1; tour <= 14; tour++) {
-          const [scoreA, scoreB] = getMatchResult(t.id, "opp", lastProcessedSeason, tour);
-          pts += (scoreA > scoreB ? 3 : (scoreA === scoreB ? 1 : 0));
-        }
-        return { id: t.id, pts };
-      }).sort((a, b) => b.pts - a.pts);
-
-      const playerPos = finalStandings.findIndex(s => s.id === 'local-manager') + 1;
       let nextLevel = leagueLevel;
       let nextGroup = groupId;
-      let message = "";
+      
+      // Повышение/понижение считаем только если это реальный переход (не сброс в 1 сезон)
+      if (lastProcessedSeason > 0 && lastProcessedSeason < currentSeason) {
+        const finalStandings = teamData.map(t => {
+          let pts = 0;
+          for (let tour = 1; tour <= 14; tour++) {
+            const [scoreA, scoreB] = getMatchResult(t.id, "opp", lastProcessedSeason, tour);
+            pts += (scoreA > scoreB ? 3 : (scoreA === scoreB ? 1 : 0));
+          }
+          return { id: t.id, pts };
+        }).sort((a, b) => b.pts - a.pts);
 
-      if (playerPos === 1) {
-        const target = getPromotionTarget(leagueLevel, groupId);
-        nextLevel = target.level; nextGroup = target.group;
-        message = language === 'ru' ? "СЕЗОН ЗАВЕРШЕН! ВЫ ПОВЫШЕНЫ!" : "SEASON ENDED! PROMOTED!";
-      } else if (playerPos >= 7) {
-        const target = getRelegationTarget(leagueLevel, groupId, playerPos);
-        nextLevel = target.level; nextGroup = target.group;
-        message = language === 'ru' ? "СЕЗОН ЗАВЕРШЕН. КЛУБ ПОНИЖЕН." : "SEASON ENDED. RELEGATED.";
+        const playerPos = finalStandings.findIndex(s => s.id === 'local-manager') + 1;
+        if (playerPos === 1) {
+          const target = getPromotionTarget(leagueLevel, groupId);
+          nextLevel = target.level; nextGroup = target.group;
+        } else if (playerPos >= 7) {
+          const target = getRelegationTarget(leagueLevel, groupId, playerPos);
+          nextLevel = target.level; nextGroup = target.group;
+        }
       } else {
-        message = language === 'ru' ? "СЕЗОН ЗАВЕРШЕН. МЕСТО СОХРАНЕНО." : "SEASON ENDED. STAYED IN LEAGUE.";
+        // Если это хард-ресет в 1 сезон
+        nextLevel = leagueLevel;
+        nextGroup = groupId;
       }
-
-      toast({ title: message, duration: 8000 });
 
       const newTeamData = getStableGroupTeams(nextLevel, nextGroup, selectedLeagueId, [{
         id: 'local-manager', name: clubName || "Local Club", rank: 1, logo: clubLogo || null, isBot: false
@@ -80,15 +80,20 @@ export function AutoMatchManager() {
         groupId: nextGroup,
         lastProcessedSeason: currentSeason,
         allSeasonMatches: newCalendar,
-        lastSeenMatchDay: 0 // Сброс просмотренных матчей для нового сезона
+        lastSeenMatchDay: 0
       });
+      
+      if (currentSeason === 1) {
+        toast({ title: language === 'ru' ? "МИР ОБНУЛЕН. СТАРТ СЕЗОНА ЗАВТРА." : "WORLD RESET. SEASON STARTS TOMORROW." });
+      }
+      
       return;
     }
 
-    // 2. ИНИЦИАЛИЗАЦИЯ (Первый запуск в рамках сезона)
+    // 2. ИНИЦИАЛИЗАЦИЯ (Первый запуск)
     if (!initRef.current) {
       initRef.current = true;
-      if (!allSeasonMatches || allSeasonMatches.length === 0 || allSeasonMatches[0].tour > 14) {
+      if (!allSeasonMatches || allSeasonMatches.length === 0) {
         const teamData = getStableGroupTeams(leagueLevel, groupId, selectedLeagueId, [{
           id: 'local-manager', name: clubName || "Local Club", rank: rank || 1, logo: clubLogo || null, isBot: false
         }]);
