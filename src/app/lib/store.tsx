@@ -1,9 +1,9 @@
 'use client';
 
 /**
- * Глобальное локальное хранилище v218 (Autonomous Mode).
- * Полностью удалена зависимость от облачной синхронизации.
- * Добавлена локальная симуляция Пробного матча.
+ * Глобальное локальное хранилище v219 (Autonomous Mode).
+ * Исправлена логика отслеживания просмотренных матчей.
+ * Добавлены функции удаления и очистки истории.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useMemo } from 'react';
@@ -374,6 +374,33 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     saveToLocal({ credits: (state.credits || 0) + rew, experiencePoints: newTotalXp, managerLevel: newLevel, matchHistory: [...state.matchHistory, entry] });
   }, [state.experiencePoints, state.managerLevel, state.credits, state.matchHistory, saveToLocal]);
 
+  const markMatchIdAsSeen = useCallback((id: string) => {
+    const matchInHistory = state.matchHistory.find(m => m.id === id);
+    let updates: Partial<GameState> = {};
+    
+    if (matchInHistory) {
+      const newHistory = state.matchHistory.map(m => m.id === id ? { ...m, seen: true } : m);
+      updates.matchHistory = newHistory;
+    }
+
+    const leagueMatch = (state.allSeasonMatches || []).find(m => m.id === id);
+    if (leagueMatch && Number(leagueMatch.day) > (state.lastSeenMatchDay || 0)) {
+      updates.lastSeenMatchDay = Number(leagueMatch.day);
+    }
+
+    if (Object.keys(updates).length > 0) {
+      saveToLocal(updates);
+    }
+  }, [state.matchHistory, state.allSeasonMatches, state.lastSeenMatchDay, saveToLocal]);
+
+  const deleteMatchHistoryEntry = useCallback((id: string) => {
+    saveToLocal({ matchHistory: state.matchHistory.filter(m => m.id !== id) });
+  }, [state.matchHistory, saveToLocal]);
+
+  const clearMatchHistory = useCallback(() => {
+    saveToLocal({ matchHistory: [] });
+  }, [saveToLocal]);
+
   const scoutCandidates = useCallback(() => {
     const candidates = Array.from({ length: 3 }).map((_, i) => generateScoutedPlayer(i, Number(state.academy?.scoutsLevel || 0), `scout_${getMoscowTime().getTime()}_${i}`));
     saveToLocal({ scoutingCandidates: candidates, lastScoutDate: getMoscowTime().toISOString() });
@@ -447,11 +474,12 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const value = useMemo(() => ({
     ...state,
     addCrystals, addCredits, updatePlayer, removePlayer, assignToRole, updateLineup, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage, setTrainingFocus, startDailyPlayerTraining, claimDailyPlayerTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, trainHeroSkill, addPlayerDirectly, addYouthPlayerDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, healPlayer, launchFanCampaign, scoutCandidates, recruitCandidate, clearScoutingReport, upgradeManagerSkill, startArenaConstruction, resetProfile, setWorldReady,
+    markMatchIdAsSeen, deleteMatchHistoryEntry, clearMatchHistory,
     generateDailyGifts: (gifts: Gift[]) => saveToLocal({ availableGiftsToSend: gifts, lastGiftGenDate: getMoscowDateString() }),
     sendGift: async () => true, claimGift: async () => true,
     runTrialMatch,
     saveToLocal
-  }), [state, addCrystals, addCredits, updatePlayer, removePlayer, assignToRole, updateLineup, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage, setTrainingFocus, startDailyPlayerTraining, claimDailyPlayerTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, trainHeroSkill, addPlayerDirectly, addYouthPlayerDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, healPlayer, launchFanCampaign, scoutCandidates, recruitCandidate, clearScoutingReport, upgradeManagerSkill, startArenaConstruction, resetProfile, setWorldReady, runTrialMatch, saveToLocal]);
+  }), [state, addCrystals, addCredits, updatePlayer, removePlayer, assignToRole, updateLineup, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage, setTrainingFocus, startDailyPlayerTraining, claimDailyPlayerTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, trainHeroSkill, addPlayerDirectly, addYouthPlayerDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, healPlayer, launchFanCampaign, scoutCandidates, recruitCandidate, clearScoutingReport, upgradeManagerSkill, startArenaConstruction, resetProfile, setWorldReady, markMatchIdAsSeen, deleteMatchHistoryEntry, clearMatchHistory, runTrialMatch, saveToLocal]);
 
   return <GameStateContext.Provider value={value}>{children}</GameStateContext.Provider>;
 }
