@@ -81,64 +81,64 @@ export default function Home() {
   return (
     <div className="relative h-[calc(100dvh-3.5rem-5rem)] flex flex-col overflow-hidden bg-[#0a0d14]">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,_hsl(var(--primary)/0.1),_transparent_70%)] -z-10" />
-      <div className="flex-1 w-full max-w-md mx-auto px-4 flex flex-col pt-4 overflow-hidden">
+      <div className="flex-1 w-full max-w-md mx-auto px-4 flex flex-col pt-6 overflow-hidden">
         
-        {/* NEXT MATCH / OFFSEASON WIDGET */}
+        {/* NEXT MATCH / OFFSEASON WIDGET - ENLARGED VERSION */}
         {currentNextMatch ? (
-          <Card className="glass-card mb-4 border-primary/30 bg-primary/5 overflow-hidden animate-in fade-in slide-in-from-top-4 duration-700 shrink-0">
-            <CardContent className="p-5 flex items-center justify-between">
-              <div className="flex items-center gap-4 min-w-0 flex-1">
-                <div className="w-14 h-14 rounded-xl bg-secondary/50 border border-primary/20 flex items-center justify-center p-2 shrink-0 shadow-lg">
+          <Card className="glass-card mb-6 border-primary/30 bg-primary/5 overflow-hidden animate-in fade-in slide-in-from-top-4 duration-700 shrink-0">
+            <CardContent className="p-10 flex items-center justify-between min-h-[160px]">
+              <div className="flex items-center gap-6 min-w-0 flex-1">
+                <div className="w-16 h-16 rounded-2xl bg-secondary/50 border border-primary/20 flex items-center justify-center p-2 shrink-0 shadow-lg">
                   {nextMatch.opponentLogo ? (
                     <img src={nextMatch.opponentLogo} className="w-full h-full object-contain" alt="" />
                   ) : (
-                    <Swords className="w-7 h-7 text-accent" />
+                    <Swords className="w-8 h-8 text-accent" />
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-[8px] font-black text-primary uppercase tracking-[0.2em] leading-none mb-1.5">
+                  <p className="text-[10px] font-black text-primary uppercase tracking-[0.2em] leading-none mb-2">
                     {language === 'ru' ? 'СЛЕДУЮЩИЙ СОПЕРНИК' : 'NEXT OPPONENT'}
                   </p>
-                  <h3 className="text-sm font-bold uppercase truncate text-white leading-tight">
+                  <h3 className="text-lg font-bold uppercase truncate text-white leading-tight">
                     {nextMatch.opponentName}
                   </h3>
                 </div>
               </div>
-              <div className="text-right border-l border-white/5 pl-4 shrink-0 flex flex-col justify-center">
-                <div className="flex items-center justify-end gap-1.5 mb-1 text-muted-foreground">
-                  <Timer className="w-3 h-3" />
-                  <span className="text-[7px] font-black uppercase tracking-tighter">DEPLOYS_IN</span>
+              <div className="text-right border-l border-white/5 pl-6 shrink-0 flex flex-col justify-center">
+                <div className="flex items-center justify-end gap-2 mb-2 text-muted-foreground">
+                  <Timer className="w-4 h-4" />
+                  <span className="text-[9px] font-black uppercase tracking-tighter">DEPLOYS_IN</span>
                 </div>
-                <p className="text-2xl font-headline font-black text-primary italic tabular-nums leading-none">
+                <p className="text-3xl font-headline font-black text-primary italic tabular-nums leading-none">
                   {getCountdown(currentNextMatch.startTime)}
                 </p>
               </div>
             </CardContent>
           </Card>
         ) : (
-          <Card className="glass-card mb-4 border-accent/30 bg-accent/5 overflow-hidden animate-in fade-in slide-in-from-top-4 duration-700 shrink-0">
-            <CardContent className="p-5 flex items-center justify-between">
-               <div className="flex items-center gap-4 min-w-0 flex-1">
-                  <div className="w-14 h-14 rounded-xl bg-secondary/50 border border-accent/20 flex items-center justify-center shrink-0 shadow-lg">
-                    <CalendarClock className="w-8 h-8 text-accent" />
+          <Card className="glass-card mb-6 border-accent/30 bg-accent/5 overflow-hidden animate-in fade-in slide-in-from-top-4 duration-700 shrink-0">
+            <CardContent className="p-10 flex items-center justify-between min-h-[160px]">
+               <div className="flex items-center gap-6 min-w-0 flex-1">
+                  <div className="w-16 h-16 rounded-2xl bg-secondary/50 border border-accent/20 flex items-center justify-center shrink-0 shadow-lg">
+                    <CalendarClock className="w-9 h-9 text-accent" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-[8px] font-black text-accent uppercase tracking-[0.2em] leading-none mb-1.5">
+                    <p className="text-[10px] font-black text-accent uppercase tracking-[0.2em] leading-none mb-2">
                       {language === 'ru' ? 'ОЖИДАНИЕ НОВОГО СЕЗОНА' : 'AWAITING NEW SEASON'}
                     </p>
-                    <h3 className="text-sm font-bold uppercase text-white leading-tight truncate">
+                    <h3 className="text-lg font-bold uppercase text-white leading-tight truncate">
                       {seasonInfo.isOffseason && !seasonInfo.isGenerationReady 
                         ? (language === 'ru' ? 'ФОРМИРОВАНИЕ ГРУПП' : 'LEAGUE GENERATION') 
                         : (language === 'ru' ? 'ПОДГОТОВКА ТЕРМИНАЛА' : 'TERMINAL PREPARATION')}
                     </h3>
                   </div>
                </div>
-               <div className="text-right border-l border-white/5 pl-4 shrink-0 flex flex-col justify-center">
-                 <div className="flex items-center justify-end gap-1.5 mb-1 text-muted-foreground">
-                    <Clock className="w-3 h-3" />
-                    <span className="text-[7px] font-black uppercase tracking-tighter">SYNC_IN</span>
+               <div className="text-right border-l border-white/5 pl-6 shrink-0 flex flex-col justify-center">
+                 <div className="flex items-center justify-end gap-2 mb-2 text-muted-foreground">
+                    <Clock className="w-4 h-4" />
+                    <span className="text-[9px] font-black uppercase tracking-tighter">SYNC_IN</span>
                  </div>
-                 <p className="text-2xl font-headline font-black text-accent italic tabular-nums leading-none">
+                 <p className="text-3xl font-headline font-black text-accent italic tabular-nums leading-none">
                    {seasonInfo.isOffseason && !seasonInfo.isGenerationReady 
                     ? getCountdown(seasonInfo.generationTime) 
                     : getCountdown(seasonInfo.nextSeasonStart)}
