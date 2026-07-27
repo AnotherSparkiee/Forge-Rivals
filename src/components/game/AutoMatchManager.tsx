@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { useGameState } from '@/app/lib/store';
-import { getGlobalSeasonInfo, getMoscowTime } from '@/app/lib/time-utils';
+import { getGlobalSeasonInfo, getMoscowTime, isMatchOverdue } from '@/app/lib/time-utils';
 import { 
   getStableGroupTeams, 
   generateSeasonCalendar, 
@@ -13,8 +13,8 @@ import {
 import { useToast } from '@/hooks/use-toast';
 
 /**
- * ЛОКАЛЬНЫЙ МЕНЕДЖЕР МАТЧЕЙ v4.0 (Generation Window Aware)
- * Генерирует календарь строго в 16:00 MSK на 15-й день сезона.
+ * ЛОКАЛЬНЫЙ МЕНЕДЖЕР МАТЧЕЙ v5.0 (Auto-Resolution)
+ * Генерирует календарь и автоматически завершает прошедшие матчи.
  */
 export function AutoMatchManager() {
   const { 
@@ -32,22 +32,17 @@ export function AutoMatchManager() {
     const info = getGlobalSeasonInfo();
     const currentSeason = info.activeSeasonNumber;
 
-    // 1. ЛОГИКА МЕЖСЕЗОНЬЯ (Переход между уровнями и генерация)
+    // 1. ПЕРЕХОД СЕЗОНА (Межсезонье)
     if (info.isOffseason && lastProcessedSeason < currentSeason) {
-      
-      // Если еще нет 16:00, просто убеждаемся, что старые матчи не мешают
       if (!info.isGenerationReady) {
         if (allSeasonMatches && allSeasonMatches.length > 0) {
-          console.log("[LEAGUE] Entering Offseason. Clearing old calendar...");
           saveToLocal({ allSeasonMatches: [] });
         }
         return;
       }
 
-      // Наступило 16:00 MSK - Время генерации!
-      console.log("[LEAGUE ENGINE] Generation window open. Initializing new season...");
+      console.log("[LEAGUE] End of season. Calculating promotion/relegation...");
       
-      // Сначала рассчитываем итоги прошлого сезона для повышения/понижения
       const teamData = getStableGroupTeams(leagueLevel, groupId, selectedLeagueId, [{
         id: 'local-manager', name: clubName || "Local Club", rank: rank || 1, logo: clubLogo || null, isBot: false
       }]);
@@ -62,28 +57,24 @@ export function AutoMatchManager() {
       }).sort((a, b) => b.pts - a.pts);
 
       const playerPos = finalStandings.findIndex(s => s.id === 'local-manager') + 1;
-      
       let nextLevel = leagueLevel;
       let nextGroup = groupId;
       let message = "";
 
       if (playerPos === 1) {
         const target = getPromotionTarget(leagueLevel, groupId);
-        nextLevel = target.level;
-        nextGroup = target.group;
-        message = language === 'ru' ? "ПОЗДРАВЛЯЕМ! ВЫ ВЫШЛИ В ДИВИЗИОН ВЫШЕ!" : "CONGRATULATIONS! PROMOTED TO HIGHER DIVISION!";
+        nextLevel = target.level; nextGroup = target.group;
+        message = language === 'ru' ? "СЕЗОН ЗАВЕРШЕН! ВЫ ПОВЫШЕНЫ!" : "SEASON ENDED! PROMOTED!";
       } else if (playerPos >= 7) {
         const target = getRelegationTarget(leagueLevel, groupId, playerPos);
-        nextLevel = target.level;
-        nextGroup = target.group;
-        message = language === 'ru' ? "ВНИМАНИЕ: Клуб понижен в классе." : "ATTENTION: Club relegated to lower division.";
+        nextLevel = target.level; nextGroup = target.group;
+        message = language === 'ru' ? "СЕЗОН ЗАВЕРШЕН. КЛУБ ПОНИЖЕН." : "SEASON ENDED. RELEGATED.";
       } else {
-        message = language === 'ru' ? "Сезон завершен. Вы сохранили место в лиге." : "Season ended. You maintained your league position.";
+        message = language === 'ru' ? "СЕЗОН ЗАВЕРШЕН. МЕСТО СОХРАНЕНО." : "SEASON ENDED. STAYED IN LEAGUE.";
       }
 
       toast({ title: message, duration: 8000 });
 
-      // Генерируем новый состав группы и новый календарь
       const newTeamData = getStableGroupTeams(nextLevel, nextGroup, selectedLeagueId, [{
         id: 'local-manager', name: clubName || "Local Club", rank: 1, logo: clubLogo || null, isBot: false
       }]);
@@ -94,30 +85,66 @@ export function AutoMatchManager() {
         leagueLevel: nextLevel,
         groupId: nextGroup,
         lastProcessedSeason: currentSeason,
-        allSeasonMatches: newCalendar.map(m => ({ ...m, status: 'scheduled', isFinished: false }))
+        allSeasonMatches: newCalendar
       });
       return;
     }
 
-    // 2. ИНИЦИАЛИЗАЦИЯ МИРА (для первого запуска)
+    // 2. ИНИЦИАЛИЗАЦИЯ (Первый запуск)
     if (!initRef.current) {
       initRef.current = true;
-      
       if (!allSeasonMatches || allSeasonMatches.length === 0) {
-        // Если мы не в межсезонье, значит сезон идет, генерируем базу
-        if (!info.isOffseason) {
-          const teamData = getStableGroupTeams(leagueLevel, groupId, selectedLeagueId, [{
-            id: 'local-manager', name: clubName || "Local Club", rank: rank || 1, logo: clubLogo || null, isBot: false
-          }]);
-          const calendar = generateSeasonCalendar(teamData, currentSeason, selectedLeagueId);
-          saveToLocal({ 
-            allSeasonMatches: calendar.map(m => ({ ...m, status: 'scheduled', isFinished: false }))
-          });
-        }
+        const teamData = getStableGroupTeams(leagueLevel, groupId, selectedLeagueId, [{
+          id: 'local-manager', name: clubName || "Local Club", rank: rank || 1, logo: clubLogo || null, isBot: false
+        }]);
+        const calendar = generateSeasonCalendar(teamData, currentSeason, selectedLeagueId);
+        saveToLocal({ allSeasonMatches: calendar });
       }
-
       setWorldReady(true);
     }
+
+    // 3. АВТО-РЕЗОЛВЕР (Каждые 60 сек)
+    const resolveTimer = setInterval(() => {
+      if (!allSeasonMatches || allSeasonMatches.length === 0) return;
+
+      let changed = false;
+      const updatedMatches = allSeasonMatches.map(m => {
+        if (!m.isFinished && isMatchOverdue(m.startTime)) {
+          const [sA, sB] = getMatchResult(m.homeId, m.awayId, currentSeason, m.tour);
+          changed = true;
+          
+          // Создаем фиктивную симуляцию для плеера
+          const simulation = {
+            winner: sA > sB ? m.homeName : (sB > sA ? m.awayName : "Draw"),
+            seriesScore: `${sA}-${sB}`,
+            games: [{
+              scoreA: sA, scoreB: sB,
+              duration: "35:00",
+              mvp: sA >= sB ? m.homeName : m.awayName,
+              matchSummary: "Battle concluded at scheduled time.",
+              towersA: sA > sB ? 11 : (sA === sB ? 7 : 4),
+              towersB: sB > sA ? 11 : (sA === sB ? 7 : 4),
+              objectivesA: sA >= sB ? 4 : 1,
+              objectivesB: sB >= sA ? 4 : 1,
+              teamAOvr: 30, teamBOvr: 30,
+              timeline: [{ time: "35:00", type: "objective", event: "Final ancient destroyed!", score: `${sA}:${sB}` }],
+              scoreboard: [],
+              teamComparison: { farm: [50, 50], tactics: [50, 50], teamwork: [50, 50], reflexes: [50, 50] }
+            }]
+          };
+
+          return { ...m, isFinished: true, scoreA: sA, scoreB: sB, simulation, status: 'finished' };
+        }
+        return m;
+      });
+
+      if (changed) {
+        console.log("[LEAGUE] Auto-resolved matches due to time expiration.");
+        saveToLocal({ allSeasonMatches: updatedMatches });
+      }
+    }, 60000);
+
+    return () => clearInterval(resolveTimer);
   }, [isLoaded, selectedLeagueId, leagueLevel, groupId, rank, clubLogo, clubName, allSeasonMatches, saveToLocal, setWorldReady, lastProcessedSeason, language, toast]);
 
   return null;

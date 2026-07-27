@@ -1,5 +1,6 @@
 /**
- * @fileOverview Ядро лиг v55: Математическая пирамида с экспоненциальным ростом групп и логикой миграции.
+ * @fileOverview Ядро лиг v56: Математическая пирамида с экспоненциальным ростом групп и логикой миграции.
+ * Исправлена генерация календаря для обеспечения единого расписания группы.
  */
 
 import { GLOBAL_EPOCH_ISO } from './time-utils';
@@ -35,7 +36,6 @@ export const LEAGUES: LeagueOption[] = [
 
 /**
  * Возвращает количество групп в конкретном дивизионе.
- * Див 1 = 1, Див 2 = 2, Див 3 = 4... 2^(level-1)
  */
 export function getGroupsCountInLevel(level: number): number {
   return Math.pow(2, level - 1);
@@ -43,10 +43,9 @@ export function getGroupsCountInLevel(level: number): number {
 
 /**
  * Рассчитывает целевую группу при повышении (1 место).
- * Группа G в уровне L переходит в ceil(G/2) в уровне L-1.
  */
 export function getPromotionTarget(level: number, group: number): { level: number, group: number } {
-  if (level <= 1) return { level, group }; // Уже в элите
+  if (level <= 1) return { level, group }; 
   return {
     level: level - 1,
     group: Math.ceil(group / 2)
@@ -55,10 +54,9 @@ export function getPromotionTarget(level: number, group: number): { level: numbe
 
 /**
  * Рассчитывает целевую группу при понижении (7-8 место).
- * Группа G в уровне L переходит в G*2-1 или G*2 в уровне L+1.
  */
 export function getRelegationTarget(level: number, group: number, rank: number): { level: number, group: number } {
-  if (level >= MAX_LEVELS) return { level, group }; // Дно пирамиды
+  if (level >= MAX_LEVELS) return { level, group }; 
   return {
     level: level + 1,
     group: rank === 7 ? (group * 2 - 1) : (group * 2)
@@ -67,26 +65,23 @@ export function getRelegationTarget(level: number, group: number, rank: number):
 
 /**
  * Генерирует стабильный состав группы. 
- * Реальные игроки занимают свои Rank (1-8), остальные — боты.
  */
 export function getStableGroupTeams(level: number, group: number, leagueId: string, realPlayersInGroup: any[] = []) {
   const leagueIdx = (LEAGUES.findIndex(l => l.id === leagueId) + 1).toString().padStart(2, '0');
   const groupPrefix = group.toString().padStart(3, '0');
   const teams = new Array(TEAMS_PER_GROUP).fill(null);
 
-  // Сначала размещаем всех известных реальных игроков на их позиции
   realPlayersInGroup.forEach(p => {
     const slot = Math.min(8, Math.max(1, Number(p.rank || 1)));
     teams[slot - 1] = {
       id: p.id,
       name: p.name || p.displayName || `Manager_${p.id.slice(0, 4)}`,
       logo: p.logo || p.clubLogo || null,
-      isBot: false,
+      isBot: p.id !== 'local-manager',
       rank: slot
     };
   });
 
-  // Заполняем пустоты уникальными ботами
   for (let i = 0; i < TEAMS_PER_GROUP; i++) {
     if (!teams[i]) {
       const slotNum = i + 1;
@@ -103,11 +98,12 @@ export function getStableGroupTeams(level: number, group: number, leagueId: stri
 }
 
 /**
- * Генерация календаря на 14 дней (2 круга) по алгоритму Бергера.
+ * Генерация календаря на 14 дней по алгоритму Бергера.
+ * Гарантирует единое расписание для всей группы.
  */
 export function generateSeasonCalendar(teams: any[], seasonNumber: number, leagueId: string) {
   const n = teams.length; // 8
-  const rounds = n - 1; // 7 раундов в одном круге
+  const rounds = n - 1; // 7 раундов в круге
   const matches = [];
   
   const league = LEAGUES.find(l => l.id === leagueId) || LEAGUES[0];
@@ -120,34 +116,39 @@ export function generateSeasonCalendar(teams: any[], seasonNumber: number, leagu
 
   const pool = Array.from({ length: n }, (_, i) => i);
 
-  // Календарь на 14 дней: Круг 1 (дни 1-7) и Круг 2 (дни 8-14)
   for (let round = 0; round < rounds; round++) {
     for (let i = 0; i < n / 2; i++) {
-      const homeIdx = pool[i];
-      const awayIdx = pool[n - 1 - i];
+      const hIdx = pool[i];
+      const aIdx = pool[n - 1 - i];
 
-      const createMatch = (day: number, hIdx: number, aIdx: number, tour: number) => {
-        const h = teams[hIdx];
-        const a = teams[aIdx];
+      const createMatch = (day: number, home: any, away: any, tour: number) => {
         const startTime = new Date(seasonStartMs + (day - 1) * dayMs + hh * 60 * 60 * 1000 + mm * 60 * 1000);
         return {
+          id: `match_s${seasonNumber}_l${leagueId}_d${day}_h${home.id}_a${away.id}`,
           day,
           tour,
-          homeId: h.id,
-          homeName: h.name,
-          homeLogo: h.logo || null,
-          awayId: a.id,
-          awayName: a.name,
-          awayLogo: a.logo || null,
+          homeId: home.id,
+          homeName: home.name,
+          homeLogo: home.logo || null,
+          awayId: away.id,
+          awayName: away.name,
+          awayLogo: away.logo || null,
           startTime: startTime.toISOString(),
-          pairKey: [h.id, a.id].sort().join('_vs_')
+          type: 'league',
+          isFinished: false,
+          scoreA: 0,
+          scoreB: 0,
+          seen: false
         };
       };
 
-      matches.push(createMatch(round + 1, homeIdx, awayIdx, round + 1));
-      matches.push(createMatch(round + 8, awayIdx, homeIdx, round + 8));
+      // Первый круг (дома-выезд)
+      matches.push(createMatch(round + 1, teams[hIdx], teams[aIdx], round + 1));
+      // Второй круг (выезд-дома)
+      matches.push(createMatch(round + 8, teams[aIdx], teams[hIdx], round + 8));
     }
     
+    // Вращение по алгоритму Бергера
     const last = pool.pop()!;
     pool.splice(1, 0, last);
   }
@@ -156,7 +157,7 @@ export function generateSeasonCalendar(teams: any[], seasonNumber: number, leagu
 }
 
 /**
- * Детерминированный расчет результата для фоновых матчей ботов (Bo2).
+ * Детерминированный расчет результата (Bo2).
  */
 export function getMatchResult(idA: string, idB: string, season: number, tour: number): [number, number] {
   const combinedKey = `${idA}-${idB}-${season}-${tour}`;
@@ -170,7 +171,7 @@ export function getMatchResult(idA: string, idB: string, season: number, tour: n
   const absHash = Math.abs(hash);
   const roll = absHash % 100;
   
-  if (roll < 30) return [2, 0];
-  if (roll < 60) return [0, 2];
+  if (roll < 35) return [2, 0];
+  if (roll < 70) return [0, 2];
   return [1, 1];
 }
