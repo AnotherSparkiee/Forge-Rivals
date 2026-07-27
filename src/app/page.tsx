@@ -81,11 +81,11 @@ export default function Home() {
   return (
     <div className="relative h-[calc(100dvh-3.5rem-5rem)] flex flex-col overflow-hidden bg-[#0a0d14]">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,_hsl(var(--primary)/0.1),_transparent_70%)] -z-10" />
-      <div className="flex-1 w-full max-w-md mx-auto px-4 flex flex-col pt-4 overflow-hidden">
+      <div className="flex-1 w-full max-w-md mx-auto px-4 flex flex-col justify-center overflow-hidden">
         
-        {/* NEXT MATCH / OFFSEASON WIDGET - COMPACT VERSION */}
+        {/* NEXT MATCH / OFFSEASON WIDGET */}
         {currentNextMatch ? (
-          <Card className="glass-card mb-4 border-primary/30 bg-primary/5 overflow-hidden animate-in fade-in slide-in-from-top-4 duration-700 shrink-0">
+          <Card className="glass-card mb-6 border-primary/30 bg-primary/5 overflow-hidden animate-in fade-in slide-in-from-top-4 duration-700 shrink-0">
             <CardContent className="p-4 flex items-center justify-between min-h-[110px]">
               <div className="flex items-center gap-4 min-w-0 flex-1">
                 <div className="w-14 h-14 rounded-xl bg-secondary/50 border border-primary/20 flex items-center justify-center p-2 shrink-0 shadow-lg">
@@ -118,7 +118,7 @@ export default function Home() {
             </CardContent>
           </Card>
         ) : (
-          <Card className="glass-card mb-4 border-accent/30 bg-accent/5 overflow-hidden animate-in fade-in slide-in-from-top-4 duration-700 shrink-0">
+          <Card className="glass-card mb-6 border-accent/30 bg-accent/5 overflow-hidden animate-in fade-in slide-in-from-top-4 duration-700 shrink-0">
             <CardContent className="p-4 flex items-center justify-between min-h-[110px]">
                <div className="flex items-center gap-4 min-w-0 flex-1">
                   <div className="w-14 h-14 rounded-xl bg-secondary/50 border border-accent/20 flex items-center justify-center shrink-0 shadow-lg">
@@ -152,8 +152,9 @@ export default function Home() {
           </Card>
         )}
 
-        <div className="flex-1 flex items-center justify-center overflow-hidden">
-          <div className="grid grid-cols-4 gap-2 w-full max-h-full py-2">
+        {/* ICON GRID */}
+        <div className="w-full">
+          <div className="grid grid-cols-4 gap-2 w-full py-2">
             {menuItems.map((item) => (
               <Link key={item.label} href={item.href}>
                 <Card className="glass-card hover:bg-white/5 transition-all active:scale-95 duration-75 border-white/5 group aspect-square flex flex-col items-center justify-center p-1 relative overflow-visible">
