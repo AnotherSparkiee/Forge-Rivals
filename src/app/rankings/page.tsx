@@ -16,7 +16,8 @@ import {
   getStableGroupTeams, 
   getGroupsCountInLevel, 
   getMatchResult,
-  generateSeasonCalendar
+  generateSeasonCalendar,
+  LEAGUES
 } from '../lib/leagues-data';
 import { isMatchOverdue } from '../lib/time-utils';
 import { Badge } from '@/components/ui/badge';
@@ -43,7 +44,7 @@ export default function RankingsPage() {
   const contextLevel = Number(navLevel || leagueLevel || 9);
   const contextGroup = Number(navGroup || groupId || 1);
 
-  // 1. Запрос реальных игроков v11
+  // 1. Реальные игроки v11
   const groupPlayersQuery = useMemoFirebase(() => {
     if (!db) return null;
     return query(
@@ -56,7 +57,7 @@ export default function RankingsPage() {
 
   const { data: groupRealPlayers, isLoading: isPlayersLoading } = useCollection(groupPlayersQuery);
 
-  // 2. Запрос зафиксированных матчей (v11)
+  // 2. Зафиксированные матчи v11
   const groupMatchesQuery = useMemoFirebase(() => {
     if (!db) return null;
     return query(
@@ -70,26 +71,29 @@ export default function RankingsPage() {
 
   const { data: fixedMatches, isLoading: isMatchesLoading } = useCollection(groupMatchesQuery);
 
-  // 3. Расчет таблицы лидеров
+  // 3. Таблица (Объединение матчей и имен)
   const standings = useMemo(() => {
     if (!isLoaded || isPlayersLoading) return [];
 
-    const finalRealPlayers = groupRealPlayers || [];
-    const teams = getStableGroupTeams(contextLevel, contextGroup, contextLeagueId, finalRealPlayers);
-    const groupCalendar = generateSeasonCalendar(teams, seasonNumber, contextLeagueId);
+    const realOnes = groupRealPlayers || [];
+    // Формируем состав группы: маппинг Ранг -> Игрок
+    const teams = getStableGroupTeams(contextLevel, contextGroup, contextLeagueId, realOnes);
+    
+    // Генерируем структуру календаря (она едина для всех по Circle Method)
+    const baseCalendar = generateSeasonCalendar(teams, seasonNumber, contextLeagueId);
 
     return teams.map((t) => {
       let wins = 0, draws = 0, losses = 0, pts = 0, played = 0;
       
-      const teamMatches = groupCalendar.filter(m => m.homeRank === t.rank || m.awayRank === t.rank);
+      const teamMatches = baseCalendar.filter(m => m.homeRank === t.rank || m.awayRank === t.rank);
 
       teamMatches.forEach(m => {
-        // Ищем зафиксированный результат в БД
+        // Проверяем БД на наличие зафиксированного результата
         const fixed = fixedMatches?.find(fm => 
           (fm.homeRank === m.homeRank && fm.awayRank === m.awayRank && fm.tour === m.tour)
         );
 
-        if (fixed) {
+        if (fixed && fixed.isFinished) {
           played++;
           const isHome = fixed.homeRank === t.rank;
           const myScore = isHome ? fixed.scoreA : fixed.scoreB;
@@ -99,12 +103,12 @@ export default function RankingsPage() {
           else if (myScore === oppScore) { draws++; pts += 1; }
           else { losses++; }
         } else if (isMatchOverdue(m.startTime)) {
-          // Если в БД нет, но время прошло - рассчитываем детерминированно
+          // Fallback: детерминированный расчет (совпадает с логикой Seeder)
           played++;
-          const [scoreH, scoreA] = getMatchResult(m.homeRank, m.awayRank, contextLevel, contextGroup, seasonNumber, m.tour);
+          const [sH, sA] = getMatchResult(m.homeRank, m.awayRank, contextLevel, contextGroup, seasonNumber, m.tour);
           const isHome = m.homeRank === t.rank;
-          const myScore = isHome ? scoreH : scoreA;
-          const oppScore = isHome ? scoreA : scoreH;
+          const myScore = isHome ? sH : sA;
+          const oppScore = isHome ? sA : sH;
 
           if (myScore > oppScore) { wins++; pts += 3; }
           else if (myScore === oppScore) { draws++; pts += 1; }
@@ -199,7 +203,7 @@ export default function RankingsPage() {
 
       {(activeTab === 'my_league' || navGroup) && (
         <div className="space-y-4 animate-in fade-in duration-500">
-           {isPlayersLoading ? (
+           {(isPlayersLoading || isMatchesLoading) ? (
              <div className="py-20 flex flex-col items-center justify-center space-y-4 opacity-50">
                 <div className="relative">
                    <div className="absolute inset-0 bg-primary/20 blur-xl rounded-full animate-pulse" />
@@ -211,7 +215,6 @@ export default function RankingsPage() {
              <>
                <div className="flex items-center justify-between px-1">
                  <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase italic">DIV {contextLevel} • G {contextGroup}</Badge>
-                 {isMatchesLoading && <Loader2 className="w-3 h-3 animate-spin text-primary opacity-50" />}
                  <div className="flex gap-2">
                     <div className="flex items-center gap-1 text-[7px] font-black uppercase text-green-400">
                       <ArrowUpCircle className="w-2.5 h-2.5" /> {language === 'ru' ? 'ПОВЫШЕНИЕ' : 'PROMOTION'}

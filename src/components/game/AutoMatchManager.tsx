@@ -11,15 +11,15 @@ import {
   getRelegationTarget
 } from '@/app/lib/leagues-data';
 import { useFirestore, setDocumentNonBlocking } from '@/firebase';
-import { doc, getDoc, collection, query, where, getDocs, limit } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 
 /**
- * ГЛОБАЛЬНЫЙ МЕНЕДЖЕР МАТЧЕЙ v8.0 (Season Start & Calendar Seeding)
- * Управляет жизненным циклом лиги: публикация календаря, расчет матчей и переход между сезонами.
+ * ГЛОБАЛЬНЫЙ МЕНЕДЖЕР МАТЧЕЙ v8.5 (Unified Calendar)
+ * Обеспечивает единое расписание для всей группы через коллекцию matches_v11.
  */
 export function AutoMatchManager() {
   const { 
-    isLoaded, isDataReady, selectedLeagueId, 
+    isLoaded, selectedLeagueId, 
     leagueLevel, groupId, setWorldReady, rank, clubLogo, clubName,
     allSeasonMatches, saveToLocal, lastProcessedSeason, id: userId
   } = useGameState();
@@ -34,12 +34,10 @@ export function AutoMatchManager() {
     const info = getGlobalSeasonInfo();
     const currentSeason = info.activeSeasonNumber;
 
-    // 1. СИНХРОНИЗАЦИЯ СЕЗОНОВ И ПЕРЕХОД
+    // 1. ПЕРЕХОД МЕЖДУ СЕЗОНАМИ
     if (lastProcessedSeason < currentSeason && lastProcessedSeason > 0) {
-      console.log(`[SEASON ENGINE] Transitioning from S${lastProcessedSeason} to S${currentSeason}...`);
-      
       const oldTeams = getStableGroupTeams(leagueLevel, groupId, selectedLeagueId, [{
-        id: userId, name: clubName || "Local Club", rank: rank || 1, logo: clubLogo || null, isBot: false
+        id: userId, name: clubName || "Local Club", rank: rank || 1, logo: clubLogo || null
       }]);
 
       const finalStandings = oldTeams.map(t => {
@@ -75,53 +73,50 @@ export function AutoMatchManager() {
       return;
     }
 
-    // 2. ГЛОБАЛЬНОЕ СИДИРОВАНИЕ КАЛЕНДАРЯ (Публикация в БД)
-    const seedCalendarIfNeeded = async () => {
+    // 2. ЕДИНЫЙ КАЛЕНДАРЬ ГРУППЫ (Публикация)
+    const seedCalendar = async () => {
       if (seedingRef.current) return;
       seedingRef.current = true;
 
       try {
-        const groupCheckId = `v11_s${currentSeason}_l${selectedLeagueId}_lv${leagueLevel}_g${groupId}_t1_hR1_aR8`;
-        const checkSnap = await getDoc(doc(db, 'matches_v11', groupCheckId));
+        // Проверяем первый матч группы в БД
+        const checkId = `v11_s${currentSeason}_l${selectedLeagueId}_lv${leagueLevel}_g${groupId}_t1_hR1_aR8`;
+        const checkSnap = await getDoc(doc(db, 'matches_v11', checkId));
 
         if (!checkSnap.exists()) {
-          console.log(`[SEEDER] Group ${leagueLevel}.${groupId} calendar not found. Publishing to DB...`);
+          console.log(`[SEEDER] Publishing unified calendar for Group ${leagueLevel}.${groupId}...`);
           
-          const teamData = getStableGroupTeams(leagueLevel, groupId, selectedLeagueId, [{
-            id: userId, name: clubName || "Local Club", rank: rank || 1, logo: clubLogo || null, isBot: false
-          }]);
+          // Получаем всех реальных игроков группы для корректных имен в первичной записи
+          const q = query(collection(db, 'players_v11'), 
+            where('selectedLeagueId', '==', selectedLeagueId),
+            where('leagueLevel', '==', leagueLevel),
+            where('groupId', '==', groupId)
+          );
+          const playersSnap = await getDocs(q);
+          const realPlayers = playersSnap.docs.map(d => ({ ...d.data(), id: d.id }));
+
+          const teamData = getStableGroupTeams(leagueLevel, groupId, selectedLeagueId, realPlayers);
           const calendar = generateSeasonCalendar(teamData, currentSeason, selectedLeagueId);
 
           calendar.forEach(m => {
             const mId = `v11_s${currentSeason}_l${selectedLeagueId}_lv${leagueLevel}_g${groupId}_t${m.tour}_hR${m.homeRank}_aR${m.awayRank}`;
             setDocumentNonBlocking(doc(db, 'matches_v11', mId), {
+              ...m,
               id: mId,
               leagueId: selectedLeagueId,
               level: leagueLevel,
               groupId: groupId,
               season: currentSeason,
-              tour: m.tour,
-              homeRank: m.homeRank,
-              awayRank: m.awayRank,
-              homeId: m.homeId,
-              awayId: m.awayId,
-              homeName: m.homeName,
-              awayName: m.awayName,
-              scoreA: 0,
-              scoreB: 0,
               status: 'scheduled',
               isFinished: false,
-              version: 11,
-              startTime: m.startTime
+              version: 11
             });
           });
           
           saveToLocal({ allSeasonMatches: calendar, lastProcessedSeason: currentSeason });
         } else {
-          // Если календарь в БД уже есть, просто грузим его локально
-          const teamData = getStableGroupTeams(leagueLevel, groupId, selectedLeagueId, [{
-            id: userId, name: clubName || "Local Club", rank: rank || 1, logo: clubLogo || null, isBot: false
-          }]);
+          // Календарь уже в БД - просто синхронизируем локально
+          const teamData = getStableGroupTeams(leagueLevel, groupId, selectedLeagueId, []);
           const calendar = generateSeasonCalendar(teamData, currentSeason, selectedLeagueId);
           saveToLocal({ allSeasonMatches: calendar, lastProcessedSeason: currentSeason });
         }
@@ -134,53 +129,33 @@ export function AutoMatchManager() {
 
     if (!initRef.current) {
       initRef.current = true;
-      seedCalendarIfNeeded();
+      seedCalendar();
     }
 
-    // 3. ГЛОБАЛЬНЫЙ РЕЗОЛВЕР
+    // 3. ГЛОБАЛЬНЫЙ РЕЗОЛВЕР (Фиксация результатов)
     const resolveTimer = setInterval(async () => {
       if (!db || !allSeasonMatches || allSeasonMatches.length === 0) return;
 
-      const overdueMatches = allSeasonMatches.filter(m => !m.isFinished && isMatchOverdue(m.startTime));
-      if (overdueMatches.length === 0) return;
+      const overdue = allSeasonMatches.filter(m => !m.isFinished && isMatchOverdue(m.startTime));
+      if (overdue.length === 0) return;
 
-      let hasLocalChanges = false;
-      const updatedMatches = [...allSeasonMatches];
-
-      for (let i = 0; i < updatedMatches.length; i++) {
-        const m = updatedMatches[i];
-        if (m.isFinished || !isMatchOverdue(m.startTime)) continue;
-
-        const globalMatchId = `v11_s${currentSeason}_l${selectedLeagueId}_lv${leagueLevel}_g${groupId}_t${m.tour}_hR${m.homeRank}_aR${m.awayRank}`;
-        const matchRef = doc(db, 'matches_v11', globalMatchId);
+      for (const m of overdue) {
+        const mId = `v11_s${currentSeason}_l${selectedLeagueId}_lv${leagueLevel}_g${groupId}_t${m.tour}_hR${m.homeRank}_aR${m.awayRank}`;
+        const matchRef = doc(db, 'matches_v11', mId);
         
         try {
           const snap = await getDoc(matchRef);
-          let finalScoreA = 0, finalScoreB = 0;
-
-          if (snap.exists()) {
-            const data = snap.data();
-            if (data?.status === 'finished') {
-              finalScoreA = data.scoreA;
-              finalScoreB = data.scoreB;
-            } else {
-              const [sA, sB] = getMatchResult(m.homeRank, m.awayRank, leagueLevel, groupId, currentSeason, m.tour);
-              finalScoreA = sA; finalScoreB = sB;
-              setDocumentNonBlocking(matchRef, {
-                scoreA: sA, scoreB: sB, status: 'finished', isFinished: true,
-                winnerId: sA > sB ? m.homeId : (sB > sA ? m.awayId : null),
-                resolvedAt: new Date().toISOString()
-              }, { merge: true });
-            }
-
-            updatedMatches[i] = { ...m, isFinished: true, scoreA: finalScoreA, scoreB: finalScoreB, status: 'finished' };
-            hasLocalChanges = true;
+          if (snap.exists() && !snap.data().isFinished) {
+            const [sA, sB] = getMatchResult(m.homeRank, m.awayRank, leagueLevel, groupId, currentSeason, m.tour);
+            setDocumentNonBlocking(matchRef, {
+              scoreA: sA, scoreB: sB, status: 'finished', isFinished: true,
+              winnerId: sA > sB ? snap.data().homeId : (sB > sA ? snap.data().awayId : null),
+              resolvedAt: new Date().toISOString()
+            }, { merge: true });
           }
         } catch (e) { console.error("[RESOLVE ERROR]", e); }
       }
-
-      if (hasLocalChanges) saveToLocal({ allSeasonMatches: updatedMatches });
-    }, 20000);
+    }, 30000);
 
     return () => clearInterval(resolveTimer);
   }, [isLoaded, selectedLeagueId, leagueLevel, groupId, rank, clubLogo, clubName, allSeasonMatches, saveToLocal, setWorldReady, lastProcessedSeason, userId, db]);
