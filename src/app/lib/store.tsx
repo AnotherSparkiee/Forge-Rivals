@@ -1,11 +1,8 @@
-
 'use client';
 
 /**
- * Глобальное локальное хранилище v220 (Autonomous Mode).
- * Исправлена логика отслеживания просмотренных матчей.
- * Добавлены функции удаления и очистки истории.
- * ВНИМАНИЕ: Ключ хранилища обновлен до v220 для принудительного сброса профилей.
+ * Глобальное локальное хранилище v221 (Autonomous Mode).
+ * ВНИМАНИЕ: Версия обновлена до v221 для сброса сезона на 1 июля 2026.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useMemo } from 'react';
@@ -125,7 +122,7 @@ interface GameState {
   saveToLocal: (state: Partial<GameState>) => void;
 }
 
-const STORAGE_KEY = 'lote_game_state_v220';
+const STORAGE_KEY = 'lote_game_state_v221';
 
 const DEFAULT_STATE: GameState = {
   credits: 1000000, crystals: 50, experiencePoints: 0, managerLevel: 1,
@@ -145,7 +142,7 @@ const DEFAULT_STATE: GameState = {
   arena: { capacity: 5000 }, hq: {}, bootcamp: {}, academy: {}, medical: {},
   country: null, isPremium: false, premiumUntil: null, activeSeasonNumber: 1, seasonNumber: 1, seasonDay: 1, isSyncing: false, language: 'ru',
   isDataReady: false, allSeasonMatches: [], nextMatch: null, isMatchesLoading: true,
-  lastProcessedSeason: 0, trophies: [], version: 220,
+  lastProcessedSeason: 0, trophies: [], version: 221,
   availableGiftsToSend: [], receivedGifts: [], lastGiftGenDate: null,
   addCrystals: () => {}, addCredits: () => {}, updatePlayer: () => {}, removePlayer: () => {}, assignToRole: () => {}, updateLineup: () => {}, updateTactics: () => {},
   claimReward: () => {}, setLanguage: () => {}, purchaseLicense: () => false, purchasePremium: () => false,
