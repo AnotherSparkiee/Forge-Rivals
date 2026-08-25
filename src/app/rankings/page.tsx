@@ -7,7 +7,8 @@ import { useGameState } from '../lib/store';
 import { 
   Trophy, ChevronLeft, ChevronRight, 
   Shield, Globe, Layers, Medal, Loader2,
-  User, Bot, Target, AlertCircle, ArrowUpCircle, ArrowDownCircle
+  User, Bot, Target, AlertCircle, ArrowUpCircle, ArrowDownCircle,
+  RefreshCw
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -47,7 +48,7 @@ export default function RankingsPage() {
   const contextLevel = Number(navLevel || leagueLevel || 9);
   const contextGroup = Number(navGroup || groupId || 1);
 
-  // 1. Запрос реальных игроков
+  // 1. Запрос реальных игроков v11
   const groupPlayersQuery = useMemoFirebase(() => {
     if (!db) return null;
     return query(
@@ -60,7 +61,7 @@ export default function RankingsPage() {
 
   const { data: groupRealPlayers, isLoading: isPlayersLoading } = useCollection(groupPlayersQuery);
 
-  // 2. Запрос зафиксированных матчей этой группы
+  // 2. Запрос зафиксированных матчей v11
   const groupMatchesQuery = useMemoFirebase(() => {
     if (!db) return null;
     return query(
@@ -75,7 +76,8 @@ export default function RankingsPage() {
   const { data: fixedMatches, isLoading: isMatchesLoading } = useCollection(groupMatchesQuery);
 
   const standings = useMemo(() => {
-    if (!isLoaded || !selectedLeagueId) return [];
+    // Пока данные грузятся, не считаем таблицу, чтобы не показывать ботов
+    if (!isLoaded || !selectedLeagueId || isPlayersLoading) return [];
 
     const finalRealPlayers = groupRealPlayers || [];
     const teams = getStableGroupTeams(contextLevel, contextGroup, contextLeagueId, finalRealPlayers);
@@ -84,11 +86,9 @@ export default function RankingsPage() {
     return teams.map((t) => {
       let wins = 0, draws = 0, losses = 0, pts = 0, played = 0;
       
-      // Ищем все матчи этой команды в календаре
       const teamMatches = groupCalendar.filter(m => m.homeId === t.id || m.awayId === t.id);
 
       teamMatches.forEach(m => {
-        // Проверяем, есть ли зафиксированный результат в БД
         const fixed = fixedMatches?.find(fm => 
           (fm.homeId === m.homeId && fm.awayId === m.awayId && fm.tour === m.tour)
         );
@@ -103,7 +103,6 @@ export default function RankingsPage() {
           else if (myScore === oppScore) { draws++; pts += 1; }
           else { losses++; }
         } else if (isMatchOverdue(m.startTime)) {
-          // Fallback: детерминированный расчет, если база еще не обновилась
           played++;
           const [scoreH, scoreA] = getMatchResult(m.homeId, m.awayId, seasonNumber, m.tour);
           const isHome = m.homeId === t.id;
@@ -124,13 +123,14 @@ export default function RankingsPage() {
         diff: (wins * 2) - losses
       };
     }).sort((a, b) => b.points - a.points || b.diff - a.diff);
-  }, [isLoaded, contextLevel, contextGroup, contextLeagueId, selectedLeagueId, seasonNumber, groupRealPlayers, fixedMatches]);
+  }, [isLoaded, contextLevel, contextGroup, contextLeagueId, selectedLeagueId, seasonNumber, groupRealPlayers, fixedMatches, isPlayersLoading]);
 
   const t = {
     en: {
       title: "RANKINGS HUB", subtitle: "Global Competitive Terminals",
       pts: "PTS", winLoss: "W-D-L", m: "M", back: "Back",
       promotion: "Promotion Zone", relegation: "Relegation Danger",
+      loading: "Syncing League Data...",
       menu: [
         { id: 'my_league', label: 'League Standings', desc: `Division ${leagueLevel}.${groupId}`, icon: Shield, color: 'text-primary' },
         { id: 'my_pyramid', label: 'League Pyramid', desc: `Explore ${selectedLeagueId}`, icon: Layers, color: 'text-accent' },
@@ -142,6 +142,7 @@ export default function RankingsPage() {
       title: "ТАБЛИЦЫ РЕЙТИНГА", subtitle: "Терминалы глобальных соревнований",
       pts: "О", winLoss: "В-Н-П", m: "И", back: "Назад",
       promotion: "Зона повышения", relegation: "Зона вылета",
+      loading: "Синхронизация данных...",
       menu: [
         { id: 'my_league', label: 'Таблица Лиги', desc: `Дивизион ${leagueLevel}.${groupId}`, icon: Shield, color: 'text-primary' },
         { id: 'my_pyramid', label: 'Пирамида Лиги', desc: `Изучить лигу ${selectedLeagueId}`, icon: Layers, color: 'text-accent' },
@@ -203,55 +204,67 @@ export default function RankingsPage() {
 
       {(activeTab === 'my_league' || navGroup) && (
         <div className="space-y-4 animate-in fade-in duration-500">
-           <div className="flex items-center justify-between px-1">
-             <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase italic">DIV {contextLevel} • G {contextGroup}</Badge>
-             {(isPlayersLoading || isMatchesLoading) && <Loader2 className="w-3 h-3 animate-spin text-primary" />}
-             <div className="flex gap-2">
-                <div className="flex items-center gap-1 text-[7px] font-black uppercase text-green-400">
-                  <ArrowUpCircle className="w-2 h-2" /> {language === 'ru' ? 'ПОВЫШЕНИЕ' : 'PROMOTION'}
+           {isPlayersLoading ? (
+             <div className="py-20 flex flex-col items-center justify-center space-y-4 opacity-50">
+                <div className="relative">
+                   <div className="absolute inset-0 bg-primary/20 blur-xl rounded-full animate-pulse" />
+                   <RefreshCw className="w-10 h-10 text-primary animate-spin" />
                 </div>
-                <div className="flex items-center gap-1 text-[7px] font-black uppercase text-red-400">
-                  <ArrowDownCircle className="w-2 h-2" /> {language === 'ru' ? 'ВЫЛЕТ' : 'RELEGATION'}
-                </div>
+                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-primary">{t.loading}</p>
              </div>
-           </div>
-           
-           <div className="space-y-1">
-             <div className="grid grid-cols-[24px_1fr_25px_60px_35px] gap-1 px-3 py-2 text-[8px] font-black text-muted-foreground uppercase tracking-widest border-b border-white/5">
-               <span>#</span><span>Team</span><span className="text-center">{t.m}</span><span className="text-center">{t.winLoss}</span><span className="text-right">{t.pts}</span>
-             </div>
-             {standings.map((entry: any, i: number) => {
-               const pos = i + 1;
-               const isMe = entry.id === userId;
-               const isPromoZone = pos === 1 && contextLevel > 1;
-               const isRelegationZone = pos >= 7 && contextLevel < MAX_LEVELS;
-
-               return (
-                <div key={entry.id + i} className={cn(
-                  "grid grid-cols-[24px_1fr_25px_60px_35px] gap-1 items-center p-2.5 rounded-xl border mb-1 transition-all", 
-                  isMe ? "bg-primary/20 border-primary/40 ring-1 ring-primary/10" : "bg-secondary/20 border-white/5",
-                  isPromoZone && !isMe && "border-green-500/20 bg-green-500/5",
-                  isRelegationZone && !isMe && "border-red-500/20 bg-red-500/5"
-                )}>
-                  <div className={cn(
-                    "text-[10px] font-black italic",
-                    isPromoZone ? "text-green-400" : (isRelegationZone ? "text-red-400" : "text-muted-foreground")
-                  )}>{pos}</div>
-                  <div className="truncate flex items-center gap-1.5 min-w-0">
-                    <div className="w-4 h-4 rounded-full bg-secondary overflow-hidden shrink-0">
-                       {entry.logo ? <img src={entry.logo} alt="" className="w-full h-full object-contain" /> : <Bot className="w-2.5 h-2.5 opacity-30 mx-auto mt-0.5" />}
+           ) : (
+             <>
+               <div className="flex items-center justify-between px-1">
+                 <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase italic">DIV {contextLevel} • G {contextGroup}</Badge>
+                 {isMatchesLoading && <Loader2 className="w-3 h-3 animate-spin text-primary opacity-50" />}
+                 <div className="flex gap-2">
+                    <div className="flex items-center gap-1 text-[7px] font-black uppercase text-green-400">
+                      <ArrowUpCircle className="w-2 h-2" /> {language === 'ru' ? 'ПОВЫШЕНИЕ' : 'PROMOTION'}
                     </div>
-                    <span className={cn("text-[10px] font-bold uppercase truncate", isMe ? "text-primary" : "text-white")}>
-                      {entry.name}
-                    </span>
-                  </div>
-                  <div className="text-center font-mono text-[9px] text-muted-foreground">{entry.matchesPlayed}</div>
-                  <div className="text-center font-mono text-[9px] text-muted-foreground/60">{entry.wins}-{entry.draws}-{entry.losses}</div>
-                  <div className="text-right font-headline font-black text-primary italic pr-1">{entry.points}</div>
-                </div>
-               );
-             })}
-           </div>
+                    <div className="flex items-center gap-1 text-[7px] font-black uppercase text-red-400">
+                      <ArrowDownCircle className="w-2 h-2" /> {language === 'ru' ? 'ВЫЛЕТ' : 'RELEGATION'}
+                    </div>
+                 </div>
+               </div>
+               
+               <div className="space-y-1">
+                 <div className="grid grid-cols-[24px_1fr_25px_60px_35px] gap-1 px-3 py-2 text-[8px] font-black text-muted-foreground uppercase tracking-widest border-b border-white/5">
+                   <span>#</span><span>Team</span><span className="text-center">{t.m}</span><span className="text-center">{t.winLoss}</span><span className="text-right">{t.pts}</span>
+                 </div>
+                 {standings.map((entry: any, i: number) => {
+                   const pos = i + 1;
+                   const isMe = entry.id === userId;
+                   const isPromoZone = pos === 1 && contextLevel > 1;
+                   const isRelegationZone = pos >= 7 && contextLevel < MAX_LEVELS;
+
+                   return (
+                    <div key={entry.id + i} className={cn(
+                      "grid grid-cols-[24px_1fr_25px_60px_35px] gap-1 items-center p-2.5 rounded-xl border mb-1 transition-all", 
+                      isMe ? "bg-primary/20 border-primary/40 ring-1 ring-primary/10" : "bg-secondary/20 border-white/5",
+                      isPromoZone && !isMe && "border-green-500/20 bg-green-500/5",
+                      isRelegationZone && !isMe && "border-red-500/20 bg-red-500/5"
+                    )}>
+                      <div className={cn(
+                        "text-[10px] font-black italic",
+                        isPromoZone ? "text-green-400" : (isRelegationZone ? "text-red-400" : "text-muted-foreground")
+                      )}>{pos}</div>
+                      <div className="truncate flex items-center gap-1.5 min-w-0">
+                        <div className="w-4 h-4 rounded-full bg-secondary overflow-hidden shrink-0">
+                           {entry.logo ? <img src={entry.logo} alt="" className="w-full h-full object-contain" /> : <Bot className="w-2.5 h-2.5 opacity-30 mx-auto mt-0.5" />}
+                        </div>
+                        <span className={cn("text-[10px] font-bold uppercase truncate", isMe ? "text-primary" : "text-white")}>
+                          {entry.name}
+                        </span>
+                      </div>
+                      <div className="text-center font-mono text-[9px] text-muted-foreground">{entry.matchesPlayed}</div>
+                      <div className="text-center font-mono text-[9px] text-muted-foreground/60">{entry.wins}-{entry.draws}-{entry.losses}</div>
+                      <div className="text-right font-headline font-black text-primary italic pr-1">{entry.points}</div>
+                    </div>
+                   );
+                 })}
+               </div>
+             </>
+           )}
         </div>
       )}
 
