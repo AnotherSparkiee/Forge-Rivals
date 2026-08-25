@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -17,8 +17,8 @@ import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 import { getRandomStartingSquad } from '@/app/lib/moba-data';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { findStrategicPlacement } from '@/app/actions/season-init';
-import { useFirestore } from '@/firebase';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { useFirestore, setDocumentNonBlocking } from '@/firebase';
+import { doc, serverTimestamp } from 'firebase/firestore';
 
 const CLUBS = [
   { id: 'parivision', name: 'Parivision', logo: 'https://iili.io/CYIAgVa.webp' },
@@ -31,9 +31,6 @@ const CLUBS = [
   { id: 'navi', name: 'NAVI', logo: 'https://iili.io/CYupwe2.webp' },
 ];
 
-/**
- * Генерирует криптографически надежный уникальный ID для команды.
- */
 function generateSecureTeamId() {
   if (typeof window !== 'undefined' && window.crypto && window.crypto.randomUUID) {
     return `team_${window.crypto.randomUUID().split('-')[0]}_${Date.now().toString(36)}`;
@@ -54,7 +51,6 @@ export default function SetupPage() {
   const [customClubName, setCustomClubName] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
   
-  // Создаем уникальный ID один раз при инициализации страницы настройки
   const [uniqueTeamId] = useState(() => generateSecureTeamId());
 
   const handleCompleteSetup = async () => {
@@ -62,16 +58,13 @@ export default function SetupPage() {
     setIsUpdating(true);
     
     try {
-      console.log(`[SETUP v11] Starting registration for ID: ${uniqueTeamId}`);
-      
-      // 1. Поиск свободного места в глобальной пирамиде v11 (сверху вниз)
+      // 1. Поиск свободного места (Серверное действие)
       let placement = { tier: 9, group: 1, rank: 1 };
       try {
         const result = await findStrategicPlacement(selectedLeagueId);
         if (result) placement = result;
-      } catch (placementErr) {
-        console.warn("[SETUP] Strategic placement failed, using fallback:", placementErr);
-        // Fallback placement to ensure registration isn't blocked
+      } catch (e) {
+        console.warn("[SETUP] Placement fallback active");
       }
       
       const selectedCountry = COUNTRIES.find(c => c.code === selectedCountryCode);
@@ -101,7 +94,7 @@ export default function SetupPage() {
 
       const finalClubName = customClubName.trim();
 
-      // 2. Сохранение в локальное хранилище с новым ID
+      // 2. Сохранение в локальный стор (Немедленно)
       saveToLocal({
         id: uniqueTeamId,
         selectedLeagueId,
@@ -119,10 +112,10 @@ export default function SetupPage() {
         lastProcessedSeason: activeSeasonNumber
       });
 
-      // 3. Синхронизация с Firestore v11 (если доступен)
+      // 3. Неблокирующая запись в Firestore (v11)
       if (db) {
         const playerRef = doc(db, 'players_v11', uniqueTeamId);
-        await setDoc(playerRef, {
+        setDocumentNonBlocking(playerRef, {
           id: uniqueTeamId,
           displayName: finalClubName,
           clubName: finalClubName,
@@ -140,22 +133,11 @@ export default function SetupPage() {
 
       toast({ 
         title: language === 'ru' ? "Клуб создан!" : "Club Initialized!",
-        description: language === 'ru' 
-          ? `Успешно! Ваш ID: ${uniqueTeamId.substring(0, 12)}...` 
-          : `Success! ID: ${uniqueTeamId.substring(0, 12)}...`
       });
 
-      setTimeout(() => {
-        router.push('/');
-      }, 300);
-
+      router.push('/');
     } catch (e: any) {
-      console.error("[SETUP v11 ERROR]:", e);
-      toast({ 
-        variant: "destructive", 
-        title: "Setup Error (v11)",
-        description: e.message || "Failed to sync with global server."
-      });
+      console.error("[SETUP ERROR]:", e);
       setIsUpdating(false);
     }
   };
