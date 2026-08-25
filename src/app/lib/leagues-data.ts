@@ -1,6 +1,7 @@
 /**
- * @fileOverview Ядро лиг v60: Слот-ориентированная архитектура.
+ * @fileOverview Ядро лиг v61: Слот-ориентированная архитектура.
  * Реализует систему, где результаты привязаны к позициям (Рангам) в группе.
+ * Усилена проверка типов для Rank.
  */
 
 import { GLOBAL_EPOCH_ISO } from './time-utils';
@@ -65,7 +66,7 @@ export function getStableGroupTeams(level: number, group: number, leagueId: stri
         name: p.clubName || p.displayName || `Manager_${p.id.slice(0, 4)}`,
         logo: p.clubLogo || p.logo || null,
         isBot: false,
-        rank: slot,
+        rank: Number(slot),
         isMe: p.isMe || false 
       };
     }
@@ -79,7 +80,7 @@ export function getStableGroupTeams(level: number, group: number, leagueId: stri
         id: botId,
         name: botId,
         isBot: true,
-        rank: slotNum,
+        rank: Number(slotNum),
         logo: null
       };
     }
@@ -119,11 +120,11 @@ export function generateSeasonCalendar(teams: any[], seasonNumber: number, leagu
           tour,
           homeId: home.id,
           homeName: home.name,
-          homeRank: home.rank, // КРИТИЧНО ДЛЯ ФИКСАЦИИ
+          homeRank: Number(home.rank), // ГАРАНТИРУЕМ ЧИСЛО
           homeLogo: home.logo || null,
           awayId: away.id,
           awayName: away.name,
-          awayRank: away.rank, // КРИТИЧНО ДЛЯ ФИКСАЦИИ
+          awayRank: Number(away.rank), // ГАРАНТИРУЕМ ЧИСЛО
           awayLogo: away.logo || null,
           startTime: startTime.toISOString(),
           type: 'league',

@@ -14,8 +14,9 @@ import { useFirestore, setDocumentNonBlocking } from '@/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 
 /**
- * ГЛОБАЛЬНЫЙ МЕНЕДЖЕР МАТЧЕЙ v6.6 (Slot-Based Group Sync)
+ * ГЛОБАЛЬНЫЙ МЕНЕДЖЕР МАТЧЕЙ v6.7 (Stability Fix)
  * Генерирует календарь и ФИКСИРУЕТ результаты на основе рангов слотов в группе.
+ * Добавлена защита от устаревших данных без рангов.
  */
 export function AutoMatchManager() {
   const { 
@@ -33,12 +34,16 @@ export function AutoMatchManager() {
     const info = getGlobalSeasonInfo();
     const currentSeason = info.activeSeasonNumber;
 
-    // 1. СИНХРОНИЗАЦИЯ ЭПОХИ / HARD RESET
-    if (lastProcessedSeason < currentSeason || (lastProcessedSeason > currentSeason && currentSeason === 1)) {
+    // Проверка целостности данных календаря (наличие рангов для фиксации)
+    const isCalendarStale = allSeasonMatches && allSeasonMatches.length > 0 && 
+                           (allSeasonMatches[0].homeRank === undefined || allSeasonMatches[0].awayRank === undefined);
+
+    // 1. СИНХРОНИЗАЦИЯ ЭПОХИ / HARD RESET / STALE DATA RECOVERY
+    if (isCalendarStale || lastProcessedSeason < currentSeason || (lastProcessedSeason > currentSeason && currentSeason === 1)) {
       let nextLevel = leagueLevel;
       let nextGroup = groupId;
       
-      if (lastProcessedSeason > 0 && lastProcessedSeason < currentSeason) {
+      if (!isCalendarStale && lastProcessedSeason > 0 && lastProcessedSeason < currentSeason) {
         const teamData = getStableGroupTeams(leagueLevel, groupId, selectedLeagueId, [{
           id: userId, name: clubName || "Local Club", rank: rank || 1, logo: clubLogo || null, isBot: false
         }]);
@@ -105,6 +110,9 @@ export function AutoMatchManager() {
       for (let i = 0; i < updatedMatches.length; i++) {
         const m = updatedMatches[i];
         if (m.isFinished || !isMatchOverdue(m.startTime)) continue;
+        
+        // Защита от отсутствующих данных рангов
+        if (m.homeRank === undefined || m.awayRank === undefined) continue;
 
         // ID привязан к СЛОТАМ (Рангам), а не к ID команд. Это решает проблему наложений.
         const globalMatchId = `v11_s${currentSeason}_l${selectedLeagueId}_lv${leagueLevel}_g${groupId}_t${m.tour}_hR${m.homeRank}_aR${m.awayRank}`;
@@ -138,8 +146,8 @@ export function AutoMatchManager() {
             });
           } else {
             const data = snap.data();
-            finalScoreA = data.scoreA;
-            finalScoreB = data.scoreB;
+            finalScoreA = data?.scoreA ?? 0;
+            finalScoreB = data?.scoreB ?? 0;
           }
 
           updatedMatches[i] = { 
