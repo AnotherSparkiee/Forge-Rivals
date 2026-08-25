@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useRef } from 'react';
@@ -14,9 +15,8 @@ import { useFirestore, setDocumentNonBlocking } from '@/firebase';
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 
 /**
- * ГЛОБАЛЬНЫЙ МЕНЕДЖЕР МАТЧЕЙ v8.6 (New Epoch Sync)
- * Обеспечивает единое расписание для всей группы через коллекцию matches_v11.
- * Исправлена логика расчета времени относительно новой эпохи 2025.
+ * ГЛОБАЛЬНЫЙ МЕНЕДЖЕР МАТЧЕЙ v11.1 (Stable Calendar Sync)
+ * Обеспечивает единое и неизменное расписание для всей группы.
  */
 export function AutoMatchManager() {
   const { 
@@ -37,6 +37,8 @@ export function AutoMatchManager() {
 
     // 1. ПЕРЕХОД МЕЖДУ СЕЗОНАМИ
     if (lastProcessedSeason < currentSeason && lastProcessedSeason > 0) {
+      console.log(`[SEASON ENGINE] Processing transition: ${lastProcessedSeason} -> ${currentSeason}`);
+      
       const oldTeams = getStableGroupTeams(leagueLevel, groupId, selectedLeagueId, [{
         id: userId, name: clubName || "Local Club", rank: rank || 1, logo: clubLogo || null
       }]);
@@ -74,20 +76,20 @@ export function AutoMatchManager() {
       return;
     }
 
-    // 2. ЕДИНЫЙ КАЛЕНДАРЬ ГРУППЫ (Публикация)
+    // 2. ЕДИНЫЙ КАЛЕНДАРЬ ГРУППЫ (Сидирование)
     const seedCalendar = async () => {
       if (seedingRef.current) return;
       seedingRef.current = true;
 
       try {
-        // Проверяем первый матч группы в БД
+        // Проверяем наличие первого матча сезона в группе
         const checkId = `v11_s${currentSeason}_l${selectedLeagueId}_lv${leagueLevel}_g${groupId}_t1_hR1_aR8`;
         const checkSnap = await getDoc(doc(db, 'matches_v11', checkId));
 
         if (!checkSnap.exists()) {
-          console.log(`[SEEDER] Publishing unified calendar for Season ${currentSeason}, Group ${leagueLevel}.${groupId}...`);
+          console.log(`[SEEDER v11] PUBLISHING OFFICIAL CALENDAR: Season ${currentSeason}, Group ${leagueLevel}.${groupId}`);
           
-          // Получаем всех реальных игроков группы
+          // Получаем текущих реальных игроков для первичного маппинга
           const q = query(collection(db, 'players_v11'), 
             where('selectedLeagueId', '==', selectedLeagueId),
             where('leagueLevel', '==', leagueLevel),
@@ -99,6 +101,7 @@ export function AutoMatchManager() {
           const teamData = getStableGroupTeams(leagueLevel, groupId, selectedLeagueId, realPlayers);
           const calendar = generateSeasonCalendar(teamData, currentSeason, selectedLeagueId);
 
+          // Публикуем все 14 туров в Firestore
           calendar.forEach(m => {
             if (m.homeRank === undefined || m.awayRank === undefined) return;
             const mId = `v11_s${currentSeason}_l${selectedLeagueId}_lv${leagueLevel}_g${groupId}_t${m.tour}_hR${m.homeRank}_aR${m.awayRank}`;
@@ -115,12 +118,21 @@ export function AutoMatchManager() {
             });
           });
           
-          saveToLocal({ allSeasonMatches: calendar, lastProcessedSeason: currentSeason });
+          saveToLocal({ allSeasonMatches: calendar });
         } else {
-          // Календарь уже в БД
-          const teamData = getStableGroupTeams(leagueLevel, groupId, selectedLeagueId, []);
-          const calendar = generateSeasonCalendar(teamData, currentSeason, selectedLeagueId);
-          saveToLocal({ allSeasonMatches: calendar, lastProcessedSeason: currentSeason });
+          // Календарь уже существует, просто подгружаем структуру
+          console.log(`[SEEDER v11] Official calendar exists. Syncing...`);
+          const q = query(collection(db, 'matches_v11'), 
+            where('leagueId', '==', selectedLeagueId),
+            where('level', '==', leagueLevel),
+            where('groupId', '==', groupId),
+            where('season', '==', currentSeason)
+          );
+          const matchesSnap = await getDocs(q);
+          const officialMatches = matchesSnap.docs.map(d => d.data());
+          if (officialMatches.length > 0) {
+            saveToLocal({ allSeasonMatches: officialMatches.sort((a, b) => a.tour - b.tour) });
+          }
         }
       } catch (e) {
         console.error("[SEEDER ERROR]", e);
@@ -134,7 +146,7 @@ export function AutoMatchManager() {
       seedCalendar();
     }
 
-    // 3. ГЛОБАЛЬНЫЙ РЕЗОЛВЕР (Фиксация результатов)
+    // 3. РЕЗОЛВЕР МАТЧЕЙ (Фиксация)
     const resolveTimer = setInterval(async () => {
       if (!db || !allSeasonMatches || allSeasonMatches.length === 0) return;
 
@@ -142,7 +154,6 @@ export function AutoMatchManager() {
       if (overdue.length === 0) return;
 
       for (const m of overdue) {
-        if (m.homeRank === undefined || m.awayRank === undefined) continue;
         const mId = `v11_s${currentSeason}_l${selectedLeagueId}_lv${leagueLevel}_g${groupId}_t${m.tour}_hR${m.homeRank}_aR${m.awayRank}`;
         const matchRef = doc(db, 'matches_v11', mId);
         
@@ -155,10 +166,14 @@ export function AutoMatchManager() {
               winnerId: sA > sB ? (snap.data().homeId || null) : (sB > sA ? (snap.data().awayId || null) : null),
               resolvedAt: new Date().toISOString()
             }, { merge: true });
+            
+            // Обновляем локально, чтобы не дергать таймер
+            const updated = allSeasonMatches.map(am => am.id === mId ? { ...am, isFinished: true, scoreA: sA, scoreB: sB } : am);
+            saveToLocal({ allSeasonMatches: updated });
           }
         } catch (e) { console.error("[RESOLVE ERROR]", e); }
       }
-    }, 30000);
+    }, 15000);
 
     return () => clearInterval(resolveTimer);
   }, [isLoaded, selectedLeagueId, leagueLevel, groupId, rank, clubLogo, clubName, allSeasonMatches, saveToLocal, setWorldReady, lastProcessedSeason, userId, db]);

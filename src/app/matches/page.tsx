@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -6,7 +7,7 @@ import { useGameState } from '../lib/store';
 import { 
   ChevronLeft, CalendarClock, History, Swords, 
   ChevronRight, clock as Clock, Target, LayoutList, ListChecks,
-  Shield, Timer
+  Shield, Timer, RefreshCw
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -14,7 +15,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where } from 'firebase/firestore';
+import { collection, query, where, orderBy } from 'firebase/firestore';
 import { getMoscowTime, isMatchLive } from '../lib/time-utils';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 
@@ -25,9 +26,9 @@ export default function MatchesPage() {
   const db = useFirestore();
   const router = useRouter();
   const { 
-    isLoaded, isDataReady, language, nextMatch,
-    activeSeasonNumber, selectedLeagueId, leagueLevel, groupId,
-    matchHistory, clubLogo: myClubLogo, seasonNumber
+    isLoaded, isDataReady, language,
+    selectedLeagueId, leagueLevel, groupId,
+    clubLogo: myClubLogo, seasonNumber
   } = useGameState();
   
   const [view, setView] = useState<MatchView>('menu');
@@ -38,7 +39,7 @@ export default function MatchesPage() {
     return () => clearInterval(timer);
   }, []);
 
-  // 1. Загрузка реальных игроков группы
+  // 1. Загрузка актуальных владельцев слотов
   const groupPlayersQuery = useMemoFirebase(() => {
     if (!db) return null;
     return query(collection(db, 'players_v11'), 
@@ -50,7 +51,7 @@ export default function MatchesPage() {
 
   const { data: players } = useCollection(groupPlayersQuery);
 
-  // 2. Загрузка официального календаря группы
+  // 2. Загрузка официального фиксированного календаря из БД
   const groupMatchesQuery = useMemoFirebase(() => {
     if (!db) return null;
     return query(collection(db, 'matches_v11'), 
@@ -66,7 +67,7 @@ export default function MatchesPage() {
   const t = {
     ru: {
       title: "МАТЧ-ЦЕНТР", subtitle: "Оперативные сводки и расписания",
-      backToMenu: "В меню матчей", empty: "МАТЧЕЙ НЕ ОБНАРУЖЕНО", tour: "ТУР",
+      backToMenu: "В меню матчей", empty: "ОФИЦИАЛЬНОЕ РАСПИСАНИЕ СИНХРОНИЗИРУЕТСЯ...", tour: "ТУР",
       menu: [
         { id: 'next', label: 'Следующий тур', desc: 'Ближайшее сражение лиги', icon: Target, color: 'text-primary' },
         { id: 'my_future', label: 'Мой календарь', desc: 'Ваше расписание на 14 туров', icon: CalendarClock, color: 'text-accent' },
@@ -77,7 +78,7 @@ export default function MatchesPage() {
     },
     en: {
       title: "MATCH CENTER", subtitle: "Operational briefings",
-      backToMenu: "Back to menu", empty: "NO MATCHES DETECTED", tour: "TOUR",
+      backToMenu: "Back to menu", empty: "SYNCING OFFICIAL SCHEDULE...", tour: "TOUR",
       menu: [
         { id: 'next', label: 'Next Tour', desc: 'Nearest tactical engagement', icon: Target, color: 'text-primary' },
         { id: 'my_future', label: 'My Schedule', desc: 'Your 14-day season plan', icon: CalendarClock, color: 'text-accent' },
@@ -88,7 +89,7 @@ export default function MatchesPage() {
     }
   }[language === 'ru' ? 'ru' : 'en'];
 
-  // Маппинг имен: Ранг -> Имя
+  // Маппинг имен: Ранг -> Имя (динамически разрешаем из players_v11)
   const nameMap = useMemo(() => {
     const map: Record<number, string> = {};
     const logos: Record<number, string> = {};
@@ -101,32 +102,24 @@ export default function MatchesPage() {
     return { map, logos };
   }, [players]);
 
-  const resolveMatch = (m: any) => {
+  const resolveMatchData = useCallback((m: any) => {
     const homeName = nameMap.map[m.homeRank] || `BOT_${m.homeRank}`;
     const awayName = nameMap.map[m.awayRank] || `BOT_${m.awayRank}`;
     const homeLogo = nameMap.logos[m.homeRank] || null;
     const awayLogo = nameMap.logos[m.awayRank] || null;
     return { ...m, homeName, awayName, homeLogo, awayLogo };
-  };
-
-  const getCountdown = useCallback((startTimeIso: string) => {
-    const diff = new Date(startTimeIso).getTime() - now.getTime();
-    if (diff <= 0) return '00:00:00';
-    const hh = Math.floor(diff / 3600000);
-    const mm = Math.floor((diff % 3600000) / 60000);
-    const ss = Math.floor((diff % 60000) / 1000);
-    return `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
-  }, [now]);
+  }, [nameMap]);
 
   const renderMatchCard = useCallback((raw: any, idx: number) => {
-    const m = resolveMatch(raw);
+    const m = resolveMatchData(raw);
     const isLive = isMatchLive(m.startTime);
     const isFinished = m.isFinished;
-    const isMeHome = m.homeId === user?.uid || (players?.find(p => p.id === user?.uid)?.rank === m.homeRank);
-    const isMeAway = m.awayId === user?.uid || (players?.find(p => p.id === user?.uid)?.rank === m.awayRank);
+    const myRank = players?.find(p => p.id === user?.uid)?.rank;
+    const isMeHome = m.homeRank === myRank;
+    const isMeAway = m.awayRank === myRank;
 
     return (
-      <Card key={idx} className={cn(
+      <Card key={m.id || idx} className={cn(
         "glass-card border-white/5 transition-all overflow-hidden mb-2",
         isLive && "border-primary/40 bg-primary/5",
         (isMeHome || isMeAway) && "border-primary/20 bg-primary/5"
@@ -165,7 +158,7 @@ export default function MatchesPage() {
         </CardContent>
       </Card>
     );
-  }, [players, nameMap, t.tour, user]);
+  }, [players, resolveMatchData, t.tour, user]);
 
   const renderGrouped = (matches: any[]) => {
     const tours = [...new Set(matches.map(m => m.tour))].sort((a, b) => a - b);
@@ -178,7 +171,16 @@ export default function MatchesPage() {
   };
 
   const renderContent = () => {
-    const allMatches = fixedMatches || [];
+    if (isMatchesLoading) {
+      return (
+        <div className="py-20 flex flex-col items-center justify-center space-y-4 opacity-50">
+          <RefreshCw className="w-8 h-8 animate-spin text-primary" />
+          <p className="text-[10px] font-black uppercase tracking-widest">{t.empty}</p>
+        </div>
+      );
+    }
+
+    const allMatches = [...(fixedMatches || [])].sort((a, b) => a.tour - b.tour);
     const myRank = players?.find(p => p.id === user?.uid)?.rank;
 
     switch(view) {
@@ -187,7 +189,7 @@ export default function MatchesPage() {
         return (
           <div className="animate-in fade-in">
             <Button variant="ghost" size="sm" onClick={() => setView('menu')} className="mb-4 h-8 text-[10px] font-bold uppercase text-primary"><ChevronLeft className="w-4 h-4 mr-1" /> {t.backToMenu}</Button>
-            {next ? renderMatchCard(next, 0) : <div className="py-20 text-center opacity-30 uppercase font-black text-[10px]">{t.empty}</div>}
+            {next ? renderMatchCard(next, 0) : <div className="py-20 text-center opacity-30 uppercase font-black text-[10px]">ТУРОВ НЕ ОСТАЛОСЬ</div>}
           </div>
         );
       case 'my_future':
@@ -203,6 +205,21 @@ export default function MatchesPage() {
           <div className="animate-in fade-in pb-20">
             <Button variant="ghost" size="sm" onClick={() => setView('menu')} className="mb-4 h-8 text-[10px] font-bold uppercase text-primary"><ChevronLeft className="w-4 h-4 mr-1" /> {t.backToMenu}</Button>
             {renderGrouped(allMatches.filter(m => !m.isFinished))}
+          </div>
+        );
+      case 'my_history':
+        const myHistory = allMatches.filter(m => (m.homeRank === myRank || m.awayRank === myRank) && m.isFinished).reverse();
+        return (
+          <div className="animate-in fade-in">
+            <Button variant="ghost" size="sm" onClick={() => setView('menu')} className="mb-4 h-8 text-[10px] font-bold uppercase text-primary"><ChevronLeft className="w-4 h-4 mr-1" /> {t.backToMenu}</Button>
+            {myHistory.map((m, i) => renderMatchCard(m, i))}
+          </div>
+        );
+      case 'league_history':
+        return (
+          <div className="animate-in fade-in pb-20">
+            <Button variant="ghost" size="sm" onClick={() => setView('menu')} className="mb-4 h-8 text-[10px] font-bold uppercase text-primary"><ChevronLeft className="w-4 h-4 mr-1" /> {t.backToMenu}</Button>
+            {renderGrouped(allMatches.filter(m => m.isFinished).reverse())}
           </div>
         );
       default:
@@ -224,13 +241,13 @@ export default function MatchesPage() {
     }
   };
 
-  if (isUserLoading || !isLoaded || isMatchesLoading) return <LoadingScreen />;
+  if (isUserLoading || !isLoaded) return <LoadingScreen />;
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-32">
       <header className="mb-6 flex items-center gap-4">
         <Button variant="ghost" size="icon" className="rounded-full" onClick={() => view === 'menu' ? router.push('/') : setView('menu')}><ChevronLeft className="w-6 h-6" /></Button>
-        <div><h1 className="text-2xl font-headline font-bold uppercase tracking-tighter leading-none">{t.title}</h1><p className="text-muted-foreground text-[10px] uppercase tracking-widest mt-1">League {selectedLeagueId} • Season {activeSeasonNumber}</p></div>
+        <div><h1 className="text-2xl font-headline font-bold uppercase tracking-tighter leading-none">{t.title}</h1><p className="text-muted-foreground text-[10px] uppercase tracking-widest mt-1">League {selectedLeagueId} • Season {seasonNumber}</p></div>
       </header>
       {renderContent()}
     </div>
