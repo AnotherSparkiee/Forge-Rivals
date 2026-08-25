@@ -29,6 +29,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog";
 
 const normTalent = (val: any) => {
@@ -65,7 +66,8 @@ export default function SquadPage() {
     return () => clearInterval(timer);
   }, []);
 
-  const userRef = useMemoFirebase(() => (user?.uid ? doc(db, 'players_v10', user.uid) : null), [db, user?.uid]);
+  // Updated to use players_v11
+  const userRef = useMemoFirebase(() => (user?.uid ? doc(db, 'players_v11', user.uid) : null), [db, user?.uid]);
   const { data: profile } = useDoc(userRef);
 
   const squadLimit = useMemo(() => {

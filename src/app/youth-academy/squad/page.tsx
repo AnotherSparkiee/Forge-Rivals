@@ -43,7 +43,8 @@ export default function YouthSquadPage() {
     return () => clearInterval(timer);
   }, []);
 
-  const userRef = useMemoFirebase(() => (user?.uid ? doc(db, 'players_v10', user.uid) : null), [db, user?.uid]);
+  // Updated to use players_v11
+  const userRef = useMemoFirebase(() => (user?.uid ? doc(db, 'players_v11', user.uid) : null), [db, user?.uid]);
   const { data: profile } = useDoc(userRef);
 
   const rolesRu: Record<string, string> = {
@@ -147,7 +148,7 @@ export default function YouthSquadPage() {
                   <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{t.owner}</p>
                   <div className="flex items-center gap-2">
                     <ShieldCheck className="w-3 h-3 text-primary" />
-                    <p className="text-[10px] font-bold uppercase truncate">{displayName || "Manager"}</p>
+                    <p className="text-[10px] font-bold uppercase truncate">{profile?.clubName || displayName || "Manager"}</p>
                   </div>
                 </div>
                 <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-1">
@@ -247,7 +248,7 @@ export default function YouthSquadPage() {
                 </h3>
                 <div className="bg-secondary/30 p-4 rounded-xl border border-white/5">
                    <p className="text-[8px] font-black text-muted-foreground uppercase">{language === 'ru' ? 'ОЦЕНОЧНАЯ СТОИМОСТЬ' : 'ESTIMATED VALUE'}</p>
-                   <p className="text-xl font-headline font-bold text-white italic">€ {(selectedPlayer.overallRating * 5000 + 25000).toLocaleString()}</p>
+                   <p className="text-xl font-headline font-bold text-white italic">€ { (selectedPlayer.overallRating * 5000 + 25000).toLocaleString() }</p>
                 </div>
               </section>
 

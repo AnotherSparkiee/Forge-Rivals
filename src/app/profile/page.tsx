@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useGameState, getLevelThreshold, Gift } from '../lib/store';
@@ -55,9 +54,10 @@ export default function ProfilePage() {
   const [showResetDialog, setShowResetDialog] = useState(false);
   const [isClaiming, setIsClaiming] = useState<string | null>(null);
 
+  // Updated to use players_v11
   const userRef = useMemoFirebase(() => {
     if (!db || !user?.uid) return null;
-    return doc(db, 'players_v10', user.uid);
+    return doc(db, 'players_v11', user.uid);
   }, [db, user?.uid]);
   
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
@@ -147,7 +147,6 @@ export default function ProfilePage() {
     try {
       await resetProfile();
       toast({ title: language === 'ru' ? "Профиль сброшен" : "Profile Reset Complete" });
-      // Redirect to setup page for immediate action
       router.push('/setup');
     } catch (e) {
       toast({ variant: "destructive", title: "Reset Failed" });
