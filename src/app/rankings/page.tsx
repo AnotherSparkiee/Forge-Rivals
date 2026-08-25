@@ -43,7 +43,7 @@ export default function RankingsPage() {
   const contextLevel = Number(navLevel || leagueLevel || 9);
   const contextGroup = Number(navGroup || groupId || 1);
 
-  // 1. Запрос реальных игроков
+  // 1. Запрос реальных игроков v11
   const groupPlayersQuery = useMemoFirebase(() => {
     if (!db) return null;
     return query(
@@ -56,7 +56,7 @@ export default function RankingsPage() {
 
   const { data: groupRealPlayers, isLoading: isPlayersLoading } = useCollection(groupPlayersQuery);
 
-  // 2. Запрос зафиксированных матчей (Слот-ориентированных)
+  // 2. Запрос зафиксированных матчей (v11)
   const groupMatchesQuery = useMemoFirebase(() => {
     if (!db) return null;
     return query(
@@ -70,7 +70,7 @@ export default function RankingsPage() {
 
   const { data: fixedMatches, isLoading: isMatchesLoading } = useCollection(groupMatchesQuery);
 
-  // 3. Расчет таблицы
+  // 3. Расчет таблицы лидеров
   const standings = useMemo(() => {
     if (!isLoaded || isPlayersLoading) return [];
 
@@ -84,7 +84,7 @@ export default function RankingsPage() {
       const teamMatches = groupCalendar.filter(m => m.homeRank === t.rank || m.awayRank === t.rank);
 
       teamMatches.forEach(m => {
-        // Поиск по рангам слотов (v11)
+        // Ищем зафиксированный результат в БД
         const fixed = fixedMatches?.find(fm => 
           (fm.homeRank === m.homeRank && fm.awayRank === m.awayRank && fm.tour === m.tour)
         );
@@ -99,8 +99,8 @@ export default function RankingsPage() {
           else if (myScore === oppScore) { draws++; pts += 1; }
           else { losses++; }
         } else if (isMatchOverdue(m.startTime)) {
+          // Если в БД нет, но время прошло - рассчитываем детерминированно
           played++;
-          // Важно: хэш должен использовать те же параметры, что и резолвер
           const [scoreH, scoreA] = getMatchResult(m.homeRank, m.awayRank, contextLevel, contextGroup, seasonNumber, m.tour);
           const isHome = m.homeRank === t.rank;
           const myScore = isHome ? scoreH : scoreA;
@@ -119,7 +119,7 @@ export default function RankingsPage() {
         points: pts,
         diff: (wins * 2) - losses
       };
-    }).sort((a, b) => b.points - a.points || b.diff - a.diff);
+    }).sort((a, b) => b.points - a.points || b.wins - a.wins || b.diff - a.diff);
   }, [isLoaded, contextLevel, contextGroup, contextLeagueId, seasonNumber, groupRealPlayers, fixedMatches, isPlayersLoading]);
 
   const t = {
@@ -130,8 +130,8 @@ export default function RankingsPage() {
       menu: [
         { id: 'my_league', label: 'League Standings', desc: `Division ${leagueLevel}.${groupId}`, icon: Shield, color: 'text-primary' },
         { id: 'my_pyramid', label: 'League Pyramid', desc: `Explore ${selectedLeagueId}`, icon: Layers, color: 'text-accent' },
-        { id: 'all_pyramids', label: 'Global Map', desc: 'Browse all 16 leagues', icon: Globe, color: 'text-blue-400' },
-        { id: 'cup', label: 'Pyramid Cup', desc: 'National elimination grid', icon: Trophy, color: 'text-yellow-500', href: '/tournaments/cup' },
+        { id: 'all_pyramids', label: 'Global Map', desc: 'Browse all leagues', icon: Globe, color: 'text-blue-400' },
+        { id: 'cup', label: 'Pyramid Cup', desc: 'Elimination grid', icon: Trophy, color: 'text-yellow-500', href: '/tournaments/cup' },
       ]
     },
     ru: {
@@ -142,7 +142,7 @@ export default function RankingsPage() {
         { id: 'my_league', label: 'Таблица Лиги', desc: `Дивизион ${leagueLevel}.${groupId}`, icon: Shield, color: 'text-primary' },
         { id: 'my_pyramid', label: 'Пирамида Лиги', desc: `Изучить лигу ${selectedLeagueId}`, icon: Layers, color: 'text-accent' },
         { id: 'all_pyramids', label: 'Карта мира', desc: 'Все лиги мира', icon: Globe, color: 'text-blue-400' },
-        { id: 'cup', label: 'Кубок Пирамиды', desc: 'Сетка национального турнира', icon: Trophy, color: 'text-yellow-500', href: '/tournaments/cup' },
+        { id: 'cup', label: 'Кубок Пирамиды', desc: 'Сетка турнира', icon: Trophy, color: 'text-yellow-500', href: '/tournaments/cup' },
       ]
     }
   }[language === 'ru' ? 'ru' : 'en'];

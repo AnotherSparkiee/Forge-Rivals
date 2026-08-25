@@ -1,5 +1,5 @@
 /**
- * @fileOverview Ядро лиг v62: Слот-ориентированная архитектура и детерминизм.
+ * @fileOverview Ядро лиг v63: Слот-ориентированная архитектура и детерминизм.
  * Реализует систему, где результаты привязаны к позициям (Рангам) в группе.
  */
 
@@ -89,7 +89,7 @@ export function getStableGroupTeams(level: number, group: number, leagueId: stri
 }
 
 /**
- * Генерация календаря. Привязана к рангам участников (слотам).
+ * Генерация календаря на 14 туров. Привязана к рангам участников (слотам).
  */
 export function generateSeasonCalendar(teams: any[], seasonNumber: number, leagueId: string) {
   const n = teams.length; 
@@ -134,15 +134,17 @@ export function generateSeasonCalendar(teams: any[], seasonNumber: number, leagu
         };
       };
 
+      // Каждый тур играется два круга (Дома и В гостях) = 14 игр
       matches.push(createMatch(round + 1, teams[hIdx], teams[aIdx], round + 1));
       matches.push(createMatch(round + 8, teams[aIdx], teams[hIdx], round + 8));
     }
     
+    // Сдвиг пула для круговой системы
     const last = pool.pop()!;
     pool.splice(1, 0, last);
   }
 
-  return matches.sort((a, b) => a.day - b.day);
+  return matches.sort((a, b) => a.tour - b.tour);
 }
 
 /**

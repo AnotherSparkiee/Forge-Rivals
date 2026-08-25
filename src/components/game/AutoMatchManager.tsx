@@ -14,8 +14,8 @@ import { useFirestore, setDocumentNonBlocking } from '@/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 
 /**
- * ГЛОБАЛЬНЫЙ МЕНЕДЖЕР МАТЧЕЙ v6.8 (Slot-Deterministic Sync)
- * Генерирует календарь и ФИКСИРУЕТ результаты на основе рангов слотов в группе.
+ * ГЛОБАЛЬНЫЙ МЕНЕДЖЕР МАТЧЕЙ v7.0 (Season Cycle & DB Persistence)
+ * Управляет жизненным циклом лиги: расчет матчей, фиксация в БД и переход между сезонами.
  */
 export function AutoMatchManager() {
   const { 
@@ -33,40 +33,41 @@ export function AutoMatchManager() {
     const info = getGlobalSeasonInfo();
     const currentSeason = info.activeSeasonNumber;
 
-    // Проверка целостности данных календаря
-    const isCalendarStale = allSeasonMatches && allSeasonMatches.length > 0 && 
-                           (allSeasonMatches[0].homeRank === undefined || allSeasonMatches[0].awayRank === undefined);
+    // 1. СИНХРОНИЗАЦИЯ СЕЗОНОВ И ПЕРЕХОД (Promotion/Relegation)
+    if (lastProcessedSeason < currentSeason && lastProcessedSeason > 0) {
+      console.log(`[SEASON ENGINE] Transitioning from S${lastProcessedSeason} to S${currentSeason}...`);
+      
+      // Рассчитываем итоги старого сезона для определения перемещения
+      const oldTeams = getStableGroupTeams(leagueLevel, groupId, selectedLeagueId, [{
+        id: userId, name: clubName || "Local Club", rank: rank || 1, logo: clubLogo || null, isBot: false
+      }]);
 
-    // 1. СИНХРОНИЗАЦИЯ ЭПОХИ / HARD RESET
-    if (isCalendarStale || lastProcessedSeason < currentSeason || (lastProcessedSeason > currentSeason && currentSeason === 1)) {
+      const finalStandings = oldTeams.map(t => {
+        let pts = 0;
+        let wins = 0;
+        for (let tour = 1; tour <= 14; tour++) {
+          const [sA, sB] = getMatchResult(t.rank, 99, leagueLevel, groupId, lastProcessedSeason, tour);
+          pts += (sA > sB ? 3 : (sA === sB ? 1 : 0));
+          if (sA > sB) wins++;
+        }
+        return { id: t.id, pts, wins };
+      }).sort((a, b) => b.pts - a.pts || b.wins - a.wins);
+
+      const playerPos = finalStandings.findIndex(s => s.id === userId) + 1;
       let nextLevel = leagueLevel;
       let nextGroup = groupId;
-      
-      if (!isCalendarStale && lastProcessedSeason > 0 && lastProcessedSeason < currentSeason) {
-        // Логика перехода между сезонами
-        const teamData = getStableGroupTeams(leagueLevel, groupId, selectedLeagueId, [{
-          id: userId, name: clubName || "Local Club", rank: rank || 1, logo: clubLogo || null, isBot: false
-        }]);
 
-        const finalStandings = teamData.map(t => {
-          let pts = 0;
-          for (let tour = 1; tour <= 14; tour++) {
-            const [scoreH, scoreA] = getMatchResult(t.rank, 99, leagueLevel, groupId, lastProcessedSeason, tour);
-            pts += (scoreH > scoreA ? 3 : (scoreH === scoreA ? 1 : 0));
-          }
-          return { id: t.id, pts };
-        }).sort((a, b) => b.pts - a.pts);
-
-        const playerPos = finalStandings.findIndex(s => s.id === userId) + 1;
-        if (playerPos === 1) {
-          const target = getPromotionTarget(leagueLevel, groupId);
-          nextLevel = target.level; nextGroup = target.group;
-        } else if (playerPos >= 7) {
-          const target = getRelegationTarget(leagueLevel, groupId, playerPos);
-          nextLevel = target.level; nextGroup = target.group;
-        }
+      if (playerPos === 1 && leagueLevel > 1) {
+        const target = getPromotionTarget(leagueLevel, groupId);
+        nextLevel = target.level; nextGroup = target.group;
+        console.log(`[SEASON ENGINE] PROMOTED to Div ${nextLevel}.${nextGroup}`);
+      } else if (playerPos >= 7 && leagueLevel < 9) {
+        const target = getRelegationTarget(leagueLevel, groupId, playerPos);
+        nextLevel = target.level; nextGroup = target.group;
+        console.log(`[SEASON ENGINE] RELEGATED to Div ${nextLevel}.${nextGroup}`);
       }
 
+      // Генерация нового календаря для нового сезона
       const newTeamData = getStableGroupTeams(nextLevel, nextGroup, selectedLeagueId, [{
         id: userId, name: clubName || "Local Club", rank: 1, logo: clubLogo || null, isBot: false
       }]);
@@ -78,26 +79,28 @@ export function AutoMatchManager() {
         groupId: nextGroup,
         lastProcessedSeason: currentSeason,
         allSeasonMatches: newCalendar,
-        lastSeenMatchDay: 0
+        lastSeenMatchDay: 0 // Сбрасываем просмотренные матчи для нового сезона
       });
-      
       return;
     }
 
-    // 2. ПЕРВИЧНАЯ ИНИЦИАЛИЗАЦИЯ
+    // 2. ПЕРВИЧНАЯ ИНИЦИАЛИЗАЦИЯ (Если данных еще нет)
     if (!initRef.current) {
       initRef.current = true;
-      if (!allSeasonMatches || allSeasonMatches.length === 0) {
+      if (!allSeasonMatches || allSeasonMatches.length === 0 || lastProcessedSeason === 0) {
         const teamData = getStableGroupTeams(leagueLevel, groupId, selectedLeagueId, [{
           id: userId, name: clubName || "Local Club", rank: rank || 1, logo: clubLogo || null, isBot: false
         }]);
         const calendar = generateSeasonCalendar(teamData, currentSeason, selectedLeagueId);
-        saveToLocal({ allSeasonMatches: calendar });
+        saveToLocal({ 
+          allSeasonMatches: calendar,
+          lastProcessedSeason: currentSeason
+        });
       }
       setWorldReady(true);
     }
 
-    // 3. ГЛОБАЛЬНЫЙ РЕЗОЛВЕР (Slot-Based)
+    // 3. ГЛОБАЛЬНЫЙ РЕЗОЛВЕР (Фиксация всех 14 туров в БД)
     const resolveTimer = setInterval(async () => {
       if (!db || !allSeasonMatches || allSeasonMatches.length === 0) return;
 
@@ -110,9 +113,8 @@ export function AutoMatchManager() {
       for (let i = 0; i < updatedMatches.length; i++) {
         const m = updatedMatches[i];
         if (m.isFinished || !isMatchOverdue(m.startTime)) continue;
-        if (m.homeRank === undefined || m.awayRank === undefined) continue;
 
-        // ID привязан к СЛОТАМ (Рангам), что гарантирует стабильность при замещении бота игроком
+        // Формируем уникальный глобальный ID для фиксации в облаке
         const globalMatchId = `v11_s${currentSeason}_l${selectedLeagueId}_lv${leagueLevel}_g${groupId}_t${m.tour}_hR${m.homeRank}_aR${m.awayRank}`;
         const matchRef = doc(db, 'matches_v11', globalMatchId);
         
@@ -121,11 +123,12 @@ export function AutoMatchManager() {
           let finalScoreA, finalScoreB;
 
           if (!snap.exists()) {
-            // Используем новую детерминированную функцию на основе слотов
+            // Если в базе нет результата, рассчитываем его (детерминировано по слотам)
             const [sA, sB] = getMatchResult(m.homeRank, m.awayRank, leagueLevel, groupId, currentSeason, m.tour);
             finalScoreA = sA;
             finalScoreB = sB;
 
+            // Сохраняем в Firestore для всех игроков группы
             setDocumentNonBlocking(matchRef, {
               id: globalMatchId,
               leagueId: selectedLeagueId,
@@ -144,6 +147,7 @@ export function AutoMatchManager() {
               version: 11
             });
           } else {
+            // Если в базе уже есть результат, берем его
             const data = snap.data();
             finalScoreA = data?.scoreA ?? 0;
             finalScoreB = data?.scoreB ?? 0;
@@ -166,7 +170,7 @@ export function AutoMatchManager() {
       if (hasLocalChanges) {
         saveToLocal({ allSeasonMatches: updatedMatches });
       }
-    }, 10000);
+    }, 15000);
 
     return () => clearInterval(resolveTimer);
   }, [isLoaded, selectedLeagueId, leagueLevel, groupId, rank, clubLogo, clubName, allSeasonMatches, saveToLocal, setWorldReady, lastProcessedSeason, userId, db]);
