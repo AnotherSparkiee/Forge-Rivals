@@ -192,27 +192,28 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   }, [staticSeasonInfo]);
 
   useEffect(() => {
-    if (state.allSeasonMatches && state.allSeasonMatches.length > 0) {
+    if (state.allSeasonMatches && state.allSeasonMatches.length > 0 && state.rank) {
       const myMatches = state.allSeasonMatches
-        .filter(m => (m.homeId === state.id || m.awayId === state.id) && !m.isFinished)
+        .filter(m => (Number(m.homeRank) === state.rank || Number(m.awayRank) === state.rank) && !m.isFinished)
         .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
       
       const foundNext = myMatches[0];
       if (foundNext) {
-        const isHome = foundNext.homeId === state.id;
+        const isHome = Number(foundNext.homeRank) === state.rank;
         setState(prev => ({
           ...prev,
           nextMatch: {
             match: foundNext,
             opponentName: isHome ? foundNext.awayName : foundNext.homeName,
-            opponentLogo: isHome ? foundNext.awayLogo : foundNext.homeLogo
+            opponentLogo: isHome ? foundNext.awayLogo : foundNext.homeLogo,
+            opponentRank: isHome ? Number(foundNext.awayRank) : Number(foundNext.homeRank)
           }
         }));
       } else {
         setState(prev => ({ ...prev, nextMatch: null }));
       }
     }
-  }, [state.allSeasonMatches, state.id]);
+  }, [state.allSeasonMatches, state.rank]);
 
   const saveToLocal = useCallback((updates: Partial<GameState>) => {
     setState(prev => {

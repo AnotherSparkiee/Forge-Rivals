@@ -11,17 +11,20 @@ import {
 import { Card, CardContent } from '@/components/ui/card';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
-import { useUser } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { Badge } from '@/components/ui/badge';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { getMoscowTime, getGlobalSeasonInfo, isMatchLive } from './lib/time-utils';
+import { collection, query, where } from 'firebase/firestore';
 
 export default function Home() {
   const { user, isUserLoading } = useUser();
+  const db = useFirestore();
   const { 
     language, isLoaded, isDataReady, matchHistory, 
-    allSeasonMatches, lastSeenMatchDay, nextMatch 
+    allSeasonMatches, lastSeenMatchDay, rank, selectedLeagueId,
+    leagueLevel, groupId, seasonNumber, clubLogo: myClubLogo
   } = useGameState();
 
   const [now, setNow] = useState(getMoscowTime());
@@ -31,11 +34,54 @@ export default function Home() {
     return () => clearInterval(timer);
   }, []);
 
+  // 1. Загрузка участников группы для разрешения имен (как в MatchesPage)
+  const groupPlayersQuery = useMemoFirebase(() => {
+    if (!db || !selectedLeagueId) return null;
+    return query(collection(db, 'players_v11'), 
+      where('selectedLeagueId', '==', selectedLeagueId),
+      where('leagueLevel', '==', leagueLevel),
+      where('groupId', '==', groupId)
+    );
+  }, [db, selectedLeagueId, leagueLevel, groupId]);
+
+  const { data: groupPlayers } = useCollection(groupPlayersQuery);
+
+  const nameMap = useMemo(() => {
+    const names: Record<number, string> = {};
+    const logos: Record<number, string> = {};
+    if (groupPlayers) {
+      groupPlayers.forEach(p => {
+        names[p.rank] = p.clubName || p.displayName;
+        logos[p.rank] = p.clubLogo;
+      });
+    }
+    return { names, logos };
+  }, [groupPlayers]);
+
+  // 2. Поиск следующего матча по рангу (самый надежный способ)
+  const resolvedNextMatch = useMemo(() => {
+    if (!allSeasonMatches || !rank) return null;
+    
+    const myNext = allSeasonMatches
+      .filter(m => (Number(m.homeRank) === rank || Number(m.awayRank) === rank) && !m.isFinished)
+      .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())[0];
+
+    if (!myNext) return null;
+
+    const isHome = Number(myNext.homeRank) === rank;
+    const oppRank = isHome ? Number(myNext.awayRank) : Number(myNext.homeRank);
+    
+    return {
+      match: myNext,
+      opponentName: nameMap.names[oppRank] || `BOT_${oppRank}`,
+      opponentLogo: nameMap.logos[oppRank] || null
+    };
+  }, [allSeasonMatches, rank, nameMap]);
+
   const getCountdown = (targetTimeIso: string | Date) => {
     const target = typeof targetTimeIso === 'string' ? new Date(targetTimeIso) : targetTimeIso;
     const diff = target.getTime() - now.getTime();
     
-    // Если время еще не наступило
     if (diff > 0) {
       const days = Math.floor(diff / (24 * 3600000));
       const hh = Math.floor((diff % (24 * 3600000)) / 3600000);
@@ -47,13 +93,11 @@ export default function Home() {
       }
       return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
     }
-    
-    // Если время вышло
     return '00:00:00';
   };
 
   const unreadMatches = (allSeasonMatches || []).filter(m => 
-    user && (m.homeId === user.uid || m.awayId === user.uid) && 
+    user && (Number(m.homeRank) === rank || Number(m.awayRank) === rank) && 
     m.isFinished && 
     Number(m.day) > (lastSeenMatchDay || 0)
   );
@@ -86,7 +130,7 @@ export default function Home() {
     { label: language === 'ru' ? 'ПОИСК' : 'SEARCH', href: '/search', icon: Search, color: 'text-blue-500' },
   ];
 
-  const currentNextMatch = nextMatch?.match;
+  const currentNextMatch = resolvedNextMatch?.match;
   const seasonInfo = getGlobalSeasonInfo();
   const isNextMatchLive = currentNextMatch ? isMatchLive(currentNextMatch.startTime) : false;
 
@@ -104,8 +148,8 @@ export default function Home() {
             <CardContent className="p-4 flex items-center justify-between min-h-[110px]">
               <div className="flex items-center gap-4 min-w-0 flex-1">
                 <div className="w-14 h-14 rounded-xl bg-secondary/50 border border-primary/20 flex items-center justify-center p-2 shrink-0 shadow-lg">
-                  {nextMatch.opponentLogo ? (
-                    <img src={nextMatch.opponentLogo} className="w-full h-full object-contain" alt="" />
+                  {resolvedNextMatch.opponentLogo ? (
+                    <img src={resolvedNextMatch.opponentLogo} className="w-full h-full object-contain" alt="" />
                   ) : (
                     <Swords className={cn("w-7 h-7", isNextMatchLive ? "text-red-400 animate-pulse" : "text-accent")} />
                   )}
@@ -118,8 +162,11 @@ export default function Home() {
                     {isNextMatchLive ? (language === 'ru' ? 'ИДЕТ МАТЧ' : 'MATCH LIVE') : (language === 'ru' ? 'СЛЕДУЮЩИЙ СОПЕРНИК' : 'NEXT OPPONENT')}
                   </p>
                   <h3 className="text-base font-bold uppercase truncate text-white leading-tight">
-                    {nextMatch.opponentName}
+                    {resolvedNextMatch.opponentName}
                   </h3>
+                  <p className="text-[7px] font-black text-muted-foreground uppercase tracking-widest mt-1">
+                    {language === 'ru' ? 'ТУР' : 'TOUR'} {currentNextMatch.tour}
+                  </p>
                 </div>
               </div>
               <div className="text-right border-l border-white/5 pl-4 shrink-0 flex flex-col justify-center">
