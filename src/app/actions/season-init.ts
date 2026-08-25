@@ -2,9 +2,9 @@
 'use server';
 
 /**
- * @fileOverview Серверный модуль инициализации мира v55.
+ * @fileOverview Серверный модуль инициализации мира v56.
  * Реализует логику стратегического размещения игроков в глобальную базу лиги.
- * Приоритет: Высшие лиги (Див 1) -> Низшие лиги (Див 9).
+ * Исправлена типизация ключей для исключения наложений.
  */
 
 import { collection, getDocs, query, where } from 'firebase/firestore';
@@ -18,7 +18,7 @@ import { getGroupsCountInLevel } from '@/app/lib/leagues-data';
 export async function findStrategicPlacement(leagueId: string) {
   const { firestore: db } = initializeFirebase();
   
-  console.log(`[PLACEMENT v55] Scanning occupied slots for league ${leagueId}...`);
+  console.log(`[PLACEMENT v56] Scanning occupied slots for league: ${leagueId}`);
 
   // 1. Получаем всех реальных игроков в этой лиге
   const q = query(collection(db, 'players_v10'), where('selectedLeagueId', '==', leagueId));
@@ -27,13 +27,18 @@ export async function findStrategicPlacement(leagueId: string) {
   const occupiedSlots = new Set<string>();
   snap.forEach(d => {
     const data = d.data();
-    if (data.leagueLevel && data.groupId && data.rank) {
-      // Ключ уникальности: Уровень_Группа_Ранг
-      occupiedSlots.add(`${data.leagueLevel}_${data.groupId}_${data.rank}`);
+    // Важно: приводим к числу, так как в Firestore могут быть разные типы
+    const t = Number(data.leagueLevel);
+    const g = Number(data.groupId);
+    const r = Number(data.rank);
+
+    if (t && g && r) {
+      const key = `${t}_${g}_${r}`;
+      occupiedSlots.add(key);
     }
   });
 
-  console.log(`[PLACEMENT v55] Found ${occupiedSlots.size} occupied slots.`);
+  console.log(`[PLACEMENT v56] Found ${occupiedSlots.size} occupied slots in database.`);
 
   // 2. Ищем первый свободный слот (сверху вниз: Див 1 -> Див 9)
   for (let tier = 1; tier <= 9; tier++) {
@@ -42,7 +47,7 @@ export async function findStrategicPlacement(leagueId: string) {
       for (let rank = 1; rank <= 8; rank++) {
         const key = `${tier}_${group}_${rank}`;
         if (!occupiedSlots.has(key)) {
-          console.log(`[PLACEMENT v55] SUCCESS: Assigned Slot: Tier ${tier}, Group ${group}, Rank ${rank}`);
+          console.log(`[PLACEMENT v56] SUCCESS: Slot Found! Tier ${tier}, Group ${group}, Rank ${rank}`);
           return { tier, group, rank };
         }
       }

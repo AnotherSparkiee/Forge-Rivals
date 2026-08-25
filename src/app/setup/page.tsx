@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -44,7 +44,7 @@ export default function SetupPage() {
   const [customClubName, setCustomClubName] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
   
-  // Генерируем уникальный ID сразу при входе на страницу
+  // Генерируем новый уникальный ID при каждой попытке регистрации
   const [uniqueSessionId] = useState(() => `team_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`);
 
   const handleCompleteSetup = async () => {
@@ -52,9 +52,8 @@ export default function SetupPage() {
     setIsUpdating(true);
     
     try {
-      console.log(`[SETUP] Initializing team with ID: ${uniqueSessionId}`);
-
       // 1. Поиск свободного места в глобальной пирамиде (от высших к низшим)
+      // Мы передаем ID лиги, чтобы найти свободный слот именно в ней
       const placement = await findStrategicPlacement(selectedLeagueId);
       
       const selectedCountry = COUNTRIES.find(c => c.code === selectedCountryCode);
@@ -62,7 +61,6 @@ export default function SetupPage() {
       const { activeSeasonNumber } = getGlobalSeasonInfo();
       
       const startingSquad = getRandomStartingSquad();
-      
       const carryPlayers = startingSquad.filter(p => p.role === 'Carry');
       const midPlayers = startingSquad.filter(p => p.role === 'Midlaner');
       const tankPlayers = startingSquad.filter(p => p.role === 'Tank');
@@ -89,9 +87,9 @@ export default function SetupPage() {
       saveToLocal({
         id: uniqueSessionId,
         selectedLeagueId,
-        leagueLevel: placement.tier,
-        groupId: placement.group,
-        rank: placement.rank,
+        leagueLevel: Number(placement.tier),
+        groupId: Number(placement.group),
+        rank: Number(placement.rank),
         country: selectedCountry?.name || 'International',
         clubName: finalClubName,
         displayName: finalClubName,
@@ -104,16 +102,18 @@ export default function SetupPage() {
       });
 
       // 3. Синхронизация с Firestore для закрепления слота
+      // Записываем данные с уникальным ID, чтобы исключить перезапись
       if (db) {
-        await setDoc(doc(db, 'players_v10', uniqueSessionId), {
+        const playerRef = doc(db, 'players_v10', uniqueSessionId);
+        await setDoc(playerRef, {
           id: uniqueSessionId,
           displayName: finalClubName,
           clubName: finalClubName,
           clubLogo: selectedClub?.logo || null,
-          selectedLeagueId,
-          leagueLevel: placement.tier,
-          groupId: placement.group,
-          rank: placement.rank,
+          selectedLeagueId: String(selectedLeagueId),
+          leagueLevel: Number(placement.tier),
+          groupId: Number(placement.group),
+          rank: Number(placement.rank),
           country: selectedCountry?.name || 'International',
           createdAt: serverTimestamp(),
           lastLoginDate: new Date().toISOString()
@@ -127,9 +127,13 @@ export default function SetupPage() {
           : `Assigned to Division ${placement.tier}, Group ${placement.group}.`
       });
 
-      router.push('/');
+      // Небольшая задержка для завершения локальных процессов
+      setTimeout(() => {
+        router.push('/');
+      }, 300);
+
     } catch (e) {
-      console.error(e);
+      console.error("[SETUP ERROR]:", e);
       toast({ variant: "destructive", title: "Setup Error" });
       setIsUpdating(false);
     }
