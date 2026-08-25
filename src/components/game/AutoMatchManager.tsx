@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useRef } from 'react';
@@ -15,8 +14,8 @@ import { useFirestore, setDocumentNonBlocking } from '@/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 
 /**
- * ГЛОБАЛЬНЫЙ МЕНЕДЖЕР МАТЧЕЙ v6.5 (Global Group Sync)
- * Генерирует календарь и ФИКСИРУЕТ результаты всей группы в Firestore v11.
+ * ГЛОБАЛЬНЫЙ МЕНЕДЖЕР МАТЧЕЙ v6.6 (Slot-Based Group Sync)
+ * Генерирует календарь и ФИКСИРУЕТ результаты на основе рангов слотов в группе.
  */
 export function AutoMatchManager() {
   const { 
@@ -34,12 +33,11 @@ export function AutoMatchManager() {
     const info = getGlobalSeasonInfo();
     const currentSeason = info.activeSeasonNumber;
 
-    // 1. СИНХРОНИЗАЦИЯ ЭПОХИ / HARD RESET (Переход на новый сезон)
+    // 1. СИНХРОНИЗАЦИЯ ЭПОХИ / HARD RESET
     if (lastProcessedSeason < currentSeason || (lastProcessedSeason > currentSeason && currentSeason === 1)) {
       let nextLevel = leagueLevel;
       let nextGroup = groupId;
       
-      // Если это не первая регистрация, рассчитываем итоги прошлого сезона
       if (lastProcessedSeason > 0 && lastProcessedSeason < currentSeason) {
         const teamData = getStableGroupTeams(leagueLevel, groupId, selectedLeagueId, [{
           id: userId, name: clubName || "Local Club", rank: rank || 1, logo: clubLogo || null, isBot: false
@@ -64,7 +62,6 @@ export function AutoMatchManager() {
         }
       }
 
-      // Генерируем новый календарь для нового сезона
       const newTeamData = getStableGroupTeams(nextLevel, nextGroup, selectedLeagueId, [{
         id: userId, name: clubName || "Local Club", rank: 1, logo: clubLogo || null, isBot: false
       }]);
@@ -82,7 +79,7 @@ export function AutoMatchManager() {
       return;
     }
 
-    // 2. ПЕРВИЧНАЯ ИНИЦИАЛИЗАЦИЯ КАЛЕНДАРЯ
+    // 2. ПЕРВИЧНАЯ ИНИЦИАЛИЗАЦИЯ
     if (!initRef.current) {
       initRef.current = true;
       if (!allSeasonMatches || allSeasonMatches.length === 0) {
@@ -95,7 +92,7 @@ export function AutoMatchManager() {
       setWorldReady(true);
     }
 
-    // 3. ГЛОБАЛЬНЫЙ РЕЗОЛВЕР (Фиксация результатов группы в БД)
+    // 3. ГЛОБАЛЬНЫЙ РЕЗОЛВЕР (Slot-Based)
     const resolveTimer = setInterval(async () => {
       if (!db || !allSeasonMatches || allSeasonMatches.length === 0) return;
 
@@ -109,7 +106,8 @@ export function AutoMatchManager() {
         const m = updatedMatches[i];
         if (m.isFinished || !isMatchOverdue(m.startTime)) continue;
 
-        const globalMatchId = `v11_s${currentSeason}_l${selectedLeagueId}_t${m.tour}_h${m.homeId}_a${m.awayId}`;
+        // ID привязан к СЛОТАМ (Рангам), а не к ID команд. Это решает проблему наложений.
+        const globalMatchId = `v11_s${currentSeason}_l${selectedLeagueId}_lv${leagueLevel}_g${groupId}_t${m.tour}_hR${m.homeRank}_aR${m.awayRank}`;
         const matchRef = doc(db, 'matches_v11', globalMatchId);
         
         try {
@@ -117,12 +115,10 @@ export function AutoMatchManager() {
           let finalScoreA, finalScoreB;
 
           if (!snap.exists()) {
-            // Рассчитываем результат детерминированно
             const [sA, sB] = getMatchResult(m.homeId, m.awayId, currentSeason, m.tour);
             finalScoreA = sA;
             finalScoreB = sB;
 
-            // Сохраняем в глобальную БД v11
             setDocumentNonBlocking(matchRef, {
               id: globalMatchId,
               leagueId: selectedLeagueId,
@@ -130,6 +126,8 @@ export function AutoMatchManager() {
               groupId: groupId,
               season: currentSeason,
               tour: m.tour,
+              homeRank: m.homeRank,
+              awayRank: m.awayRank,
               homeId: m.homeId,
               awayId: m.awayId,
               scoreA: sA,
@@ -139,13 +137,11 @@ export function AutoMatchManager() {
               version: 11
             });
           } else {
-            // Если результат уже зафиксирован в БД кем-то другим — берем его
             const data = snap.data();
             finalScoreA = data.scoreA;
             finalScoreB = data.scoreB;
           }
 
-          // Помечаем в локальном календаре как завершенный
           updatedMatches[i] = { 
             ...m, 
             isFinished: true, 
@@ -163,7 +159,7 @@ export function AutoMatchManager() {
       if (hasLocalChanges) {
         saveToLocal({ allSeasonMatches: updatedMatches });
       }
-    }, 10000); // Проверка каждые 10 сек
+    }, 10000);
 
     return () => clearInterval(resolveTimer);
   }, [isLoaded, selectedLeagueId, leagueLevel, groupId, rank, clubLogo, clubName, allSeasonMatches, saveToLocal, setWorldReady, lastProcessedSeason, userId, db]);

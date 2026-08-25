@@ -1,6 +1,6 @@
 /**
- * @fileOverview Ядро лиг v59: Консолидированная лига и логика замещения ботов.
- * Реализует систему, где реальные игроки занимают фиксированные слоты в группах.
+ * @fileOverview Ядро лиг v60: Слот-ориентированная архитектура.
+ * Реализует систему, где результаты привязаны к позициям (Рангам) в группе.
  */
 
 import { GLOBAL_EPOCH_ISO } from './time-utils';
@@ -49,23 +49,16 @@ export function getRelegationTarget(level: number, group: number, rank: number):
 }
 
 /**
- * Генерирует стабильный состав группы, заменяя ботов реальными игроками из БД.
- * @param level Дивизион
- * @param group Номер группы
- * @param leagueId ID лиги
- * @param realPlayersInGroup Список игроков из Firestore, привязанных к этой группе
+ * Генерирует стабильный состав группы.
  */
 export function getStableGroupTeams(level: number, group: number, leagueId: string, realPlayersInGroup: any[] = []) {
   const leagueIdx = "01"; 
   const groupPrefix = group.toString().padStart(3, '0');
   
-  // Создаем 8 пустых слотов для группы
   const teams = new Array(TEAMS_PER_GROUP).fill(null);
 
-  // 1. Сначала расставляем реальных игроков из "Базы Лиги" согласно их забронированному рангу
   realPlayersInGroup.forEach(p => {
     const slot = Math.min(8, Math.max(1, Number(p.rank || 1)));
-    // Если слот свободен, записываем туда реального игрока
     if (!teams[slot - 1]) {
       teams[slot - 1] = {
         id: p.id,
@@ -73,12 +66,11 @@ export function getStableGroupTeams(level: number, group: number, leagueId: stri
         logo: p.clubLogo || p.logo || null,
         isBot: false,
         rank: slot,
-        isMe: p.isMe || false // Флаг для подсветки локального игрока
+        isMe: p.isMe || false 
       };
     }
   });
 
-  // 2. Все оставшиеся пустые слоты заполняем детерминированными ботами
   for (let i = 0; i < TEAMS_PER_GROUP; i++) {
     if (!teams[i]) {
       const slotNum = i + 1;
@@ -97,11 +89,11 @@ export function getStableGroupTeams(level: number, group: number, leagueId: stri
 }
 
 /**
- * Генерация календаря на 14 дней по алгоритму Бергера.
+ * Генерация календаря. Теперь включает ранги участников для глобальной фиксации.
  */
 export function generateSeasonCalendar(teams: any[], seasonNumber: number, leagueId: string) {
-  const n = teams.length; // 8
-  const rounds = n - 1; // 7 раундов в круге
+  const n = teams.length; 
+  const rounds = n - 1; 
   const matches = [];
   
   const league = LEAGUES.find(l => l.id === leagueId) || LEAGUES[0];
@@ -127,9 +119,11 @@ export function generateSeasonCalendar(teams: any[], seasonNumber: number, leagu
           tour,
           homeId: home.id,
           homeName: home.name,
+          homeRank: home.rank, // КРИТИЧНО ДЛЯ ФИКСАЦИИ
           homeLogo: home.logo || null,
           awayId: away.id,
           awayName: away.name,
+          awayRank: away.rank, // КРИТИЧНО ДЛЯ ФИКСАЦИИ
           awayLogo: away.logo || null,
           startTime: startTime.toISOString(),
           type: 'league',
@@ -140,13 +134,10 @@ export function generateSeasonCalendar(teams: any[], seasonNumber: number, leagu
         };
       };
 
-      // Первый круг (дома-выезд) - туры 1-7
       matches.push(createMatch(round + 1, teams[hIdx], teams[aIdx], round + 1));
-      // Второй круг (выезд-дома) - туры 8-14
       matches.push(createMatch(round + 8, teams[aIdx], teams[hIdx], round + 8));
     }
     
-    // Вращение по алгоритму Бергера
     const last = pool.pop()!;
     pool.splice(1, 0, last);
   }
@@ -155,7 +146,7 @@ export function generateSeasonCalendar(teams: any[], seasonNumber: number, leagu
 }
 
 /**
- * Детерминированный расчет результата (Bo2).
+ * Детерминированный расчет результата.
  */
 export function getMatchResult(idA: string, idB: string, season: number, tour: number): [number, number] {
   const combinedKey = `${idA}-${idB}-${season}-${tour}`;

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -44,7 +43,7 @@ export default function RankingsPage() {
   const contextLevel = Number(navLevel || leagueLevel || 9);
   const contextGroup = Number(navGroup || groupId || 1);
 
-  // 1. Запрос реальных игроков из коллекции v11
+  // 1. Запрос реальных игроков
   const groupPlayersQuery = useMemoFirebase(() => {
     if (!db) return null;
     return query(
@@ -57,7 +56,7 @@ export default function RankingsPage() {
 
   const { data: groupRealPlayers, isLoading: isPlayersLoading } = useCollection(groupPlayersQuery);
 
-  // 2. Запрос зафиксированных глобальных матчей v11
+  // 2. Запрос зафиксированных матчей (Слот-ориентированных)
   const groupMatchesQuery = useMemoFirebase(() => {
     if (!db) return null;
     return query(
@@ -71,7 +70,7 @@ export default function RankingsPage() {
 
   const { data: fixedMatches, isLoading: isMatchesLoading } = useCollection(groupMatchesQuery);
 
-  // 3. Расчет турнирной таблицы на основе БД
+  // 3. Расчет таблицы
   const standings = useMemo(() => {
     if (!isLoaded || isPlayersLoading) return [];
 
@@ -82,17 +81,17 @@ export default function RankingsPage() {
     return teams.map((t) => {
       let wins = 0, draws = 0, losses = 0, pts = 0, played = 0;
       
-      const teamMatches = groupCalendar.filter(m => m.homeId === t.id || m.awayId === t.id);
+      const teamMatches = groupCalendar.filter(m => m.homeRank === t.rank || m.awayRank === t.rank);
 
       teamMatches.forEach(m => {
-        // Ищем результат в глобальном архиве matches_v11
+        // Поиск по рангам слотов
         const fixed = fixedMatches?.find(fm => 
-          (fm.homeId === m.homeId && fm.awayId === m.awayId && fm.tour === m.tour)
+          (fm.homeRank === m.homeRank && fm.awayRank === m.awayRank && fm.tour === m.tour)
         );
 
         if (fixed) {
           played++;
-          const isHome = fixed.homeId === t.id;
+          const isHome = fixed.homeRank === t.rank;
           const myScore = isHome ? fixed.scoreA : fixed.scoreB;
           const oppScore = isHome ? fixed.scoreB : fixed.scoreA;
 
@@ -100,10 +99,9 @@ export default function RankingsPage() {
           else if (myScore === oppScore) { draws++; pts += 1; }
           else { losses++; }
         } else if (isMatchOverdue(m.startTime)) {
-          // Если матч просрочен, но еще не в БД — используем локальный детерминированный расчет
           played++;
           const [scoreH, scoreA] = getMatchResult(m.homeId, m.awayId, seasonNumber, m.tour);
-          const isHome = m.homeId === t.id;
+          const isHome = m.homeRank === t.rank;
           const myScore = isHome ? scoreH : scoreA;
           const oppScore = isHome ? scoreA : scoreH;
 
