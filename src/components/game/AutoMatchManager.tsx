@@ -14,8 +14,9 @@ import { useFirestore, setDocumentNonBlocking } from '@/firebase';
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 
 /**
- * ГЛОБАЛЬНЫЙ МЕНЕДЖЕР МАТЧЕЙ v8.5 (Unified Calendar)
+ * ГЛОБАЛЬНЫЙ МЕНЕДЖЕР МАТЧЕЙ v8.6 (New Epoch Sync)
  * Обеспечивает единое расписание для всей группы через коллекцию matches_v11.
+ * Исправлена логика расчета времени относительно новой эпохи 2025.
  */
 export function AutoMatchManager() {
   const { 
@@ -84,9 +85,9 @@ export function AutoMatchManager() {
         const checkSnap = await getDoc(doc(db, 'matches_v11', checkId));
 
         if (!checkSnap.exists()) {
-          console.log(`[SEEDER] Publishing unified calendar for Group ${leagueLevel}.${groupId}...`);
+          console.log(`[SEEDER] Publishing unified calendar for Season ${currentSeason}, Group ${leagueLevel}.${groupId}...`);
           
-          // Получаем всех реальных игроков группы для корректных имен в первичной записи
+          // Получаем всех реальных игроков группы
           const q = query(collection(db, 'players_v11'), 
             where('selectedLeagueId', '==', selectedLeagueId),
             where('leagueLevel', '==', leagueLevel),
@@ -99,6 +100,7 @@ export function AutoMatchManager() {
           const calendar = generateSeasonCalendar(teamData, currentSeason, selectedLeagueId);
 
           calendar.forEach(m => {
+            if (m.homeRank === undefined || m.awayRank === undefined) return;
             const mId = `v11_s${currentSeason}_l${selectedLeagueId}_lv${leagueLevel}_g${groupId}_t${m.tour}_hR${m.homeRank}_aR${m.awayRank}`;
             setDocumentNonBlocking(doc(db, 'matches_v11', mId), {
               ...m,
@@ -115,7 +117,7 @@ export function AutoMatchManager() {
           
           saveToLocal({ allSeasonMatches: calendar, lastProcessedSeason: currentSeason });
         } else {
-          // Календарь уже в БД - просто синхронизируем локально
+          // Календарь уже в БД
           const teamData = getStableGroupTeams(leagueLevel, groupId, selectedLeagueId, []);
           const calendar = generateSeasonCalendar(teamData, currentSeason, selectedLeagueId);
           saveToLocal({ allSeasonMatches: calendar, lastProcessedSeason: currentSeason });
@@ -140,6 +142,7 @@ export function AutoMatchManager() {
       if (overdue.length === 0) return;
 
       for (const m of overdue) {
+        if (m.homeRank === undefined || m.awayRank === undefined) continue;
         const mId = `v11_s${currentSeason}_l${selectedLeagueId}_lv${leagueLevel}_g${groupId}_t${m.tour}_hR${m.homeRank}_aR${m.awayRank}`;
         const matchRef = doc(db, 'matches_v11', mId);
         
@@ -149,7 +152,7 @@ export function AutoMatchManager() {
             const [sA, sB] = getMatchResult(m.homeRank, m.awayRank, leagueLevel, groupId, currentSeason, m.tour);
             setDocumentNonBlocking(matchRef, {
               scoreA: sA, scoreB: sB, status: 'finished', isFinished: true,
-              winnerId: sA > sB ? snap.data().homeId : (sB > sA ? snap.data().awayId : null),
+              winnerId: sA > sB ? (snap.data().homeId || null) : (sB > sA ? (snap.data().awayId || null) : null),
               resolvedAt: new Date().toISOString()
             }, { merge: true });
           }

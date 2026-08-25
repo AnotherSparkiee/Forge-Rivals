@@ -1,7 +1,7 @@
 /**
- * @fileOverview Ядро времени v92 (Season 1 Reset). 
+ * @fileOverview Ядро времени v93 (Current Date Sync). 
  * Глобальная синхронизация цикла (15 дней).
- * Эпоха установлена на 1 июля 2026 для старта нового сезона.
+ * Эпоха установлена на 10 февраля 2025 года для актуализации таймеров.
  */
 
 let syncPoint = {
@@ -10,8 +10,9 @@ let syncPoint = {
 };
 
 const MSK_OFFSET = 3 * 60 * 60 * 1000;
-// Установлено: старт сезона 1 июля 2026
-export const GLOBAL_EPOCH_ISO = '2026-07-01T00:00:00Z'; 
+// Эпоха: 10 февраля 2025. 
+// Это делает 24 февраля 2025 года началом Нового Сезона (Season 2).
+export const GLOBAL_EPOCH_ISO = '2025-02-10T00:00:00Z'; 
 
 export function setServerTime(serverMs: number) {
   if (typeof performance !== 'undefined') {
