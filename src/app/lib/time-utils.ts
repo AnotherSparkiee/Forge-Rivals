@@ -1,7 +1,7 @@
 /**
- * @fileOverview Ядро времени v113 (Global Sync Revert). 
+ * @fileOverview Ядро времени v114 (Global Sync Calibration). 
  * Глобальная синхронизация цикла (15 дней).
- * Возвращено к реальному времени (февраль 2025).
+ * Установлена эпоха на 26 февраля 2025 года для корректного старта "завтра".
  */
 
 let syncPoint = {
@@ -13,8 +13,8 @@ let syncPoint = {
 const SIMULATION_OFFSET_MS = 0; 
 const MSK_OFFSET = 3 * 60 * 60 * 1000;
 
-// Эпоха: 24 февраля 2025. Это точка отсчета для циклов.
-export const GLOBAL_EPOCH_ISO = '2025-02-24T00:00:00Z'; 
+// Эпоха: 26 февраля 2025. Это точка отсчета для цикла 1 первого сезона.
+export const GLOBAL_EPOCH_ISO = '2025-02-26T00:00:00Z'; 
 
 export function setServerTime(serverMs: number) {
   if (typeof performance !== 'undefined') {
@@ -80,6 +80,7 @@ export function getGlobalSeasonInfo() {
   const dayMs = 24 * 60 * 60 * 1000;
   const cycleMs = cycleDuration * dayMs;
 
+  // Если мы ПЕРЕД эпохой (в фазе подготовки первого сезона)
   if (diffMs < 0) {
     return {
       seasonDay: 0,

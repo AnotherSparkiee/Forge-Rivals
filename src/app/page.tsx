@@ -35,19 +35,21 @@ export default function Home() {
     const target = typeof targetTimeIso === 'string' ? new Date(targetTimeIso) : targetTimeIso;
     const diff = target.getTime() - now.getTime();
     
-    // Если разница менее секунды, считаем что время вышло (или матч идет)
-    if (diff <= 1000) return '00:00:00';
-    
-    const days = Math.floor(diff / (24 * 3600000));
-    const hh = Math.floor((diff % (24 * 3600000)) / 3600000);
-    const mm = Math.floor((diff % 3600000) / 60000);
-    const ss = Math.floor((diff % 60000) / 1000);
-    
-    // Если осталось более 24 часов, показываем дни
-    if (days > 0) {
-      return `${days}d ${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+    // Если время еще не наступило
+    if (diff > 0) {
+      const days = Math.floor(diff / (24 * 3600000));
+      const hh = Math.floor((diff % (24 * 3600000)) / 3600000);
+      const mm = Math.floor((diff % 3600000) / 60000);
+      const ss = Math.floor((diff % 60000) / 1000);
+      
+      if (days > 0) {
+        return `${days}d ${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+      }
+      return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
     }
-    return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+    
+    // Если время вышло
+    return '00:00:00';
   };
 
   const unreadMatches = (allSeasonMatches || []).filter(m => 
