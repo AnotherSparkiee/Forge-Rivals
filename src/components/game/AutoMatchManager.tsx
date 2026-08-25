@@ -11,23 +11,21 @@ import {
   getPromotionTarget,
   getRelegationTarget
 } from '@/app/lib/leagues-data';
-import { useToast } from '@/hooks/use-toast';
 import { useFirestore, setDocumentNonBlocking } from '@/firebase';
-import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 
 /**
- * ЛОКАЛЬНЫЙ МЕНЕДЖЕР МАТЧЕЙ v6.0 (Global Sync)
- * Генерирует календарь и ФИКСИРУЕТ результаты в Firestore v11.
+ * ГЛОБАЛЬНЫЙ МЕНЕДЖЕР МАТЧЕЙ v6.5 (Global Group Sync)
+ * Генерирует календарь и ФИКСИРУЕТ результаты всей группы в Firestore v11.
  */
 export function AutoMatchManager() {
   const { 
     isLoaded, isDataReady, selectedLeagueId, 
     leagueLevel, groupId, setWorldReady, rank, clubLogo, clubName,
-    allSeasonMatches, saveToLocal, lastProcessedSeason, language, id: userId
+    allSeasonMatches, saveToLocal, lastProcessedSeason, id: userId
   } = useGameState();
   
   const db = useFirestore();
-  const { toast } = useToast();
   const initRef = useRef(false);
 
   useEffect(() => {
@@ -36,17 +34,17 @@ export function AutoMatchManager() {
     const info = getGlobalSeasonInfo();
     const currentSeason = info.activeSeasonNumber;
 
-    // 1. СИНХРОНИЗАЦИЯ ЭПОХИ / HARD RESET
+    // 1. СИНХРОНИЗАЦИЯ ЭПОХИ / HARD RESET (Переход на новый сезон)
     if (lastProcessedSeason < currentSeason || (lastProcessedSeason > currentSeason && currentSeason === 1)) {
-      const teamData = getStableGroupTeams(leagueLevel, groupId, selectedLeagueId, [{
-        id: userId, name: clubName || "Local Club", rank: rank || 1, logo: clubLogo || null, isBot: false
-      }]);
-
       let nextLevel = leagueLevel;
       let nextGroup = groupId;
       
+      // Если это не первая регистрация, рассчитываем итоги прошлого сезона
       if (lastProcessedSeason > 0 && lastProcessedSeason < currentSeason) {
-        // Логика перехода между сезонами
+        const teamData = getStableGroupTeams(leagueLevel, groupId, selectedLeagueId, [{
+          id: userId, name: clubName || "Local Club", rank: rank || 1, logo: clubLogo || null, isBot: false
+        }]);
+
         const finalStandings = teamData.map(t => {
           let pts = 0;
           for (let tour = 1; tour <= 14; tour++) {
@@ -66,6 +64,7 @@ export function AutoMatchManager() {
         }
       }
 
+      // Генерируем новый календарь для нового сезона
       const newTeamData = getStableGroupTeams(nextLevel, nextGroup, selectedLeagueId, [{
         id: userId, name: clubName || "Local Club", rank: 1, logo: clubLogo || null, isBot: false
       }]);
@@ -83,7 +82,7 @@ export function AutoMatchManager() {
       return;
     }
 
-    // 2. ПЕРВИЧНАЯ ИНИЦИАЛИЗАЦИЯ
+    // 2. ПЕРВИЧНАЯ ИНИЦИАЛИЗАЦИЯ КАЛЕНДАРЯ
     if (!initRef.current) {
       initRef.current = true;
       if (!allSeasonMatches || allSeasonMatches.length === 0) {
@@ -96,14 +95,20 @@ export function AutoMatchManager() {
       setWorldReady(true);
     }
 
-    // 3. ГЛОБАЛЬНЫЙ РЕЗОЛВЕР (Фиксация в Firestore)
+    // 3. ГЛОБАЛЬНЫЙ РЕЗОЛВЕР (Фиксация результатов группы в БД)
     const resolveTimer = setInterval(async () => {
       if (!db || !allSeasonMatches || allSeasonMatches.length === 0) return;
 
       const overdueMatches = allSeasonMatches.filter(m => !m.isFinished && isMatchOverdue(m.startTime));
       if (overdueMatches.length === 0) return;
 
-      for (const m of overdueMatches) {
+      let hasLocalChanges = false;
+      const updatedMatches = [...allSeasonMatches];
+
+      for (let i = 0; i < updatedMatches.length; i++) {
+        const m = updatedMatches[i];
+        if (m.isFinished || !isMatchOverdue(m.startTime)) continue;
+
         const globalMatchId = `v11_s${currentSeason}_l${selectedLeagueId}_t${m.tour}_h${m.homeId}_a${m.awayId}`;
         const matchRef = doc(db, 'matches_v11', globalMatchId);
         
@@ -112,11 +117,12 @@ export function AutoMatchManager() {
           let finalScoreA, finalScoreB;
 
           if (!snap.exists()) {
-            // Если результата еще нет в базе - фиксируем его
+            // Рассчитываем результат детерминированно
             const [sA, sB] = getMatchResult(m.homeId, m.awayId, currentSeason, m.tour);
             finalScoreA = sA;
             finalScoreB = sB;
 
+            // Сохраняем в глобальную БД v11
             setDocumentNonBlocking(matchRef, {
               id: globalMatchId,
               leagueId: selectedLeagueId,
@@ -129,27 +135,35 @@ export function AutoMatchManager() {
               scoreA: sA,
               scoreB: sB,
               winnerId: sA > sB ? m.homeId : (sB > sA ? m.awayId : null),
-              resolvedAt: new Date().toISOString()
+              resolvedAt: new Date().toISOString(),
+              version: 11
             });
           } else {
-            // Если уже зафиксирован другим игроком - берем из базы
+            // Если результат уже зафиксирован в БД кем-то другим — берем его
             const data = snap.data();
             finalScoreA = data.scoreA;
             finalScoreB = data.scoreB;
           }
 
-          // Обновляем локальный календарь
-          saveToLocal({
-            allSeasonMatches: allSeasonMatches.map(sm => 
-              sm.id === m.id ? { ...sm, isFinished: true, scoreA: finalScoreA, scoreB: finalScoreB, status: 'finished' } : sm
-            )
-          });
+          // Помечаем в локальном календаре как завершенный
+          updatedMatches[i] = { 
+            ...m, 
+            isFinished: true, 
+            scoreA: finalScoreA, 
+            scoreB: finalScoreB, 
+            status: 'finished' 
+          };
+          hasLocalChanges = true;
 
         } catch (e) {
           console.error("[AUTO-RESOLVE ERROR]", e);
         }
       }
-    }, 15000); // Проверка каждые 15 сек
+
+      if (hasLocalChanges) {
+        saveToLocal({ allSeasonMatches: updatedMatches });
+      }
+    }, 10000); // Проверка каждые 10 сек
 
     return () => clearInterval(resolveTimer);
   }, [isLoaded, selectedLeagueId, leagueLevel, groupId, rank, clubLogo, clubName, allSeasonMatches, saveToLocal, setWorldReady, lastProcessedSeason, userId, db]);

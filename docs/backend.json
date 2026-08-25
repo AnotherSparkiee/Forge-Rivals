@@ -9,6 +9,7 @@
         "id": { "type": "string" },
         "displayName": { "type": "string" },
         "clubName": { "type": "string" },
+        "clubLogo": { "type": "string" },
         "selectedLeagueId": { "type": "string" },
         "leagueLevel": { "type": "number" },
         "groupId": { "type": "number" },
@@ -35,7 +36,8 @@
         "scoreA": { "type": "number" },
         "scoreB": { "type": "number" },
         "winnerId": { "type": "string" },
-        "resolvedAt": { "type": "string", "format": "date-time" }
+        "resolvedAt": { "type": "string", "format": "date-time" },
+        "version": { "type": "number" }
       }
     }
   },

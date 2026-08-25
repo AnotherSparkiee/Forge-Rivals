@@ -7,14 +7,12 @@ import { useGameState } from '../lib/store';
 import { 
   Trophy, ChevronLeft, ChevronRight, 
   Shield, Globe, Layers, Medal, Loader2,
-  User, Bot, Target, AlertCircle, ArrowUpCircle, ArrowDownCircle,
-  RefreshCw
+  Bot, RefreshCw, ArrowUpCircle, ArrowDownCircle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { 
-  LEAGUES, 
   MAX_LEVELS, 
   getStableGroupTeams, 
   getGroupsCountInLevel, 
@@ -24,7 +22,6 @@ import {
 import { isMatchOverdue } from '../lib/time-utils';
 import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
-import Link from 'next/link';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, where } from 'firebase/firestore';
 
@@ -35,8 +32,7 @@ export default function RankingsPage() {
   const db = useFirestore();
   const { 
     leagueLevel, groupId, isLoaded, language, id: userId,
-    selectedLeagueId, clubName, clubLogo, rank, isDataReady,
-    seasonNumber
+    selectedLeagueId, isDataReady, seasonNumber
   } = useGameState();
   
   const [activeTab, setActiveTab] = useState<RankingTab>('menu');
@@ -48,7 +44,7 @@ export default function RankingsPage() {
   const contextLevel = Number(navLevel || leagueLevel || 9);
   const contextGroup = Number(navGroup || groupId || 1);
 
-  // 1. Запрос реальных игроков v11
+  // 1. Запрос реальных игроков из коллекции v11
   const groupPlayersQuery = useMemoFirebase(() => {
     if (!db) return null;
     return query(
@@ -61,7 +57,7 @@ export default function RankingsPage() {
 
   const { data: groupRealPlayers, isLoading: isPlayersLoading } = useCollection(groupPlayersQuery);
 
-  // 2. Запрос зафиксированных матчей v11
+  // 2. Запрос зафиксированных глобальных матчей v11
   const groupMatchesQuery = useMemoFirebase(() => {
     if (!db) return null;
     return query(
@@ -75,9 +71,9 @@ export default function RankingsPage() {
 
   const { data: fixedMatches, isLoading: isMatchesLoading } = useCollection(groupMatchesQuery);
 
+  // 3. Расчет турнирной таблицы на основе БД
   const standings = useMemo(() => {
-    // Пока данные грузятся, не считаем таблицу, чтобы не показывать ботов
-    if (!isLoaded || !selectedLeagueId || isPlayersLoading) return [];
+    if (!isLoaded || isPlayersLoading) return [];
 
     const finalRealPlayers = groupRealPlayers || [];
     const teams = getStableGroupTeams(contextLevel, contextGroup, contextLeagueId, finalRealPlayers);
@@ -89,6 +85,7 @@ export default function RankingsPage() {
       const teamMatches = groupCalendar.filter(m => m.homeId === t.id || m.awayId === t.id);
 
       teamMatches.forEach(m => {
+        // Ищем результат в глобальном архиве matches_v11
         const fixed = fixedMatches?.find(fm => 
           (fm.homeId === m.homeId && fm.awayId === m.awayId && fm.tour === m.tour)
         );
@@ -103,6 +100,7 @@ export default function RankingsPage() {
           else if (myScore === oppScore) { draws++; pts += 1; }
           else { losses++; }
         } else if (isMatchOverdue(m.startTime)) {
+          // Если матч просрочен, но еще не в БД — используем локальный детерминированный расчет
           played++;
           const [scoreH, scoreA] = getMatchResult(m.homeId, m.awayId, seasonNumber, m.tour);
           const isHome = m.homeId === t.id;
@@ -123,13 +121,12 @@ export default function RankingsPage() {
         diff: (wins * 2) - losses
       };
     }).sort((a, b) => b.points - a.points || b.diff - a.diff);
-  }, [isLoaded, contextLevel, contextGroup, contextLeagueId, selectedLeagueId, seasonNumber, groupRealPlayers, fixedMatches, isPlayersLoading]);
+  }, [isLoaded, contextLevel, contextGroup, contextLeagueId, seasonNumber, groupRealPlayers, fixedMatches, isPlayersLoading]);
 
   const t = {
     en: {
       title: "RANKINGS HUB", subtitle: "Global Competitive Terminals",
       pts: "PTS", winLoss: "W-D-L", m: "M", back: "Back",
-      promotion: "Promotion Zone", relegation: "Relegation Danger",
       loading: "Syncing League Data...",
       menu: [
         { id: 'my_league', label: 'League Standings', desc: `Division ${leagueLevel}.${groupId}`, icon: Shield, color: 'text-primary' },
@@ -141,12 +138,11 @@ export default function RankingsPage() {
     ru: {
       title: "ТАБЛИЦЫ РЕЙТИНГА", subtitle: "Терминалы глобальных соревнований",
       pts: "О", winLoss: "В-Н-П", m: "И", back: "Назад",
-      promotion: "Зона повышения", relegation: "Зона вылета",
       loading: "Синхронизация данных...",
       menu: [
         { id: 'my_league', label: 'Таблица Лиги', desc: `Дивизион ${leagueLevel}.${groupId}`, icon: Shield, color: 'text-primary' },
         { id: 'my_pyramid', label: 'Пирамида Лиги', desc: `Изучить лигу ${selectedLeagueId}`, icon: Layers, color: 'text-accent' },
-        { id: 'all_pyramids', label: 'Карта мира', desc: 'Все 16 лиг мира', icon: Globe, color: 'text-blue-400' },
+        { id: 'all_pyramids', label: 'Карта мира', desc: 'Все лиги мира', icon: Globe, color: 'text-blue-400' },
         { id: 'cup', label: 'Кубок Пирамиды', desc: 'Сетка национального турнира', icon: Trophy, color: 'text-yellow-500', href: '/tournaments/cup' },
       ]
     }
@@ -219,10 +215,10 @@ export default function RankingsPage() {
                  {isMatchesLoading && <Loader2 className="w-3 h-3 animate-spin text-primary opacity-50" />}
                  <div className="flex gap-2">
                     <div className="flex items-center gap-1 text-[7px] font-black uppercase text-green-400">
-                      <ArrowUpCircle className="w-2 h-2" /> {language === 'ru' ? 'ПОВЫШЕНИЕ' : 'PROMOTION'}
+                      <ArrowUpCircle className="w-2.5 h-2.5" /> {language === 'ru' ? 'ПОВЫШЕНИЕ' : 'PROMOTION'}
                     </div>
                     <div className="flex items-center gap-1 text-[7px] font-black uppercase text-red-400">
-                      <ArrowDownCircle className="w-2 h-2" /> {language === 'ru' ? 'ВЫЛЕТ' : 'RELEGATION'}
+                      <ArrowDownCircle className="w-2.5 h-2.5" /> {language === 'ru' ? 'ВЫЛЕТ' : 'RELEGATION'}
                     </div>
                  </div>
                </div>
@@ -240,7 +236,7 @@ export default function RankingsPage() {
                    return (
                     <div key={entry.id + i} className={cn(
                       "grid grid-cols-[24px_1fr_25px_60px_35px] gap-1 items-center p-2.5 rounded-xl border mb-1 transition-all", 
-                      isMe ? "bg-primary/20 border-primary/40 ring-1 ring-primary/10" : "bg-secondary/20 border-white/5",
+                      isMe ? "bg-primary/20 border-primary/40 ring-1 ring-primary/10 shadow-[0_0_10px_rgba(var(--primary),0.05)]" : "bg-secondary/20 border-white/5",
                       isPromoZone && !isMe && "border-green-500/20 bg-green-500/5",
                       isRelegationZone && !isMe && "border-red-500/20 bg-red-500/5"
                     )}>
@@ -269,7 +265,7 @@ export default function RankingsPage() {
       )}
 
       {activeTab === 'all_pyramids' && !navLeague && (
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 gap-2">
           {LEAGUES.map(l => (
             <Card key={l.id} className="glass-card border-white/5 hover:bg-white/5 cursor-pointer group" onClick={() => setNavLeague(l.id)}>
               <CardContent className="p-4 text-center">
