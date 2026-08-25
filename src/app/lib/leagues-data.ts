@@ -1,6 +1,6 @@
 /**
- * @fileOverview Ядро лиг v56: Математическая пирамида с экспоненциальным ростом групп и логикой миграции.
- * Исправлена генерация календаря для обеспечения единого расписания группы (ровно 14 туров).
+ * @fileOverview Ядро лиг v57: Консолидированная лига.
+ * Оставлена только одна лига для записи реальных данных команд.
  */
 
 import { GLOBAL_EPOCH_ISO } from './time-utils';
@@ -16,22 +16,7 @@ export const TEAMS_PER_GROUP = 8;
 export const SEASON_DURATION_DAYS = 14;
 
 export const LEAGUES: LeagueOption[] = [
-  { id: 'ALPHA', startTime: '08:00', description: 'Early morning shift.' },
-  { id: 'BETA', startTime: '09:00', description: 'Morning operations.' },
-  { id: 'GAMMA', startTime: '10:00', description: 'Morning operations.' },
-  { id: 'DELTA', startTime: '11:00', description: 'Pre-noon shift.' },
-  { id: 'EPSILON', startTime: '12:00', description: 'Midday operations.' },
-  { id: 'ZETA', startTime: '13:00', description: 'Afternoon operations.' },
-  { id: 'ETA', startTime: '14:00', description: 'Afternoon operations.' },
-  { id: 'THETA', startTime: '15:00', description: 'Late afternoon shift.' },
-  { id: 'IOTA', startTime: '16:00', description: 'Late afternoon shift.' },
-  { id: 'KAPPA', startTime: '17:00', description: 'Early evening operations.' },
-  { id: 'LAMBDA', startTime: '18:00', description: 'Evening operations.' },
-  { id: 'MU', startTime: '19:00', description: 'Evening operations.' },
-  { id: 'NU', startTime: '20:00', description: 'Prime time shift.' },
-  { id: 'XI', startTime: '21:00', description: 'Late night operations.' },
-  { id: 'OMICRON', startTime: '22:00', description: 'Late night operations.' },
-  { id: 'PI', startTime: '23:00', description: 'Midnight operations.' },
+  { id: 'ALPHA', startTime: '18:00', description: 'Main Operational League.' },
 ];
 
 /**
@@ -67,7 +52,7 @@ export function getRelegationTarget(level: number, group: number, rank: number):
  * Генерирует стабильный состав группы. 
  */
 export function getStableGroupTeams(level: number, group: number, leagueId: string, realPlayersInGroup: any[] = []) {
-  const leagueIdx = (LEAGUES.findIndex(l => l.id === leagueId) + 1).toString().padStart(2, '0');
+  const leagueIdx = "01"; // Fixed since only one league remains
   const groupPrefix = group.toString().padStart(3, '0');
   const teams = new Array(TEAMS_PER_GROUP).fill(null);
 
@@ -99,7 +84,6 @@ export function getStableGroupTeams(level: number, group: number, leagueId: stri
 
 /**
  * Генерация календаря на 14 дней по алгоритму Бергера.
- * Гарантирует единое расписание для всей группы (ровно 14 туров).
  */
 export function generateSeasonCalendar(teams: any[], seasonNumber: number, leagueId: string) {
   const n = teams.length; // 8

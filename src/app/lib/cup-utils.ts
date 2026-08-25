@@ -30,7 +30,8 @@ export function getLeagueCupParticipants(leagueId: string, realPlayersInLeague: 
     playerMap.set(key, p);
   });
 
-  const leagueIdx = (['ALPHA', 'BETA', 'GAMMA', 'DELTA', 'EPSILON', 'ZETA', 'ETA', 'THETA', 'IOTA', 'KAPPA', 'LAMBDA', 'MU', 'NU', 'XI', 'OMICRON', 'PI'].indexOf(leagueId) + 1).toString().padStart(2, '0');
+  // Safe mapping for consolidated league
+  const leagueIdx = "01";
 
   let currentGlobalIndex = 0;
   for (let lvl = 1; lvl <= 9; lvl++) {

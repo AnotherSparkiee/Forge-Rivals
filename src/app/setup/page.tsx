@@ -163,7 +163,7 @@ export default function SetupPage() {
         
         <div className="flex-1 flex flex-col justify-center animate-in fade-in duration-700">
           {step === 'league' && (
-            <div className="grid grid-cols-4 gap-2 w-full">
+            <div className="flex flex-wrap justify-center gap-4 w-full">
               {LEAGUES.map((l, i) => {
                 const letter = String.fromCharCode(83 + Math.floor(i / 2));
                 const num = (i % 2) + 1;
@@ -173,14 +173,14 @@ export default function SetupPage() {
                   <Card 
                     key={l.id} 
                     className={cn(
-                      "glass-card border-white/5 cursor-pointer transition-all aspect-square flex items-center justify-center", 
+                      "glass-card border-white/5 cursor-pointer transition-all w-28 h-28 flex items-center justify-center", 
                       selectedLeagueId === l.id ? "ring-2 ring-primary bg-primary/10 shadow-[0_0_15px_rgba(var(--primary),0.3)]" : "hover:bg-white/5"
                     )} 
                     onClick={() => setSelectedLeagueId(l.id)}
                   >
                     <CardContent className="p-0 text-center flex flex-col items-center justify-center">
-                      <p className="text-lg font-headline font-black text-primary italic uppercase leading-none mb-1.5">{leagueCode}</p>
-                      <span className="text-[10px] font-bold text-white/60 tracking-wider font-mono">{l.startTime}</span>
+                      <p className="text-2xl font-headline font-black text-primary italic uppercase leading-none mb-1.5">{leagueCode}</p>
+                      <span className="text-xs font-bold text-white/60 tracking-wider font-mono">{l.startTime}</span>
                     </CardContent>
                   </Card>
                 );
