@@ -1,7 +1,7 @@
 /**
- * @fileOverview Ядро времени v93 (Current Date Sync). 
+ * @fileOverview Ядро времени v94 (Current Date Sync). 
  * Глобальная синхронизация цикла (15 дней).
- * Эпоха установлена на 10 февраля 2025 года для актуализации таймеров.
+ * Эпоха установлена на 9 февраля 2025 года, чтобы завтра (24 февраля) начался новый сезон.
  */
 
 let syncPoint = {
@@ -10,9 +10,9 @@ let syncPoint = {
 };
 
 const MSK_OFFSET = 3 * 60 * 60 * 1000;
-// Эпоха: 10 февраля 2025. 
+// Эпоха: 9 февраля 2025. 
 // Это делает 24 февраля 2025 года началом Нового Сезона (Season 2).
-export const GLOBAL_EPOCH_ISO = '2025-02-10T00:00:00Z'; 
+export const GLOBAL_EPOCH_ISO = '2025-02-09T00:00:00Z'; 
 
 export function setServerTime(serverMs: number) {
   if (typeof performance !== 'undefined') {

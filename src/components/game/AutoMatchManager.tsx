@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useRef } from 'react';
@@ -15,7 +14,7 @@ import { useFirestore, setDocumentNonBlocking } from '@/firebase';
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 
 /**
- * ГЛОБАЛЬНЫЙ МЕНЕДЖЕР МАТЧЕЙ v11.1 (Stable Calendar Sync)
+ * ГЛОБАЛЬНЫЙ МЕНЕДЖЕР МАТЧЕЙ v11.2 (Stable Calendar Sync)
  * Обеспечивает единое и неизменное расписание для всей группы.
  */
 export function AutoMatchManager() {
@@ -120,7 +119,7 @@ export function AutoMatchManager() {
           
           saveToLocal({ allSeasonMatches: calendar });
         } else {
-          // Календарь уже существует, просто подгружаем структуру
+          // Календарь уже существует, подгружаем его
           console.log(`[SEEDER v11] Official calendar exists. Syncing...`);
           const q = query(collection(db, 'matches_v11'), 
             where('leagueId', '==', selectedLeagueId),
@@ -167,7 +166,7 @@ export function AutoMatchManager() {
               resolvedAt: new Date().toISOString()
             }, { merge: true });
             
-            // Обновляем локально, чтобы не дергать таймер
+            // Обновляем локально
             const updated = allSeasonMatches.map(am => am.id === mId ? { ...am, isFinished: true, scoreA: sA, scoreB: sB } : am);
             saveToLocal({ allSeasonMatches: updated });
           }

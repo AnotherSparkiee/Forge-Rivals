@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -39,7 +38,7 @@ export default function MatchesPage() {
     return () => clearInterval(timer);
   }, []);
 
-  // 1. Загрузка актуальных владельцев слотов
+  // 1. Загрузка актуальных владельцев слотов из v11
   const groupPlayersQuery = useMemoFirebase(() => {
     if (!db) return null;
     return query(collection(db, 'players_v11'), 
@@ -114,7 +113,7 @@ export default function MatchesPage() {
     const m = resolveMatchData(raw);
     const isLive = isMatchLive(m.startTime);
     const isFinished = m.isFinished;
-    const myRank = players?.find(p => p.id === user?.uid)?.rank;
+    const myRank = players?.find(p => p.id === user?.uid)?.rank || 0;
     const isMeHome = m.homeRank === myRank;
     const isMeAway = m.awayRank === myRank;
 
@@ -181,7 +180,7 @@ export default function MatchesPage() {
     }
 
     const allMatches = [...(fixedMatches || [])].sort((a, b) => a.tour - b.tour);
-    const myRank = players?.find(p => p.id === user?.uid)?.rank;
+    const myRank = players?.find(p => p.id === user?.uid)?.rank || 0;
 
     switch(view) {
       case 'next':
