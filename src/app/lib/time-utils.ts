@@ -1,5 +1,5 @@
 /**
- * @fileOverview Ядро времени v110 (Time Simulation & Global Sync). 
+ * @fileOverview Ядро времени v112 (Time Simulation & Global Sync). 
  * Глобальная синхронизация цикла (15 дней).
  * Симулирует дату: сегодня 25 августа 2026, завтра 26 августа 2026 (старт).
  */
@@ -9,9 +9,8 @@ let syncPoint = {
   perfMs: typeof performance !== 'undefined' ? performance.now() : 0
 };
 
-// Смещение для симуляции 25 августа 2026 года (относительно 24 февраля 2025)
-// Примерно 547 дней разницы
-const SIMULATION_OFFSET_MS = 47347200000; 
+// Смещение для симуляции 25 августа 2026 года (точно 547 дней относительно 24 февраля 2025)
+const SIMULATION_OFFSET_MS = 47260800000; 
 const MSK_OFFSET = 3 * 60 * 60 * 1000;
 
 // Эпоха: 26 августа 2026. Это День 1 Сезона 1.
@@ -34,7 +33,7 @@ export function getMoscowTime(): Date {
   } else {
     currentUtcMs = Date.now(); 
   }
-  // Применяем смещение для симуляции нужной пользователю даты
+  // Применяем смещение для симуляции нужной пользователю даты (25 августа 2026)
   return new Date(currentUtcMs + SIMULATION_OFFSET_MS);
 }
 

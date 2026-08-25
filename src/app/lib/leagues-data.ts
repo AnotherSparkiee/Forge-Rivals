@@ -1,5 +1,5 @@
 /**
- * @fileOverview Ядро лиг v64: Абсолютный детерминизм и слот-ориентированная архитектура.
+ * @fileOverview Ядро лиг v65: Абсолютный детерминизм и слот-ориентированная архитектура.
  * Обеспечивает единство календаря для всех участников группы.
  */
 
@@ -110,7 +110,8 @@ export function generateSeasonCalendar(teams: any[], seasonNumber: number, leagu
       const away = teams[aIdx];
 
       const createMatch = (day: number, h: any, a: any, tour: number) => {
-        const startTime = new Date(seasonStartMs + (day - 1) * dayMs + hh * 60 * 60 * 1000 + mm * 60 * 1000);
+        // Учет MSK смещения: 18:00 MSK = 15:00 UTC (hh - 3)
+        const startTime = new Date(seasonStartMs + (day - 1) * dayMs + (hh - 3) * 60 * 60 * 1000 + mm * 60 * 1000);
         return {
           id: `v11_s${seasonNumber}_l${leagueId}_lv${h.level || 0}_g${h.group || 0}_t${tour}_hR${h.rank}_aR${a.rank}`,
           day,

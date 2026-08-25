@@ -34,7 +34,9 @@ export default function Home() {
   const getCountdown = (targetTimeIso: string | Date) => {
     const target = typeof targetTimeIso === 'string' ? new Date(targetTimeIso) : targetTimeIso;
     const diff = target.getTime() - now.getTime();
-    if (diff <= 0) return '00:00:00';
+    
+    // Если разница менее секунды, считаем что время вышло (или матч идет)
+    if (diff <= 1000) return '00:00:00';
     
     const days = Math.floor(diff / (24 * 3600000));
     const hh = Math.floor((diff % (24 * 3600000)) / 3600000);
