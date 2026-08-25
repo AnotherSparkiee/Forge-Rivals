@@ -1,7 +1,7 @@
 /**
- * @fileOverview Ядро времени v94 (Current Date Sync). 
+ * @fileOverview Ядро времени v110 (Time Simulation & Global Sync). 
  * Глобальная синхронизация цикла (15 дней).
- * Эпоха установлена на 9 февраля 2025 года, чтобы завтра (24 февраля) начался новый сезон.
+ * Симулирует дату: сегодня 25 августа 2026, завтра 26 августа 2026 (старт).
  */
 
 let syncPoint = {
@@ -9,10 +9,13 @@ let syncPoint = {
   perfMs: typeof performance !== 'undefined' ? performance.now() : 0
 };
 
+// Смещение для симуляции 25 августа 2026 года (относительно 24 февраля 2025)
+// Примерно 547 дней разницы
+const SIMULATION_OFFSET_MS = 47347200000; 
 const MSK_OFFSET = 3 * 60 * 60 * 1000;
-// Эпоха: 9 февраля 2025. 
-// Это делает 24 февраля 2025 года началом Нового Сезона (Season 2).
-export const GLOBAL_EPOCH_ISO = '2025-02-09T00:00:00Z'; 
+
+// Эпоха: 26 августа 2026. Это День 1 Сезона 1.
+export const GLOBAL_EPOCH_ISO = '2026-08-26T00:00:00Z'; 
 
 export function setServerTime(serverMs: number) {
   if (typeof performance !== 'undefined') {
@@ -31,7 +34,8 @@ export function getMoscowTime(): Date {
   } else {
     currentUtcMs = Date.now(); 
   }
-  return new Date(currentUtcMs);
+  // Применяем смещение для симуляции нужной пользователю даты
+  return new Date(currentUtcMs + SIMULATION_OFFSET_MS);
 }
 
 export function toMskDate(date: Date): Date {
@@ -50,8 +54,8 @@ export function getLevelThreshold(level: number): number {
 
 export function calculateLiveAge(baseAge: number, hiredAtIso: string) {
   const hiredAt = new Date(hiredAtIso).getTime();
-  const utcNow = getMoscowTime().getTime();
-  const diffMs = utcNow - hiredAt;
+  const simNow = getMoscowTime().getTime();
+  const diffMs = simNow - hiredAt;
   const yearInMs = 365.25 * 24 * 60 * 60 * 1000;
   const currentAge = baseAge + (diffMs / yearInMs);
   return { display: currentAge.toFixed(1), numeric: currentAge };
@@ -73,26 +77,27 @@ export function getMoscowDateString(): string {
 }
 
 export function getGlobalSeasonInfo() {
-  const utcNow = getMoscowTime();
+  const simNow = getMoscowTime();
   const epochUtc = new Date(GLOBAL_EPOCH_ISO);
-  const diffMs = utcNow.getTime() - epochUtc.getTime();
+  const diffMs = simNow.getTime() - epochUtc.getTime();
   
   const cycleDuration = 15; 
   const dayMs = 24 * 60 * 60 * 1000;
   const cycleMs = cycleDuration * dayMs;
 
+  // Если время до начала эпохи (Сезон 1 еще не начался)
   if (diffMs < 0) {
     return {
-      seasonDay: 1, 
-      dayOfCycle: 1, 
+      seasonDay: 0, // Фаза подготовки
+      dayOfCycle: 0, 
       seasonNumber: 1, 
       activeSeasonNumber: 1,
-      isOffseason: false, 
-      isGenerationReady: false,
+      isOffseason: true, 
+      isGenerationReady: true,
       timeToStartMs: Math.abs(diffMs), 
       currentSeasonStart: epochUtc, 
-      nextSeasonStart: new Date(epochUtc.getTime() + cycleMs),
-      generationTime: new Date(epochUtc.getTime() + (14 * dayMs) + (16 * 3600000))
+      nextSeasonStart: epochUtc,
+      generationTime: new Date(epochUtc.getTime() - 12 * 3600000) // Готовность за 12ч до старта
     };
   }
 
@@ -101,9 +106,8 @@ export function getGlobalSeasonInfo() {
   const isOffseason = dayOfCycle === 15;
 
   const currentSeasonStart = new Date(epochUtc.getTime() + (seasonNumber - 1) * cycleMs);
-  // Время генерации: 15-й день цикла в 16:00 MSK
   const generationTime = new Date(currentSeasonStart.getTime() + (14 * dayMs) + (16 * 3600000));
-  const isGenerationReady = utcNow.getTime() >= generationTime.getTime();
+  const isGenerationReady = simNow.getTime() >= generationTime.getTime();
 
   return {
     seasonDay: isOffseason ? 0 : dayOfCycle,
@@ -119,15 +123,14 @@ export function getGlobalSeasonInfo() {
 }
 
 export function isMatchOverdue(startTimeIso: string): boolean {
-  const utcNow = getMoscowTime();
+  const simNow = getMoscowTime();
   const start = new Date(startTimeIso);
-  // Матч считается завершенным через 45 минут после начала
-  return utcNow.getTime() > (start.getTime() + (45 * 60 * 1000));
+  return simNow.getTime() > (start.getTime() + (45 * 60 * 1000));
 }
 
 export function isMatchLive(startTimeIso: string): boolean {
-  const utcNow = getMoscowTime();
+  const simNow = getMoscowTime();
   const start = new Date(startTimeIso);
   const end = new Date(start.getTime() + (45 * 60 * 1000));
-  return utcNow.getTime() >= start.getTime() && utcNow.getTime() <= end.getTime();
+  return simNow.getTime() >= start.getTime() && simNow.getTime() <= end.getTime();
 }

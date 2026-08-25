@@ -14,8 +14,8 @@ import { useFirestore, setDocumentNonBlocking } from '@/firebase';
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 
 /**
- * ГЛОБАЛЬНЫЙ МЕНЕДЖЕР МАТЧЕЙ v11.2 (Stable Calendar Sync)
- * Обеспечивает единое и неизменное расписание для всей группы.
+ * ГЛОБАЛЬНЫЙ МЕНЕДЖЕР МАТЧЕЙ v11.3 (Auto-Seeding enabled)
+ * Обеспечивает единство календаря. Автоматически публикует сетку в фазе подготовки.
  */
 export function AutoMatchManager() {
   const { 
@@ -25,7 +25,6 @@ export function AutoMatchManager() {
   } = useGameState();
   
   const db = useFirestore();
-  const initRef = useRef(false);
   const seedingRef = useRef(false);
 
   useEffect(() => {
@@ -36,7 +35,7 @@ export function AutoMatchManager() {
 
     // 1. ПЕРЕХОД МЕЖДУ СЕЗОНАМИ
     if (lastProcessedSeason < currentSeason && lastProcessedSeason > 0) {
-      console.log(`[SEASON ENGINE] Processing transition: ${lastProcessedSeason} -> ${currentSeason}`);
+      console.log(`[SEASON ENGINE] Transition detected. New Season: ${currentSeason}`);
       
       const oldTeams = getStableGroupTeams(leagueLevel, groupId, selectedLeagueId, [{
         id: userId, name: clubName || "Local Club", rank: rank || 1, logo: clubLogo || null
@@ -75,20 +74,18 @@ export function AutoMatchManager() {
       return;
     }
 
-    // 2. ЕДИНЫЙ КАЛЕНДАРЬ ГРУППЫ (Сидирование)
-    const seedCalendar = async () => {
+    // 2. ГЛОБАЛЬНОЕ СИДИРОВАНИЕ КАЛЕНДАРЯ
+    const syncCalendar = async () => {
       if (seedingRef.current) return;
       seedingRef.current = true;
 
       try {
-        // Проверяем наличие первого матча сезона в группе
-        const checkId = `v11_s${currentSeason}_l${selectedLeagueId}_lv${leagueLevel}_g${groupId}_t1_hR1_aR8`;
-        const checkSnap = await getDoc(doc(db, 'matches_v11', checkId));
+        const firstMatchId = `v11_s${currentSeason}_l${selectedLeagueId}_lv${leagueLevel}_g${groupId}_t1_hR1_aR8`;
+        const snap = await getDoc(doc(db, 'matches_v11', firstMatchId));
 
-        if (!checkSnap.exists()) {
-          console.log(`[SEEDER v11] PUBLISHING OFFICIAL CALENDAR: Season ${currentSeason}, Group ${leagueLevel}.${groupId}`);
+        if (!snap.exists()) {
+          console.log(`[SEEDER v11] PRE-GENERATING OFFICIAL CALENDAR for Group ${leagueLevel}.${groupId}`);
           
-          // Получаем текущих реальных игроков для первичного маппинга
           const q = query(collection(db, 'players_v11'), 
             where('selectedLeagueId', '==', selectedLeagueId),
             where('leagueLevel', '==', leagueLevel),
@@ -100,7 +97,6 @@ export function AutoMatchManager() {
           const teamData = getStableGroupTeams(leagueLevel, groupId, selectedLeagueId, realPlayers);
           const calendar = generateSeasonCalendar(teamData, currentSeason, selectedLeagueId);
 
-          // Публикуем все 14 туров в Firestore
           calendar.forEach(m => {
             if (m.homeRank === undefined || m.awayRank === undefined) return;
             const mId = `v11_s${currentSeason}_l${selectedLeagueId}_lv${leagueLevel}_g${groupId}_t${m.tour}_hR${m.homeRank}_aR${m.awayRank}`;
@@ -114,13 +110,12 @@ export function AutoMatchManager() {
               status: 'scheduled',
               isFinished: false,
               version: 11
-            });
+            }, { merge: true });
           });
           
           saveToLocal({ allSeasonMatches: calendar });
         } else {
-          // Календарь уже существует, подгружаем его
-          console.log(`[SEEDER v11] Official calendar exists. Syncing...`);
+          // Календарь уже в облаке - загружаем
           const q = query(collection(db, 'matches_v11'), 
             where('leagueId', '==', selectedLeagueId),
             where('level', '==', leagueLevel),
@@ -134,18 +129,15 @@ export function AutoMatchManager() {
           }
         }
       } catch (e) {
-        console.error("[SEEDER ERROR]", e);
+        console.error("[SYNC ERROR]", e);
       } finally {
         setWorldReady(true);
       }
     };
 
-    if (!initRef.current) {
-      initRef.current = true;
-      seedCalendar();
-    }
+    syncCalendar();
 
-    // 3. РЕЗОЛВЕР МАТЧЕЙ (Фиксация)
+    // 3. АВТО-РЕЗОЛВЕР (Фиксация результатов по времени)
     const resolveTimer = setInterval(async () => {
       if (!db || !allSeasonMatches || allSeasonMatches.length === 0) return;
 
@@ -157,25 +149,25 @@ export function AutoMatchManager() {
         const matchRef = doc(db, 'matches_v11', mId);
         
         try {
-          const snap = await getDoc(matchRef);
-          if (snap.exists() && !snap.data().isFinished) {
+          const mSnap = await getDoc(matchRef);
+          if (mSnap.exists() && !mSnap.data().isFinished) {
             const [sA, sB] = getMatchResult(m.homeRank, m.awayRank, leagueLevel, groupId, currentSeason, m.tour);
             setDocumentNonBlocking(matchRef, {
               scoreA: sA, scoreB: sB, status: 'finished', isFinished: true,
-              winnerId: sA > sB ? (snap.data().homeId || null) : (sB > sA ? (snap.data().awayId || null) : null),
+              winnerId: sA > sB ? (mSnap.data().homeId || null) : (sB > sA ? (mSnap.data().awayId || null) : null),
               resolvedAt: new Date().toISOString()
             }, { merge: true });
             
-            // Обновляем локально
+            // Локальный апдейт
             const updated = allSeasonMatches.map(am => am.id === mId ? { ...am, isFinished: true, scoreA: sA, scoreB: sB } : am);
             saveToLocal({ allSeasonMatches: updated });
           }
-        } catch (e) { console.error("[RESOLVE ERROR]", e); }
+        } catch (e) { console.error("[RESOLVER] Fail:", e); }
       }
-    }, 15000);
+    }, 20000);
 
     return () => clearInterval(resolveTimer);
-  }, [isLoaded, selectedLeagueId, leagueLevel, groupId, rank, clubLogo, clubName, allSeasonMatches, saveToLocal, setWorldReady, lastProcessedSeason, userId, db]);
+  }, [isLoaded, selectedLeagueId, leagueLevel, groupId, allSeasonMatches, saveToLocal, setWorldReady, lastProcessedSeason, userId, db, clubLogo, clubName, rank]);
 
   return null;
 }

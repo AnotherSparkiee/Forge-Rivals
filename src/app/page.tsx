@@ -41,6 +41,7 @@ export default function Home() {
     const mm = Math.floor((diff % 3600000) / 60000);
     const ss = Math.floor((diff % 60000) / 1000);
     
+    // Если осталось более 24 часов, показываем дни
     if (days > 0) {
       return `${days}d ${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
     }
@@ -89,7 +90,7 @@ export default function Home() {
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,_hsl(var(--primary)/0.1),_transparent_70%)] -z-10" />
       <div className="flex-1 w-full max-w-md mx-auto px-4 flex flex-col justify-center overflow-hidden">
         
-        {/* NEXT MATCH / OFFSEASON WIDGET */}
+        {/* NEXT MATCH / PRE-SEASON WIDGET */}
         {currentNextMatch ? (
           <Card className="glass-card mb-6 border-primary/30 bg-primary/5 overflow-hidden animate-in fade-in slide-in-from-top-4 duration-700 shrink-0">
             <CardContent className="p-4 flex items-center justify-between min-h-[110px]">
@@ -132,12 +133,10 @@ export default function Home() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-[8px] font-black text-accent uppercase tracking-[0.2em] leading-none mb-1.5">
-                      {language === 'ru' ? 'ОЖИДАНИЕ НОВОГО СЕЗОНА' : 'AWAITING NEW SEASON'}
+                      {language === 'ru' ? 'ПОДГОТОВКА СЕЗОНА' : 'SEASON PREPARATION'}
                     </p>
                     <h3 className="text-base font-bold uppercase text-white leading-tight truncate">
-                      {seasonInfo.isOffseason && !seasonInfo.isGenerationReady 
-                        ? (language === 'ru' ? 'ГЕНЕРАЦИЯ ЛИГИ' : 'LEAGUE GENERATION') 
-                        : (language === 'ru' ? 'ПОДГОТОВКА СЕЗОНА' : 'SEASON PREPARATION')}
+                      {language === 'ru' ? 'СТАРТ ЗАВТРА' : 'STARTS TOMORROW'}
                     </h3>
                   </div>
                </div>
@@ -145,13 +144,11 @@ export default function Home() {
                  <div className="flex items-center justify-end gap-1.5 mb-1.5 text-muted-foreground">
                     <Clock className="w-3.5 h-3.5" />
                     <span className="text-[8px] font-black uppercase tracking-tighter">
-                      {language === 'ru' ? 'СИНХР:' : 'SYNC IN:'}
+                      {language === 'ru' ? 'ДО ПЕРВОГО ТУРА:' : 'UNTIL TOUR 1:'}
                     </span>
                  </div>
                  <p className="text-xl font-headline font-black text-accent italic tabular-nums leading-none">
-                   {seasonInfo.isOffseason && !seasonInfo.isGenerationReady 
-                    ? getCountdown(seasonInfo.generationTime) 
-                    : getCountdown(seasonInfo.nextSeasonStart)}
+                   {getCountdown(seasonInfo.currentSeasonStart)}
                  </p>
                </div>
             </CardContent>
