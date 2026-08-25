@@ -6,7 +6,7 @@ import {
   CalendarDays, Medal, ArrowRightLeft, 
   Shield, Construction, Briefcase, 
   LineChart, Heart, Newspaper, Settings, Search, Tv, User as UserIcon, UserCheck,
-  Radar, LayoutList, Swords, Timer, ShieldAlert, CalendarClock, Clock
+  Radar, LayoutList, Swords, Timer, ShieldAlert, CalendarClock, Clock, Activity
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import Link from 'next/link';
@@ -15,7 +15,7 @@ import { useUser } from '@/firebase';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { Badge } from '@/components/ui/badge';
 import { useState, useEffect } from 'react';
-import { getMoscowTime, getGlobalSeasonInfo } from './lib/time-utils';
+import { getMoscowTime, getGlobalSeasonInfo, isMatchLive } from './lib/time-utils';
 
 export default function Home() {
   const { user, isUserLoading } = useUser();
@@ -88,27 +88,34 @@ export default function Home() {
 
   const currentNextMatch = nextMatch?.match;
   const seasonInfo = getGlobalSeasonInfo();
+  const isNextMatchLive = currentNextMatch ? isMatchLive(currentNextMatch.startTime) : false;
 
   return (
     <div className="relative h-[calc(100dvh-3.5rem-5rem)] flex flex-col overflow-hidden bg-[#0a0d14]">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,_hsl(var(--primary)/0.1),_transparent_70%)] -z-10" />
       <div className="flex-1 w-full max-w-md mx-auto px-4 flex flex-col justify-center overflow-hidden">
         
-        {/* NEXT MATCH / PRE-SEASON WIDGET */}
+        {/* NEXT MATCH / LIVE MATCH WIDGET */}
         {currentNextMatch ? (
-          <Card className="glass-card mb-6 border-primary/30 bg-primary/5 overflow-hidden animate-in fade-in slide-in-from-top-4 duration-700 shrink-0">
+          <Card className={cn(
+            "glass-card mb-6 border-primary/30 bg-primary/5 overflow-hidden animate-in fade-in slide-in-from-top-4 duration-700 shrink-0",
+            isNextMatchLive && "border-red-500/40 bg-red-500/5 shadow-[0_0_20px_rgba(239,68,68,0.1)]"
+          )}>
             <CardContent className="p-4 flex items-center justify-between min-h-[110px]">
               <div className="flex items-center gap-4 min-w-0 flex-1">
                 <div className="w-14 h-14 rounded-xl bg-secondary/50 border border-primary/20 flex items-center justify-center p-2 shrink-0 shadow-lg">
                   {nextMatch.opponentLogo ? (
                     <img src={nextMatch.opponentLogo} className="w-full h-full object-contain" alt="" />
                   ) : (
-                    <Swords className="w-7 h-7 text-accent" />
+                    <Swords className={cn("w-7 h-7", isNextMatchLive ? "text-red-400 animate-pulse" : "text-accent")} />
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-[8px] font-black text-primary uppercase tracking-[0.2em] leading-none mb-1.5">
-                    {language === 'ru' ? 'СЛЕДУЮЩИЙ СОПЕРНИК' : 'NEXT OPPONENT'}
+                  <p className={cn(
+                    "text-[8px] font-black uppercase tracking-[0.2em] leading-none mb-1.5",
+                    isNextMatchLive ? "text-red-400" : "text-primary"
+                  )}>
+                    {isNextMatchLive ? (language === 'ru' ? 'ИДЕТ МАТЧ' : 'MATCH LIVE') : (language === 'ru' ? 'СЛЕДУЮЩИЙ СОПЕРНИК' : 'NEXT OPPONENT')}
                   </p>
                   <h3 className="text-base font-bold uppercase truncate text-white leading-tight">
                     {nextMatch.opponentName}
@@ -116,15 +123,24 @@ export default function Home() {
                 </div>
               </div>
               <div className="text-right border-l border-white/5 pl-4 shrink-0 flex flex-col justify-center">
-                <div className="flex items-center justify-end gap-1.5 mb-1.5 text-muted-foreground">
-                  <Timer className="w-3.5 h-3.5" />
-                  <span className="text-[8px] font-black uppercase tracking-tighter">
-                    {language === 'ru' ? 'ДО МАТЧА:' : 'UNTIL MATCH:'}
-                  </span>
-                </div>
-                <p className="text-xl font-headline font-black text-primary italic tabular-nums leading-none">
-                  {getCountdown(currentNextMatch.startTime)}
-                </p>
+                {isNextMatchLive ? (
+                   <div className="flex flex-col items-center">
+                     <Activity className="w-6 h-6 text-red-500 animate-pulse mb-1" />
+                     <span className="text-[10px] font-black text-red-500 uppercase tracking-widest">{language === 'ru' ? 'В ЭФИРЕ' : 'LIVE'}</span>
+                   </div>
+                ) : (
+                  <>
+                    <div className="flex items-center justify-end gap-1.5 mb-1.5 text-muted-foreground">
+                      <Timer className="w-3.5 h-3.5" />
+                      <span className="text-[8px] font-black uppercase tracking-tighter">
+                        {language === 'ru' ? 'ДО МАТЧА:' : 'UNTIL MATCH:'}
+                      </span>
+                    </div>
+                    <p className="text-xl font-headline font-black text-primary italic tabular-nums leading-none">
+                      {getCountdown(currentNextMatch.startTime)}
+                    </p>
+                  </>
+                )}
               </div>
             </CardContent>
           </Card>
