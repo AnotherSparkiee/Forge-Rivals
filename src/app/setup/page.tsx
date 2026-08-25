@@ -35,10 +35,10 @@ const CLUBS = [
  * Генерирует криптографически надежный уникальный ID для команды.
  */
 function generateSecureTeamId() {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-    return `team_${crypto.randomUUID()}`;
+  if (typeof window !== 'undefined' && window.crypto && window.crypto.randomUUID) {
+    return `team_${window.crypto.randomUUID().split('-')[0]}_${Date.now().toString(36)}`;
   }
-  return `team_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+  return `team_${Math.random().toString(36).substring(2, 10)}_${Date.now().toString(36)}`;
 }
 
 export default function SetupPage() {
@@ -62,8 +62,17 @@ export default function SetupPage() {
     setIsUpdating(true);
     
     try {
+      console.log(`[SETUP v11] Starting registration for ID: ${uniqueTeamId}`);
+      
       // 1. Поиск свободного места в глобальной пирамиде v11 (сверху вниз)
-      const placement = await findStrategicPlacement(selectedLeagueId);
+      let placement = { tier: 9, group: 1, rank: 1 };
+      try {
+        const result = await findStrategicPlacement(selectedLeagueId);
+        if (result) placement = result;
+      } catch (placementErr) {
+        console.warn("[SETUP] Strategic placement failed, using fallback:", placementErr);
+        // Fallback placement to ensure registration isn't blocked
+      }
       
       const selectedCountry = COUNTRIES.find(c => c.code === selectedCountryCode);
       const selectedClub = CLUBS.find(c => c.id === selectedClubId);
@@ -110,7 +119,7 @@ export default function SetupPage() {
         lastProcessedSeason: activeSeasonNumber
       });
 
-      // 3. Синхронизация с Firestore v11
+      // 3. Синхронизация с Firestore v11 (если доступен)
       if (db) {
         const playerRef = doc(db, 'players_v11', uniqueTeamId);
         await setDoc(playerRef, {
@@ -132,17 +141,21 @@ export default function SetupPage() {
       toast({ 
         title: language === 'ru' ? "Клуб создан!" : "Club Initialized!",
         description: language === 'ru' 
-          ? `Успешно! Ваш ID: ${uniqueTeamId.substring(5, 13)}...` 
-          : `Success! ID: ${uniqueTeamId.substring(5, 13)}...`
+          ? `Успешно! Ваш ID: ${uniqueTeamId.substring(0, 12)}...` 
+          : `Success! ID: ${uniqueTeamId.substring(0, 12)}...`
       });
 
       setTimeout(() => {
         router.push('/');
       }, 300);
 
-    } catch (e) {
+    } catch (e: any) {
       console.error("[SETUP v11 ERROR]:", e);
-      toast({ variant: "destructive", title: "Setup Error (v11)" });
+      toast({ 
+        variant: "destructive", 
+        title: "Setup Error (v11)",
+        description: e.message || "Failed to sync with global server."
+      });
       setIsUpdating(false);
     }
   };
