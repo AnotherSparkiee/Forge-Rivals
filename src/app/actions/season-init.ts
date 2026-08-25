@@ -1,8 +1,9 @@
 'use server';
 
 /**
- * @fileOverview Серверный модуль инициализации мира v51.
+ * @fileOverview Серверный модуль инициализации мира v52.
  * Реализует логику стратегического размещения игроков в глобальную базу лиги.
+ * Приоритет: Высшие лиги (Див 1) -> Низшие лиги (Див 9).
  */
 
 import { collection, getDocs, query, where } from 'firebase/firestore';
@@ -11,7 +12,7 @@ import { getGroupsCountInLevel } from '@/app/lib/leagues-data';
 
 /**
  * Находит первое свободное место (занятое ботом) в иерархии лиги.
- * Приоритет: Дивизион 9 (вход в лигу) -> Дивизион 1.
+ * Приоритет: Дивизион 1 (Вершина) -> Дивизион 9 (Основание).
  */
 export async function findStrategicPlacement(leagueId: string) {
   const { firestore: db } = initializeFirebase();
@@ -24,25 +25,26 @@ export async function findStrategicPlacement(leagueId: string) {
   snap.forEach(d => {
     const data = d.data();
     if (data.leagueLevel && data.groupId && data.rank) {
+      // Ключ уникальности: Уровень_Группа_Ранг
       occupiedSlots.add(`${data.leagueLevel}_${data.groupId}_${data.rank}`);
     }
   });
 
-  // 2. Ищем первый свободный слот (снизу вверх: Див 9 -> Див 1)
-  // Это гарантирует, что новички заменяют ботов в 9-м дивизионе, пока он не заполнится.
-  for (let tier = 9; tier >= 1; tier--) {
+  // 2. Ищем первый свободный слот (сверху вниз: Див 1 -> Див 9)
+  // Это гарантирует заполнение топовых дивизионов реальными игроками в первую очередь.
+  for (let tier = 1; tier <= 9; tier++) {
     const groupsInTier = getGroupsCountInLevel(tier);
     for (let group = 1; group <= groupsInTier; group++) {
       for (let rank = 1; rank <= 8; rank++) {
         const key = `${tier}_${group}_${rank}`;
         if (!occupiedSlots.has(key)) {
-          console.log(`[PLACEMENT v51] Found free slot: League ${leagueId}, Tier ${tier}, Group ${group}, Rank ${rank}`);
+          console.log(`[PLACEMENT v52] Slot assigned: Tier ${tier}, Group ${group}, Rank ${rank} (League ${leagueId})`);
           return { tier, group, rank };
         }
       }
     }
   }
 
-  // Fallback (не должен наступить при текущих лимитах)
+  // Fallback (если пирамида переполнена, что маловероятно)
   return { tier: 9, group: 1, rank: 1 };
 }

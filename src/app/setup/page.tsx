@@ -48,7 +48,7 @@ export default function SetupPage() {
     setIsUpdating(true);
     
     try {
-      // 1. Поиск свободного места в глобальной пирамиде
+      // 1. Поиск свободного места в глобальной пирамиде (от высших к низшим)
       const placement = await findStrategicPlacement(selectedLeagueId);
       
       const selectedCountry = COUNTRIES.find(c => c.code === selectedCountryCode);
@@ -78,9 +78,12 @@ export default function SetupPage() {
       };
 
       const finalClubName = customClubName.trim();
+      // Если ID локальный дефолт - генерируем новый для уникальности в Firestore
+      const finalUserId = (!userId || userId === 'local-manager') ? `local_${Date.now()}_${Math.random().toString(36).substr(2, 5)}` : userId;
 
       // 2. Сохранение в локальное хранилище
       saveToLocal({
+        id: finalUserId,
         selectedLeagueId,
         leagueLevel: placement.tier,
         groupId: placement.group,
@@ -96,10 +99,10 @@ export default function SetupPage() {
         lastProcessedSeason: activeSeasonNumber
       });
 
-      // 3. Синхронизация с Firestore для того чтобы другие игроки видели вас в группе
-      if (db && userId) {
-        await setDoc(doc(db, 'players_v10', userId), {
-          id: userId,
+      // 3. Синхронизация с Firestore для закрепления слота
+      if (db) {
+        await setDoc(doc(db, 'players_v10', finalUserId), {
+          id: finalUserId,
           displayName: finalClubName,
           clubName: finalClubName,
           clubLogo: selectedClub?.logo || null,

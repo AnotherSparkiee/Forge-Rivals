@@ -1,5 +1,5 @@
 /**
- * @fileOverview Ядро лиг v58: Консолидированная лига и логика замещения ботов.
+ * @fileOverview Ядро лиг v59: Консолидированная лига и логика замещения ботов.
  * Реализует систему, где реальные игроки занимают фиксированные слоты в группах.
  */
 
@@ -73,7 +73,7 @@ export function getStableGroupTeams(level: number, group: number, leagueId: stri
         logo: p.clubLogo || p.logo || null,
         isBot: false,
         rank: slot,
-        isMe: p.id === 'local-manager' // Для локальной подсветки
+        isMe: p.isMe || false // Флаг для подсветки локального игрока
       };
     }
   });
