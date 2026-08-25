@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -62,26 +63,8 @@ export default function RankingsPage() {
   const standings = useMemo(() => {
     if (!isLoaded || !selectedLeagueId) return [];
 
-    const realPlayersRaw = groupRealPlayers || [];
+    const finalRealPlayers = groupRealPlayers || [];
     
-    // Если мы смотрим свою группу, добавляем себя (локальное состояние), 
-    // если нас еще нет в списке из Firestore (например, сразу после регистрации)
-    const isViewingOwnGroup = 
-      contextLevel === leagueLevel && 
-      contextGroup === groupId && 
-      contextLeagueId === selectedLeagueId;
-
-    let finalRealPlayers = [...realPlayersRaw];
-    if (isViewingOwnGroup && !finalRealPlayers.some(p => p.id === userId)) {
-      finalRealPlayers.push({
-        id: userId,
-        clubName: clubName || "My Club",
-        displayName: clubName || "My Club",
-        rank: rank || 1,
-        clubLogo: clubLogo || null
-      });
-    }
-
     // Генерируем состав группы: реальные игроки заменяют соответствующих ботов
     const teams = getStableGroupTeams(contextLevel, contextGroup, contextLeagueId, finalRealPlayers);
     const groupCalendar = generateSeasonCalendar(teams, seasonNumber, contextLeagueId);
@@ -112,7 +95,7 @@ export default function RankingsPage() {
         diff: (wins * 2) - losses
       };
     }).sort((a, b) => b.points - a.points || b.diff - a.diff);
-  }, [isLoaded, contextLevel, contextGroup, contextLeagueId, clubName, clubLogo, rank, selectedLeagueId, seasonNumber, leagueLevel, groupId, userId, groupRealPlayers]);
+  }, [isLoaded, contextLevel, contextGroup, contextLeagueId, selectedLeagueId, seasonNumber, groupRealPlayers]);
 
   const t = {
     en: {
@@ -258,7 +241,7 @@ export default function RankingsPage() {
       {(activeTab === 'my_pyramid' || (activeTab === 'all_pyramids' && navLeague)) && !navLevel && (
         <div className="space-y-2">
           {Array.from({ length: MAX_LEVELS }, (_, i) => i + 1).map(lvl => (
-            <Card key={lvl} className="glass-card border-white/5 hover:bg-white/5 cursor-pointer group" onClick={() => setNavLevel(lvl)}>
+            <Card key={lvl} className="glass-card border-white/5 hover:bg-white/5 transition-all cursor-pointer group" onClick={() => setNavLevel(lvl)}>
               <CardContent className="p-4 flex justify-between items-center">
                 <span className="text-sm font-bold uppercase group-hover:text-white transition-colors">Division {lvl}</span>
                 <div className="flex items-center gap-2">

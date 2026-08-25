@@ -1,6 +1,7 @@
+
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -34,7 +35,7 @@ export default function SetupPage() {
   const router = useRouter();
   const db = useFirestore();
   const { toast } = useToast();
-  const { language, isLoaded, saveToLocal, id: userId } = useGameState();
+  const { language, isLoaded, saveToLocal } = useGameState();
   
   const [step, setStep] = useState<'league' | 'country' | 'club' | 'name'>('league');
   const [selectedLeagueId, setSelectedLeagueId] = useState<string | null>(null);
@@ -42,12 +43,17 @@ export default function SetupPage() {
   const [selectedClubId, setSelectedClubId] = useState<string | null>(null);
   const [customClubName, setCustomClubName] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
+  
+  // Генерируем уникальный ID сразу при входе на страницу
+  const [uniqueSessionId] = useState(() => `team_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`);
 
   const handleCompleteSetup = async () => {
     if (!selectedLeagueId || !selectedCountryCode || !selectedClubId || customClubName.trim().length < 3 || isUpdating) return;
     setIsUpdating(true);
     
     try {
+      console.log(`[SETUP] Initializing team with ID: ${uniqueSessionId}`);
+
       // 1. Поиск свободного места в глобальной пирамиде (от высших к низшим)
       const placement = await findStrategicPlacement(selectedLeagueId);
       
@@ -78,12 +84,10 @@ export default function SetupPage() {
       };
 
       const finalClubName = customClubName.trim();
-      // Если ID локальный дефолт - генерируем новый для уникальности в Firestore
-      const finalUserId = (!userId || userId === 'local-manager') ? `local_${Date.now()}_${Math.random().toString(36).substr(2, 5)}` : userId;
 
       // 2. Сохранение в локальное хранилище
       saveToLocal({
-        id: finalUserId,
+        id: uniqueSessionId,
         selectedLeagueId,
         leagueLevel: placement.tier,
         groupId: placement.group,
@@ -101,8 +105,8 @@ export default function SetupPage() {
 
       // 3. Синхронизация с Firestore для закрепления слота
       if (db) {
-        await setDoc(doc(db, 'players_v10', finalUserId), {
-          id: finalUserId,
+        await setDoc(doc(db, 'players_v10', uniqueSessionId), {
+          id: uniqueSessionId,
           displayName: finalClubName,
           clubName: finalClubName,
           clubLogo: selectedClub?.logo || null,

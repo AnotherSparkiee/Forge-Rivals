@@ -1,10 +1,11 @@
+
 'use client';
 
 /**
- * Глобальное локальное хранилище v219 (Autonomous Mode).
+ * Глобальное локальное хранилище v220 (Autonomous Mode).
  * Исправлена логика отслеживания просмотренных матчей.
  * Добавлены функции удаления и очистки истории.
- * ВНИМАНИЕ: Ключ хранилища обновлен до v219 для принудительного сброса профилей.
+ * ВНИМАНИЕ: Ключ хранилища обновлен до v220 для принудительного сброса профилей.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useMemo } from 'react';
@@ -124,12 +125,12 @@ interface GameState {
   saveToLocal: (state: Partial<GameState>) => void;
 }
 
-const STORAGE_KEY = 'lote_game_state_v219';
+const STORAGE_KEY = 'lote_game_state_v220';
 
 const DEFAULT_STATE: GameState = {
   credits: 1000000, crystals: 50, experiencePoints: 0, managerLevel: 1,
   leagueLevel: 9, groupId: 1, selectedLeagueId: null,
-  displayName: 'Local Manager', id: 'local-manager', isLoaded: false, isTeamLoaded: false,
+  displayName: 'Local Manager', id: 'init-node', isLoaded: false, isTeamLoaded: false,
   clubName: null, clubLogo: null,
   lineup: { 
     carry: null, mid: null, offlane: null, support: null, full_support: null, 
@@ -144,7 +145,7 @@ const DEFAULT_STATE: GameState = {
   arena: { capacity: 5000 }, hq: {}, bootcamp: {}, academy: {}, medical: {},
   country: null, isPremium: false, premiumUntil: null, activeSeasonNumber: 1, seasonNumber: 1, seasonDay: 1, isSyncing: false, language: 'ru',
   isDataReady: false, allSeasonMatches: [], nextMatch: null, isMatchesLoading: true,
-  lastProcessedSeason: 0, trophies: [], version: 219,
+  lastProcessedSeason: 0, trophies: [], version: 220,
   availableGiftsToSend: [], receivedGifts: [], lastGiftGenDate: null,
   addCrystals: () => {}, addCredits: () => {}, updatePlayer: () => {}, removePlayer: () => {}, assignToRole: () => {}, updateLineup: () => {}, updateTactics: () => {},
   claimReward: () => {}, setLanguage: () => {}, purchaseLicense: () => false, purchasePremium: () => false,
@@ -199,12 +200,12 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (state.allSeasonMatches && state.allSeasonMatches.length > 0) {
       const myMatches = state.allSeasonMatches
-        .filter(m => (m.homeId === 'local-manager' || m.awayId === 'local-manager') && !m.isFinished)
+        .filter(m => (m.homeId === state.id || m.awayId === state.id) && !m.isFinished)
         .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
       
       const foundNext = myMatches[0];
       if (foundNext) {
-        const isHome = foundNext.homeId === 'local-manager';
+        const isHome = foundNext.homeId === state.id;
         setState(prev => ({
           ...prev,
           nextMatch: {
@@ -217,7 +218,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         setState(prev => ({ ...prev, nextMatch: null }));
       }
     }
-  }, [state.allSeasonMatches]);
+  }, [state.allSeasonMatches, state.id]);
 
   const saveToLocal = useCallback((updates: Partial<GameState>) => {
     setState(prev => {
@@ -456,7 +457,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         timeline: [
           { time: "05:00", type: "kill", event: `${squad[0].name} gets first blood!`, score: "1:0" },
           { time: "15:00", type: "tower", event: `${clubName} destroys mid tower!`, score: "1:0" },
-          { time: "32:00", type: "objective", event: "Final push successful!", score: "1:0" }
+          { time: "32:00", type: "objective", event: "Final ancient destroyed!", score: "1:0" }
         ],
         scoreboard: [
           ...squad.map(p => ({ name: p.name, team: clubName, role: p.role, kills: 2, deaths: 0, assists: 5, cs: 150, matchRating: 8.5, image: p.image })),
