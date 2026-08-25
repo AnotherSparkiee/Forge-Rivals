@@ -1,7 +1,8 @@
+
 {
   "entities": {
     "PlayerProfile": {
-      "collection": "players_v10",
+      "collection": "players_v11",
       "properties": {
         "selectedLeagueId": "string (ALPHA, BETA...)",
         "leagueLevel": "number (1-9)",

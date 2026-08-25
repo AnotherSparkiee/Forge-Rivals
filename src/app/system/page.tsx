@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useGameState } from '../lib/store';
@@ -19,10 +20,10 @@ export default function SystemPage() {
   const { language } = useGameState();
   const db = useFirestore();
 
-  // Запрос всех игроков для подсчета статистики - защищен от null db
+  // Запрос всех игроков v11 для подсчета статистики
   const playersQuery = useMemoFirebase(() => {
     if (!db) return null;
-    return query(collection(db, 'players_v10'));
+    return query(collection(db, 'players_v11'));
   }, [db]);
   
   const { data: players, isLoading } = useCollection(playersQuery);
@@ -34,20 +35,18 @@ export default function SystemPage() {
     const fiveMinutesAgo = now - 5 * 60 * 1000;
 
     const total = players.length;
-    // Считаем онлайн тех, кто заходил в последние 5 минут
     const onlineCount = players.filter(p => {
       const lastLogin = p.lastLoginDate ? new Date(p.lastLoginDate).getTime() : 0;
       return lastLogin > fiveMinutesAgo;
     }).length;
 
-    // Для прототипа всегда показываем минимум 1 (текущий пользователь)
     return { total: Math.max(total, 1), online: Math.max(onlineCount, 1) };
   }, [players]);
 
   const t = {
     ru: { 
       title: "СИСТЕМА", 
-      subtitle: "Параметры и сетевая статистика",
+      subtitle: "Параметры и сетевая статистика (v11)",
       status: "Статус сети",
       online: "Игроков онлайн",
       registered: "Зарегистрировано",
@@ -69,7 +68,7 @@ export default function SystemPage() {
     },
     en: { 
       title: "SYSTEM", 
-      subtitle: "Parameters and network metrics",
+      subtitle: "Parameters and network metrics (v11)",
       status: "Network Status",
       online: "Online Managers",
       registered: "Total Registered",
@@ -143,52 +142,34 @@ export default function SystemPage() {
 
         <section className="space-y-2">
           <h2 className="text-[10px] font-black uppercase tracking-widest text-accent px-1">{t.knowledge}</h2>
-          
           <Link href="/system/knowledge-base/heroes" className="block">
             <Card className="glass-card border-white/5 bg-secondary/10 hover:bg-white/5 transition-all cursor-pointer">
               <CardContent className="p-4 flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  <div className="p-2 rounded-lg bg-primary/10">
-                    <Sparkles className="w-5 h-5 text-primary" />
-                  </div>
-                  <div>
-                    <h3 className="text-xs font-bold uppercase">{t.heroes}</h3>
-                    <p className="text-[9px] text-muted-foreground uppercase">{t.heroesDesc}</p>
-                  </div>
+                  <div className="p-2 rounded-lg bg-primary/10"><Sparkles className="w-5 h-5 text-primary" /></div>
+                  <div><h3 className="text-xs font-bold uppercase">{t.heroes}</h3><p className="text-[9px] text-muted-foreground uppercase">{t.heroesDesc}</p></div>
                 </div>
                 <ChevronRight className="w-4 h-4 text-muted-foreground" />
               </CardContent>
             </Card>
           </Link>
-
           <Link href="/system/knowledge-base/roles" className="block">
             <Card className="glass-card border-white/5 bg-secondary/10 hover:bg-white/5 transition-all cursor-pointer">
               <CardContent className="p-4 flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  <div className="p-2 rounded-lg bg-red-500/10">
-                    <Sword className="w-5 h-5 text-red-400" />
-                  </div>
-                  <div>
-                    <h3 className="text-xs font-bold uppercase">{t.roles}</h3>
-                    <p className="text-[9px] text-muted-foreground uppercase">{t.rolesDesc}</p>
-                  </div>
+                  <div className="p-2 rounded-lg bg-red-500/10"><Sword className="w-5 h-5 text-red-400" /></div>
+                  <div><h3 className="text-xs font-bold uppercase">{t.roles}</h3><p className="text-[9px] text-muted-foreground uppercase">{t.rolesDesc}</p></div>
                 </div>
                 <ChevronRight className="w-4 h-4 text-muted-foreground" />
               </CardContent>
             </Card>
           </Link>
-
           <Link href="/system/knowledge-base/items" className="block">
             <Card className="glass-card border-white/5 bg-secondary/10 hover:bg-white/5 transition-all cursor-pointer">
               <CardContent className="p-4 flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  <div className="p-2 rounded-lg bg-blue-500/10">
-                    <Package className="w-5 h-5 text-blue-400" />
-                  </div>
-                  <div>
-                    <h3 className="text-xs font-bold uppercase">{t.items}</h3>
-                    <p className="text-[9px] text-muted-foreground uppercase">{t.itemsDesc}</p>
-                  </div>
+                  <div className="p-2 rounded-lg bg-blue-500/10"><Package className="w-5 h-5 text-blue-400" /></div>
+                  <div><h3 className="text-xs font-bold uppercase">{t.items}</h3><p className="text-[9px] text-muted-foreground uppercase">{t.itemsDesc}</p></div>
                 </div>
                 <ChevronRight className="w-4 h-4 text-muted-foreground" />
               </CardContent>
@@ -196,42 +177,10 @@ export default function SystemPage() {
           </Link>
         </section>
 
-        <section className="space-y-2">
-          <h2 className="text-[10px] font-black uppercase tracking-widest text-accent px-1">{t.config}</h2>
-          <Card className="glass-card border-white/5 bg-secondary/10 cursor-not-allowed opacity-60">
-            <CardContent className="p-4 flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="p-2 rounded-lg bg-purple-500/10">
-                  <Palette className="w-5 h-5 text-purple-400" />
-                </div>
-                <div>
-                  <h3 className="text-xs font-bold uppercase">{t.skins}</h3>
-                  <p className="text-[9px] text-muted-foreground uppercase">{t.skinsDesc}</p>
-                </div>
-              </div>
-              <Badge variant="outline" className="text-[7px] border-white/10 opacity-50">ЗАКРЫТО</Badge>
-            </CardContent>
-          </Card>
-          <Card className="glass-card border-white/5 bg-secondary/10 hover:bg-white/5 transition-all cursor-pointer">
-            <CardContent className="p-4 flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="p-2 rounded-lg bg-blue-500/10">
-                  <Mail className="w-5 h-5 text-blue-400" />
-                </div>
-                <div>
-                  <h3 className="text-xs font-bold uppercase">{t.support}</h3>
-                  <p className="text-[9px] text-muted-foreground uppercase">{t.supportDesc}</p>
-                </div>
-              </div>
-              <ChevronLeft className="w-4 h-4 text-muted-foreground rotate-180" />
-            </CardContent>
-          </Card>
-        </section>
-
         <div className="p-6 bg-primary/5 rounded-2xl border border-dashed border-white/10 text-center opacity-30">
           <Info className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
-          <p className="text-[8px] font-black uppercase tracking-widest">{t.hostId}: 2788872209-FMO</p>
-          <p className="text-[7px] uppercase font-bold text-muted-foreground mt-1">Версия протокола: 1.0.76</p>
+          <p className="text-[8px] font-black uppercase tracking-widest">{t.hostId}: v11-GLOBAL-SYNC</p>
+          <p className="text-[7px] uppercase font-bold text-muted-foreground mt-1">Версия реестра: 11.0.1</p>
         </div>
       </div>
     </div>

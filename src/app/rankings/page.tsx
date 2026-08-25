@@ -47,12 +47,11 @@ export default function RankingsPage() {
   const contextLevel = Number(navLevel || leagueLevel || 9);
   const contextGroup = Number(navGroup || groupId || 1);
 
-  // Запрос реальных игроков в данной группе из "Базы Лиги" (Firestore)
-  // Мы запрашиваем игроков именно для тех уровней/групп, которые просматриваем
+  // Запрос реальных игроков в данной группе из "Базы Лиги" v11
   const groupPlayersQuery = useMemoFirebase(() => {
     if (!db) return null;
     return query(
-      collection(db, 'players_v10'),
+      collection(db, 'players_v11'),
       where('selectedLeagueId', '==', contextLeagueId),
       where('leagueLevel', '==', contextLevel),
       where('groupId', '==', contextGroup)
@@ -65,8 +64,6 @@ export default function RankingsPage() {
     if (!isLoaded || !selectedLeagueId) return [];
 
     const finalRealPlayers = groupRealPlayers || [];
-    
-    // Генерируем состав группы: реальные игроки заменяют соответствующих ботов на основе их rank
     const teams = getStableGroupTeams(contextLevel, contextGroup, contextLeagueId, finalRealPlayers);
     const groupCalendar = generateSeasonCalendar(teams, seasonNumber, contextLeagueId);
 
@@ -194,7 +191,6 @@ export default function RankingsPage() {
              </div>
              {standings.map((entry: any, i: number) => {
                const pos = i + 1;
-               // Проверяем совпадение ID для подсветки игрока
                const isMe = entry.id === userId;
                const isPromoZone = pos === 1 && contextLevel > 1;
                const isRelegationZone = pos >= 7 && contextLevel < MAX_LEVELS;

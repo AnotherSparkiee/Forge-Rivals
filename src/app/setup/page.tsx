@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -31,6 +31,16 @@ const CLUBS = [
   { id: 'navi', name: 'NAVI', logo: 'https://iili.io/CYupwe2.webp' },
 ];
 
+/**
+ * Генерирует криптографически надежный уникальный ID для команды.
+ */
+function generateSecureTeamId() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return `team_${crypto.randomUUID()}`;
+  }
+  return `team_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+}
+
 export default function SetupPage() {
   const router = useRouter();
   const db = useFirestore();
@@ -44,16 +54,15 @@ export default function SetupPage() {
   const [customClubName, setCustomClubName] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
   
-  // Генерируем новый уникальный ID при каждой попытке регистрации
-  const [uniqueSessionId] = useState(() => `team_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`);
+  // Создаем уникальный ID один раз при инициализации страницы настройки
+  const [uniqueTeamId] = useState(() => generateSecureTeamId());
 
   const handleCompleteSetup = async () => {
     if (!selectedLeagueId || !selectedCountryCode || !selectedClubId || customClubName.trim().length < 3 || isUpdating) return;
     setIsUpdating(true);
     
     try {
-      // 1. Поиск свободного места в глобальной пирамиде (от высших к низшим)
-      // Мы передаем ID лиги, чтобы найти свободный слот именно в ней
+      // 1. Поиск свободного места в глобальной пирамиде v11 (сверху вниз)
       const placement = await findStrategicPlacement(selectedLeagueId);
       
       const selectedCountry = COUNTRIES.find(c => c.code === selectedCountryCode);
@@ -83,9 +92,9 @@ export default function SetupPage() {
 
       const finalClubName = customClubName.trim();
 
-      // 2. Сохранение в локальное хранилище
+      // 2. Сохранение в локальное хранилище с новым ID
       saveToLocal({
-        id: uniqueSessionId,
+        id: uniqueTeamId,
         selectedLeagueId,
         leagueLevel: Number(placement.tier),
         groupId: Number(placement.group),
@@ -101,12 +110,11 @@ export default function SetupPage() {
         lastProcessedSeason: activeSeasonNumber
       });
 
-      // 3. Синхронизация с Firestore для закрепления слота
-      // Записываем данные с уникальным ID, чтобы исключить перезапись
+      // 3. Синхронизация с Firestore v11
       if (db) {
-        const playerRef = doc(db, 'players_v10', uniqueSessionId);
+        const playerRef = doc(db, 'players_v11', uniqueTeamId);
         await setDoc(playerRef, {
-          id: uniqueSessionId,
+          id: uniqueTeamId,
           displayName: finalClubName,
           clubName: finalClubName,
           clubLogo: selectedClub?.logo || null,
@@ -116,25 +124,25 @@ export default function SetupPage() {
           rank: Number(placement.rank),
           country: selectedCountry?.name || 'International',
           createdAt: serverTimestamp(),
-          lastLoginDate: new Date().toISOString()
+          lastLoginDate: new Date().toISOString(),
+          version: 11
         }, { merge: true });
       }
 
       toast({ 
         title: language === 'ru' ? "Клуб создан!" : "Club Initialized!",
         description: language === 'ru' 
-          ? `Вы зачислены в Дивизион ${placement.tier}, Группа ${placement.group}.` 
-          : `Assigned to Division ${placement.tier}, Group ${placement.group}.`
+          ? `Успешно! Ваш ID: ${uniqueTeamId.substring(5, 13)}...` 
+          : `Success! ID: ${uniqueTeamId.substring(5, 13)}...`
       });
 
-      // Небольшая задержка для завершения локальных процессов
       setTimeout(() => {
         router.push('/');
       }, 300);
 
     } catch (e) {
-      console.error("[SETUP ERROR]:", e);
-      toast({ variant: "destructive", title: "Setup Error" });
+      console.error("[SETUP v11 ERROR]:", e);
+      toast({ variant: "destructive", title: "Setup Error (v11)" });
       setIsUpdating(false);
     }
   };
@@ -176,8 +184,6 @@ export default function SetupPage() {
     }
   }[language === 'ru' ? 'ru' : 'en'];
 
-  const currentSubtitle = t.subtitles[step as keyof typeof t.subtitles];
-
   return (
     <div className="min-h-screen bg-background flex flex-col relative overflow-hidden">
       <div className="absolute inset-0 pointer-events-none opacity-20 bg-[radial-gradient(circle_at_50%_50%,_hsl(var(--primary)/0.15),_transparent_70%)]" />
@@ -195,7 +201,7 @@ export default function SetupPage() {
           <h1 className="text-2xl font-headline font-bold text-white uppercase tracking-tighter">
             {step === 'league' ? t.league : step === 'country' ? t.country : step === 'club' ? t.club : t.name}
           </h1>
-          <p className="text-muted-foreground text-[10px] uppercase tracking-widest mt-1 opacity-60 px-4 leading-tight">{currentSubtitle}</p>
+          <p className="text-muted-foreground text-[10px] uppercase tracking-widest mt-1 opacity-60 px-4 leading-tight">{t.subtitles[step]}</p>
         </header>
         
         <div className="flex-1 flex flex-col justify-center animate-in fade-in duration-700">
@@ -276,6 +282,7 @@ export default function SetupPage() {
                    </div>
                  </div>
                </Card>
+               <p className="text-[8px] text-center text-muted-foreground uppercase font-black tracking-widest opacity-40">System Node v11: {uniqueTeamId.substring(0, 16)}...</p>
             </div>
           )}
         </div>
