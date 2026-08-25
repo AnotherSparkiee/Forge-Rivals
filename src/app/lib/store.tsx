@@ -2,7 +2,7 @@
 
 /**
  * Глобальное локальное хранилище v221 (Autonomous Mode).
- * ВНИМАНИЕ: Версия обновлена до v221 для сброса сезона на 1 июля 2026.
+ * ВНИМАНИЕ: Версия обновлена до v221 для сброса сезона на 25 августа 2026.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useMemo } from 'react';

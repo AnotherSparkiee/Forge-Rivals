@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useGameState } from '../lib/store';
@@ -39,12 +38,12 @@ export default function NewsPage() {
               <Radio className="w-8 h-8 text-primary animate-pulse" />
             </div>
             <div className="space-y-2">
-              <h3 className="text-sm font-bold uppercase text-white">Version 1.0.76 Released</h3>
+              <h3 className="text-sm font-bold uppercase text-white">Version 1.0.80 Deployed</h3>
               <p className="text-[10px] text-muted-foreground leading-relaxed italic">
-                "Global synchronization update deployed. Custom club identity protocols and hourly tournament cycles are now online."
+                "August operational cycle synchronized. Official league seeding for the upcoming season is now active on all regional nodes."
               </p>
             </div>
-            <p className="text-[8px] font-black text-primary/40 uppercase tracking-widest">Received: June 29, 2026</p>
+            <p className="text-[8px] font-black text-primary/40 uppercase tracking-widest">Received: August 24, 2026</p>
           </CardContent>
         </Card>
 
