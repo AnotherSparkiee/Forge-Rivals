@@ -23,11 +23,14 @@ import { isMatchOverdue } from '../lib/time-utils';
 import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import Link from 'next/link';
+import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { collection, query, where } from 'firebase/firestore';
 
 type RankingTab = 'menu' | 'my_league' | 'my_pyramid' | 'all_pyramids' | 'cup';
 
 export default function RankingsPage() {
   const router = useRouter();
+  const db = useFirestore();
   const { 
     leagueLevel, groupId, isLoaded, language, id: userId,
     selectedLeagueId, clubName, clubLogo, rank, isDataReady,
@@ -43,50 +46,60 @@ export default function RankingsPage() {
   const contextLevel = Number(navLevel || leagueLevel || 9);
   const contextGroup = Number(navGroup || groupId || 1);
 
-  // Генерируем данные таблицы на основе реального времени и календаря
+  // Запрос реальных игроков в данной группе из Firestore
+  const groupPlayersQuery = useMemoFirebase(() => {
+    if (!db) return null;
+    return query(
+      collection(db, 'players_v10'),
+      where('selectedLeagueId', '==', contextLeagueId),
+      where('leagueLevel', '==', contextLevel),
+      where('groupId', '==', contextGroup)
+    );
+  }, [db, contextLeagueId, contextLevel, contextGroup]);
+
+  const { data: groupRealPlayers, isLoading: isPlayersLoading } = useCollection(groupPlayersQuery);
+
   const standings = useMemo(() => {
     if (!isLoaded || !selectedLeagueId) return [];
 
-    // ПРОВЕРКА: Является ли просматриваемая группа "родной" для игрока
+    // Объединяем реальных игроков (из Firestore) и текущего пользователя (из локального стора)
+    // Это гарантирует, что даже если данные еще не синхронизированы, вы видите себя.
+    const realPlayersRaw = groupRealPlayers || [];
+    
+    // Если мы смотрим свою группу, добавляем себя, если нас еще нет в списке из Firestore
     const isViewingOwnGroup = 
       contextLevel === leagueLevel && 
       contextGroup === groupId && 
       contextLeagueId === selectedLeagueId;
 
-    const realPlayersInGroup = isViewingOwnGroup ? [
-      { id: userId, name: clubName || "My Club", rank: rank || 1, logo: clubLogo, isBot: false }
-    ] : [];
+    let finalRealPlayers = [...realPlayersRaw];
+    if (isViewingOwnGroup && !finalRealPlayers.some(p => p.id === userId)) {
+      finalRealPlayers.push({
+        id: userId,
+        displayName: clubName || "My Club",
+        rank: rank || 1,
+        clubLogo: clubLogo || null
+      });
+    }
 
-    const teams = getStableGroupTeams(contextLevel, contextGroup, contextLeagueId, realPlayersInGroup);
-    
-    // Генерируем календарь для всей группы, чтобы посчитать сыгранные матчи на текущий момент
+    const teams = getStableGroupTeams(contextLevel, contextGroup, contextLeagueId, finalRealPlayers);
     const groupCalendar = generateSeasonCalendar(teams, seasonNumber, contextLeagueId);
 
     return teams.map((t) => {
       let wins = 0, draws = 0, losses = 0, pts = 0, played = 0;
-      
-      // Находим все матчи этой команды в календаре
       const teamMatches = groupCalendar.filter(m => m.homeId === t.id || m.awayId === t.id);
 
       teamMatches.forEach(m => {
-        // Матч считается сыгранным, если его время начала прошло (+45 минут на симуляцию)
         if (isMatchOverdue(m.startTime)) {
           played++;
           const [scoreH, scoreA] = getMatchResult(m.homeId, m.awayId, seasonNumber, m.tour);
-          
           const isHome = m.homeId === t.id;
           const myScore = isHome ? scoreH : scoreA;
           const oppScore = isHome ? scoreA : scoreH;
 
-          if (myScore > oppScore) {
-            wins++;
-            pts += 3;
-          } else if (myScore === oppScore) {
-            draws++;
-            pts += 1;
-          } else {
-            losses++;
-          }
+          if (myScore > oppScore) { wins++; pts += 3; }
+          else if (myScore === oppScore) { draws++; pts += 1; }
+          else { losses++; }
         }
       });
 
@@ -95,10 +108,10 @@ export default function RankingsPage() {
         matchesPlayed: played,
         wins, draws, losses,
         points: pts,
-        diff: (wins * 2) - losses // Условная разница для сортировки
+        diff: (wins * 2) - losses
       };
     }).sort((a, b) => b.points - a.points || b.diff - a.diff);
-  }, [isLoaded, contextLevel, contextGroup, contextLeagueId, clubName, clubLogo, rank, selectedLeagueId, seasonNumber, leagueLevel, groupId, userId]);
+  }, [isLoaded, contextLevel, contextGroup, contextLeagueId, clubName, clubLogo, rank, selectedLeagueId, seasonNumber, leagueLevel, groupId, userId, groupRealPlayers]);
 
   const t = {
     en: {
@@ -179,6 +192,7 @@ export default function RankingsPage() {
         <div className="space-y-4 animate-in fade-in duration-500">
            <div className="flex items-center justify-between px-1">
              <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase italic">DIV {contextLevel} • G {contextGroup}</Badge>
+             {isPlayersLoading && <Loader2 className="w-3 h-3 animate-spin text-primary" />}
              <div className="flex gap-2">
                 <div className="flex items-center gap-1 text-[7px] font-black uppercase text-green-400">
                   <ArrowUpCircle className="w-2 h-2" /> {language === 'ru' ? 'ПОВЫШЕНИЕ' : 'PROMOTION'}

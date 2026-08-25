@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -8,13 +8,16 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { LEAGUES } from '@/app/lib/leagues-data';
 import { COUNTRIES } from '@/app/lib/countries-data';
-import { Loader2, ChevronLeft, ShieldCheck, Edit3, CheckCircle2, Info } from 'lucide-react';
+import { Loader2, ChevronLeft, Edit3 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { useGameState, LineupSlot } from '@/app/lib/store';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
-import { getRandomStartingSquad, Player } from '@/app/lib/moba-data';
+import { getRandomStartingSquad } from '@/app/lib/moba-data';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
+import { findStrategicPlacement } from '@/app/actions/season-init';
+import { useFirestore } from '@/firebase';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 const CLUBS = [
   { id: 'parivision', name: 'Parivision', logo: 'https://iili.io/CYIAgVa.webp' },
@@ -29,8 +32,9 @@ const CLUBS = [
 
 export default function SetupPage() {
   const router = useRouter();
+  const db = useFirestore();
   const { toast } = useToast();
-  const { language, isLoaded, saveToLocal } = useGameState();
+  const { language, isLoaded, saveToLocal, id: userId } = useGameState();
   
   const [step, setStep] = useState<'league' | 'country' | 'club' | 'name'>('league');
   const [selectedLeagueId, setSelectedLeagueId] = useState<string | null>(null);
@@ -40,15 +44,16 @@ export default function SetupPage() {
   const [isUpdating, setIsUpdating] = useState(false);
 
   const handleCompleteSetup = async () => {
-    if (!selectedLeagueId || !selectedCountryCode || !selectedClubId || customClubName.trim().length < 3) return;
+    if (!selectedLeagueId || !selectedCountryCode || !selectedClubId || customClubName.trim().length < 3 || isUpdating) return;
     setIsUpdating(true);
     
     try {
+      // 1. Поиск свободного места в глобальной пирамиде
+      const placement = await findStrategicPlacement(selectedLeagueId);
+      
       const selectedCountry = COUNTRIES.find(c => c.code === selectedCountryCode);
       const selectedClub = CLUBS.find(c => c.id === selectedClubId);
       const { activeSeasonNumber } = getGlobalSeasonInfo();
-      
-      const placement = { tier: 1, group: 1, rank: 1 };
       
       const startingSquad = getRandomStartingSquad();
       
@@ -64,24 +69,25 @@ export default function SetupPage() {
         offlane: tankPlayers[0]?.id || null,
         support: junglerPlayers[0]?.id || null,
         full_support: supportPlayers[0]?.id || null,
-        
         sub_carry: carryPlayers[1]?.id || null,
         sub_mid: midPlayers[1]?.id || null,
         sub_offlane: tankPlayers[1]?.id || null,
         sub_support: junglerPlayers[1]?.id || null,
         sub_full_support: supportPlayers[1]?.id || null,
-        
         res1: null, res2: null, res3: null, res4: null, res5: null, res6: null, res7: null, res8: null
       };
 
+      const finalClubName = customClubName.trim();
+
+      // 2. Сохранение в локальное хранилище
       saveToLocal({
         selectedLeagueId,
         leagueLevel: placement.tier,
         groupId: placement.group,
         rank: placement.rank,
         country: selectedCountry?.name || 'International',
-        clubName: customClubName.trim(),
-        displayName: customClubName.trim(),
+        clubName: finalClubName,
+        displayName: finalClubName,
         clubLogo: selectedClub?.logo || null,
         ownedPlayers: startingSquad,
         lineup: initialLineup,
@@ -90,10 +96,30 @@ export default function SetupPage() {
         lastProcessedSeason: activeSeasonNumber
       });
 
+      // 3. Синхронизация с Firestore для того чтобы другие игроки видели вас в группе
+      if (db && userId) {
+        await setDoc(doc(db, 'players_v10', userId), {
+          id: userId,
+          displayName: finalClubName,
+          clubName: finalClubName,
+          clubLogo: selectedClub?.logo || null,
+          selectedLeagueId,
+          leagueLevel: placement.tier,
+          groupId: placement.group,
+          rank: placement.rank,
+          country: selectedCountry?.name || 'International',
+          createdAt: serverTimestamp(),
+          lastLoginDate: new Date().toISOString()
+        }, { merge: true });
+      }
+
       toast({ 
         title: language === 'ru' ? "Клуб создан!" : "Club Initialized!",
-        description: language === 'ru' ? `Сформирован полный состав: Основа + Запас (10 игроков).` : `Full roster formed: Core + Subs (10 players).`
+        description: language === 'ru' 
+          ? `Вы зачислены в Дивизион ${placement.tier}, Группа ${placement.group}.` 
+          : `Assigned to Division ${placement.tier}, Group ${placement.group}.`
       });
+
       router.push('/');
     } catch (e) {
       console.error(e);
@@ -163,28 +189,22 @@ export default function SetupPage() {
         
         <div className="flex-1 flex flex-col justify-center animate-in fade-in duration-700">
           {step === 'league' && (
-            <div className="flex flex-wrap justify-center gap-4 w-full">
-              {LEAGUES.map((l, i) => {
-                const letter = String.fromCharCode(83 + Math.floor(i / 2));
-                const num = (i % 2) + 1;
-                const leagueCode = `${letter}${num}`;
-
-                return (
-                  <Card 
-                    key={l.id} 
-                    className={cn(
-                      "glass-card border-white/5 cursor-pointer transition-all w-28 h-28 flex items-center justify-center", 
-                      selectedLeagueId === l.id ? "ring-2 ring-primary bg-primary/10 shadow-[0_0_15px_rgba(var(--primary),0.3)]" : "hover:bg-white/5"
-                    )} 
-                    onClick={() => setSelectedLeagueId(l.id)}
-                  >
-                    <CardContent className="p-0 text-center flex flex-col items-center justify-center">
-                      <p className="text-2xl font-headline font-black text-primary italic uppercase leading-none mb-1.5">{leagueCode}</p>
-                      <span className="text-xs font-bold text-white/60 tracking-wider font-mono">{l.startTime}</span>
-                    </CardContent>
-                  </Card>
-                );
-              })}
+            <div className="flex justify-center w-full">
+              {LEAGUES.map((l) => (
+                <Card 
+                  key={l.id} 
+                  className={cn(
+                    "glass-card border-white/5 cursor-pointer transition-all w-32 h-32 flex items-center justify-center", 
+                    selectedLeagueId === l.id ? "ring-2 ring-primary bg-primary/10 shadow-[0_0_15px_rgba(var(--primary),0.3)]" : "hover:bg-white/5"
+                  )} 
+                  onClick={() => setSelectedLeagueId(l.id)}
+                >
+                  <CardContent className="p-0 text-center flex flex-col items-center justify-center">
+                    <p className="text-3xl font-headline font-black text-primary italic uppercase leading-none mb-1.5">S1</p>
+                    <span className="text-sm font-bold text-white/60 tracking-wider font-mono">{l.startTime}</span>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
           )}
 
