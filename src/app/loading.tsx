@@ -51,7 +51,7 @@ export default function Loading() {
       {/* Футер */}
       <div className="absolute bottom-12 text-center opacity-30">
         <p className="text-[8px] font-black uppercase tracking-[0.2em] text-muted-foreground">
-          ENMITY LEAGUE OPERATIONS © 2026
+          ENMITY LEAGUE OPERATIONS © 2025
         </p>
       </div>
     </div>

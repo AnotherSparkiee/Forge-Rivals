@@ -1,8 +1,7 @@
 'use client';
 
 /**
- * Глобальное локальное хранилище v221 (Autonomous Mode).
- * ВНИМАНИЕ: Версия обновлена до v221 для сброса сезона на 25 августа 2026.
+ * Глобальное локальное хранилище v222 (Reverted to Real Time).
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useMemo } from 'react';
@@ -122,7 +121,7 @@ interface GameState {
   saveToLocal: (state: Partial<GameState>) => void;
 }
 
-const STORAGE_KEY = 'lote_game_state_v221';
+const STORAGE_KEY = 'lote_game_state_v222';
 
 const DEFAULT_STATE: GameState = {
   credits: 1000000, crystals: 50, experiencePoints: 0, managerLevel: 1,
@@ -142,7 +141,7 @@ const DEFAULT_STATE: GameState = {
   arena: { capacity: 5000 }, hq: {}, bootcamp: {}, academy: {}, medical: {},
   country: null, isPremium: false, premiumUntil: null, activeSeasonNumber: 1, seasonNumber: 1, seasonDay: 1, isSyncing: false, language: 'ru',
   isDataReady: false, allSeasonMatches: [], nextMatch: null, isMatchesLoading: true,
-  lastProcessedSeason: 0, trophies: [], version: 221,
+  lastProcessedSeason: 0, trophies: [], version: 222,
   availableGiftsToSend: [], receivedGifts: [], lastGiftGenDate: null,
   addCrystals: () => {}, addCredits: () => {}, updatePlayer: () => {}, removePlayer: () => {}, assignToRole: () => {}, updateLineup: () => {}, updateTactics: () => {},
   claimReward: () => {}, setLanguage: () => {}, purchaseLicense: () => false, purchasePremium: () => false,
@@ -169,7 +168,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<GameState>(DEFAULT_STATE);
   const staticSeasonInfo = useMemo(() => getGlobalSeasonInfo(), []);
 
-  // 1. Initial Load from LocalStorage
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
@@ -193,7 +191,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     }
   }, [staticSeasonInfo]);
 
-  // 2. Logic for next match detection
   useEffect(() => {
     if (state.allSeasonMatches && state.allSeasonMatches.length > 0) {
       const myMatches = state.allSeasonMatches

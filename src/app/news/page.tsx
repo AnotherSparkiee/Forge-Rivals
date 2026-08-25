@@ -38,12 +38,12 @@ export default function NewsPage() {
               <Radio className="w-8 h-8 text-primary animate-pulse" />
             </div>
             <div className="space-y-2">
-              <h3 className="text-sm font-bold uppercase text-white">Version 1.0.80 Deployed</h3>
+              <h3 className="text-sm font-bold uppercase text-white">Version 1.1.0 Deployed</h3>
               <p className="text-[10px] text-muted-foreground leading-relaxed italic">
-                "August operational cycle synchronized. Official league seeding for the upcoming season is now active on all regional nodes."
+                "Global synchronization protocols updated. Current cycle stability confirmed. Ready for new season deployment."
               </p>
             </div>
-            <p className="text-[8px] font-black text-primary/40 uppercase tracking-widest">Received: August 24, 2026</p>
+            <p className="text-[8px] font-black text-primary/40 uppercase tracking-widest">Received: February 24, 2025</p>
           </CardContent>
         </Card>
 
