@@ -1,9 +1,8 @@
 'use server';
 
 /**
- * @fileOverview Серверный модуль инициализации мира v50.
- * Реализует логику стратегического размещения игроков.
- * Исправлен баг в цикле и изменен приоритет на заполнение с нижних дивизионов (9 -> 1).
+ * @fileOverview Серверный модуль инициализации мира v51.
+ * Реализует логику стратегического размещения игроков в глобальную базу лиги.
  */
 
 import { collection, getDocs, query, where } from 'firebase/firestore';
@@ -17,7 +16,7 @@ import { getGroupsCountInLevel } from '@/app/lib/leagues-data';
 export async function findStrategicPlacement(leagueId: string) {
   const { firestore: db } = initializeFirebase();
   
-  // 1. Получаем всех реальных игроков в этой лиге
+  // 1. Получаем всех реальных игроков в этой лиге, чтобы понять какие слоты заняты
   const q = query(collection(db, 'players_v10'), where('selectedLeagueId', '==', leagueId));
   const snap = await getDocs(q);
   
@@ -30,18 +29,20 @@ export async function findStrategicPlacement(leagueId: string) {
   });
 
   // 2. Ищем первый свободный слот (снизу вверх: Див 9 -> Див 1)
+  // Это гарантирует, что новички заменяют ботов в 9-м дивизионе, пока он не заполнится.
   for (let tier = 9; tier >= 1; tier--) {
     const groupsInTier = getGroupsCountInLevel(tier);
     for (let group = 1; group <= groupsInTier; group++) {
       for (let rank = 1; rank <= 8; rank++) {
         const key = `${tier}_${group}_${rank}`;
         if (!occupiedSlots.has(key)) {
-          console.log(`[PLACEMENT v50] Found slot: League ${leagueId}, Tier ${tier}, Group ${group}, Rank ${rank}`);
+          console.log(`[PLACEMENT v51] Found free slot: League ${leagueId}, Tier ${tier}, Group ${group}, Rank ${rank}`);
           return { tier, group, rank };
         }
       }
     }
   }
 
+  // Fallback (не должен наступить при текущих лимитах)
   return { tier: 9, group: 1, rank: 1 };
 }

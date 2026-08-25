@@ -46,7 +46,7 @@ export default function RankingsPage() {
   const contextLevel = Number(navLevel || leagueLevel || 9);
   const contextGroup = Number(navGroup || groupId || 1);
 
-  // Запрос реальных игроков в данной группе из Firestore
+  // Запрос реальных игроков в данной группе из "Базы Лиги" (Firestore)
   const groupPlayersQuery = useMemoFirebase(() => {
     if (!db) return null;
     return query(
@@ -62,11 +62,10 @@ export default function RankingsPage() {
   const standings = useMemo(() => {
     if (!isLoaded || !selectedLeagueId) return [];
 
-    // Объединяем реальных игроков (из Firestore) и текущего пользователя (из локального стора)
-    // Это гарантирует, что даже если данные еще не синхронизированы, вы видите себя.
     const realPlayersRaw = groupRealPlayers || [];
     
-    // Если мы смотрим свою группу, добавляем себя, если нас еще нет в списке из Firestore
+    // Если мы смотрим свою группу, добавляем себя (локальное состояние), 
+    // если нас еще нет в списке из Firestore (например, сразу после регистрации)
     const isViewingOwnGroup = 
       contextLevel === leagueLevel && 
       contextGroup === groupId && 
@@ -76,12 +75,14 @@ export default function RankingsPage() {
     if (isViewingOwnGroup && !finalRealPlayers.some(p => p.id === userId)) {
       finalRealPlayers.push({
         id: userId,
+        clubName: clubName || "My Club",
         displayName: clubName || "My Club",
         rank: rank || 1,
         clubLogo: clubLogo || null
       });
     }
 
+    // Генерируем состав группы: реальные игроки заменяют соответствующих ботов
     const teams = getStableGroupTeams(contextLevel, contextGroup, contextLeagueId, finalRealPlayers);
     const groupCalendar = generateSeasonCalendar(teams, seasonNumber, contextLeagueId);
 

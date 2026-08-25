@@ -1,6 +1,6 @@
 /**
- * @fileOverview Ядро лиг v57: Консолидированная лига.
- * Оставлена только одна лига для записи реальных данных команд.
+ * @fileOverview Ядро лиг v58: Консолидированная лига и логика замещения ботов.
+ * Реализует систему, где реальные игроки занимают фиксированные слоты в группах.
  */
 
 import { GLOBAL_EPOCH_ISO } from './time-utils';
@@ -49,24 +49,36 @@ export function getRelegationTarget(level: number, group: number, rank: number):
 }
 
 /**
- * Генерирует стабильный состав группы. 
+ * Генерирует стабильный состав группы, заменяя ботов реальными игроками из БД.
+ * @param level Дивизион
+ * @param group Номер группы
+ * @param leagueId ID лиги
+ * @param realPlayersInGroup Список игроков из Firestore, привязанных к этой группе
  */
 export function getStableGroupTeams(level: number, group: number, leagueId: string, realPlayersInGroup: any[] = []) {
-  const leagueIdx = "01"; // Fixed since only one league remains
+  const leagueIdx = "01"; 
   const groupPrefix = group.toString().padStart(3, '0');
+  
+  // Создаем 8 пустых слотов для группы
   const teams = new Array(TEAMS_PER_GROUP).fill(null);
 
+  // 1. Сначала расставляем реальных игроков из "Базы Лиги" согласно их забронированному рангу
   realPlayersInGroup.forEach(p => {
     const slot = Math.min(8, Math.max(1, Number(p.rank || 1)));
-    teams[slot - 1] = {
-      id: p.id,
-      name: p.name || p.displayName || `Manager_${p.id.slice(0, 4)}`,
-      logo: p.logo || p.clubLogo || null,
-      isBot: p.id !== 'local-manager',
-      rank: slot
-    };
+    // Если слот свободен, записываем туда реального игрока
+    if (!teams[slot - 1]) {
+      teams[slot - 1] = {
+        id: p.id,
+        name: p.clubName || p.displayName || `Manager_${p.id.slice(0, 4)}`,
+        logo: p.clubLogo || p.logo || null,
+        isBot: false,
+        rank: slot,
+        isMe: p.id === 'local-manager' // Для локальной подсветки
+      };
+    }
   });
 
+  // 2. Все оставшиеся пустые слоты заполняем детерминированными ботами
   for (let i = 0; i < TEAMS_PER_GROUP; i++) {
     if (!teams[i]) {
       const slotNum = i + 1;
@@ -75,10 +87,12 @@ export function getStableGroupTeams(level: number, group: number, leagueId: stri
         id: botId,
         name: botId,
         isBot: true,
-        rank: slotNum
+        rank: slotNum,
+        logo: null
       };
     }
   }
+  
   return teams;
 }
 
