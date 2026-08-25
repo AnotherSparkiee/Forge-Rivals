@@ -7,8 +7,11 @@ service cloud.firestore {
       allow read, write: if true;
     }
     
-    // Явные правила для критических коллекций v11
     match /players_v11/{userId} {
+      allow read, write: if true;
+    }
+
+    match /matches_v11/{matchId} {
       allow read, write: if true;
     }
     

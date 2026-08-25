@@ -15,7 +15,27 @@
         "rank": { "type": "number" },
         "country": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" },
+        "lastLoginDate": { "type": "string", "format": "date-time" },
         "version": { "type": "number" }
+      }
+    },
+    "MatchRecord": {
+      "title": "MatchRecord",
+      "description": "Зафиксированный результат матча лиги v11",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "leagueId": { "type": "string" },
+        "level": { "type": "number" },
+        "groupId": { "type": "number" },
+        "season": { "type": "number" },
+        "tour": { "type": "number" },
+        "homeId": { "type": "string" },
+        "awayId": { "type": "string" },
+        "scoreA": { "type": "number" },
+        "scoreB": { "type": "number" },
+        "winnerId": { "type": "string" },
+        "resolvedAt": { "type": "string", "format": "date-time" }
       }
     }
   },
@@ -26,6 +46,10 @@
     "/players_v11/{userId}": {
       "schema": "#/backend/entities/PlayerProfile",
       "description": "Глобальный реестр участников лиги v11"
+    },
+    "/matches_v11/{matchId}": {
+      "schema": "#/backend/entities/MatchRecord",
+      "description": "Архив зафиксированных результатов лиги v11"
     }
   }
 }

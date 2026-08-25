@@ -47,7 +47,7 @@ export default function RankingsPage() {
   const contextLevel = Number(navLevel || leagueLevel || 9);
   const contextGroup = Number(navGroup || groupId || 1);
 
-  // Запрос реальных игроков в данной группе из "Базы Лиги" v11
+  // 1. Запрос реальных игроков
   const groupPlayersQuery = useMemoFirebase(() => {
     if (!db) return null;
     return query(
@@ -60,6 +60,20 @@ export default function RankingsPage() {
 
   const { data: groupRealPlayers, isLoading: isPlayersLoading } = useCollection(groupPlayersQuery);
 
+  // 2. Запрос зафиксированных матчей этой группы
+  const groupMatchesQuery = useMemoFirebase(() => {
+    if (!db) return null;
+    return query(
+      collection(db, 'matches_v11'),
+      where('leagueId', '==', contextLeagueId),
+      where('level', '==', contextLevel),
+      where('groupId', '==', contextGroup),
+      where('season', '==', seasonNumber)
+    );
+  }, [db, contextLeagueId, contextLevel, contextGroup, seasonNumber]);
+
+  const { data: fixedMatches, isLoading: isMatchesLoading } = useCollection(groupMatchesQuery);
+
   const standings = useMemo(() => {
     if (!isLoaded || !selectedLeagueId) return [];
 
@@ -69,10 +83,27 @@ export default function RankingsPage() {
 
     return teams.map((t) => {
       let wins = 0, draws = 0, losses = 0, pts = 0, played = 0;
+      
+      // Ищем все матчи этой команды в календаре
       const teamMatches = groupCalendar.filter(m => m.homeId === t.id || m.awayId === t.id);
 
       teamMatches.forEach(m => {
-        if (isMatchOverdue(m.startTime)) {
+        // Проверяем, есть ли зафиксированный результат в БД
+        const fixed = fixedMatches?.find(fm => 
+          (fm.homeId === m.homeId && fm.awayId === m.awayId && fm.tour === m.tour)
+        );
+
+        if (fixed) {
+          played++;
+          const isHome = fixed.homeId === t.id;
+          const myScore = isHome ? fixed.scoreA : fixed.scoreB;
+          const oppScore = isHome ? fixed.scoreB : fixed.scoreA;
+
+          if (myScore > oppScore) { wins++; pts += 3; }
+          else if (myScore === oppScore) { draws++; pts += 1; }
+          else { losses++; }
+        } else if (isMatchOverdue(m.startTime)) {
+          // Fallback: детерминированный расчет, если база еще не обновилась
           played++;
           const [scoreH, scoreA] = getMatchResult(m.homeId, m.awayId, seasonNumber, m.tour);
           const isHome = m.homeId === t.id;
@@ -93,7 +124,7 @@ export default function RankingsPage() {
         diff: (wins * 2) - losses
       };
     }).sort((a, b) => b.points - a.points || b.diff - a.diff);
-  }, [isLoaded, contextLevel, contextGroup, contextLeagueId, selectedLeagueId, seasonNumber, groupRealPlayers]);
+  }, [isLoaded, contextLevel, contextGroup, contextLeagueId, selectedLeagueId, seasonNumber, groupRealPlayers, fixedMatches]);
 
   const t = {
     en: {
@@ -174,7 +205,7 @@ export default function RankingsPage() {
         <div className="space-y-4 animate-in fade-in duration-500">
            <div className="flex items-center justify-between px-1">
              <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase italic">DIV {contextLevel} • G {contextGroup}</Badge>
-             {isPlayersLoading && <Loader2 className="w-3 h-3 animate-spin text-primary" />}
+             {(isPlayersLoading || isMatchesLoading) && <Loader2 className="w-3 h-3 animate-spin text-primary" />}
              <div className="flex gap-2">
                 <div className="flex items-center gap-1 text-[7px] font-black uppercase text-green-400">
                   <ArrowUpCircle className="w-2 h-2" /> {language === 'ru' ? 'ПОВЫШЕНИЕ' : 'PROMOTION'}
