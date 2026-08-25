@@ -1,7 +1,6 @@
 /**
- * @fileOverview Ядро лиг v61: Слот-ориентированная архитектура.
+ * @fileOverview Ядро лиг v62: Слот-ориентированная архитектура и детерминизм.
  * Реализует систему, где результаты привязаны к позициям (Рангам) в группе.
- * Усилена проверка типов для Rank.
  */
 
 import { GLOBAL_EPOCH_ISO } from './time-utils';
@@ -90,7 +89,7 @@ export function getStableGroupTeams(level: number, group: number, leagueId: stri
 }
 
 /**
- * Генерация календаря. Теперь включает ранги участников для глобальной фиксации.
+ * Генерация календаря. Привязана к рангам участников (слотам).
  */
 export function generateSeasonCalendar(teams: any[], seasonNumber: number, leagueId: string) {
   const n = teams.length; 
@@ -120,11 +119,11 @@ export function generateSeasonCalendar(teams: any[], seasonNumber: number, leagu
           tour,
           homeId: home.id,
           homeName: home.name,
-          homeRank: Number(home.rank), // ГАРАНТИРУЕМ ЧИСЛО
+          homeRank: Number(home.rank),
           homeLogo: home.logo || null,
           awayId: away.id,
           awayName: away.name,
-          awayRank: Number(away.rank), // ГАРАНТИРУЕМ ЧИСЛО
+          awayRank: Number(away.rank),
           awayLogo: away.logo || null,
           startTime: startTime.toISOString(),
           type: 'league',
@@ -148,9 +147,18 @@ export function generateSeasonCalendar(teams: any[], seasonNumber: number, leagu
 
 /**
  * Детерминированный расчет результата.
+ * ВАЖНО: Использует ранги (слоты) вместо ID команд для стабильности при замещении ботов.
  */
-export function getMatchResult(idA: string, idB: string, season: number, tour: number): [number, number] {
-  const combinedKey = `${idA}-${idB}-${season}-${tour}`;
+export function getMatchResult(
+  rankA: number, 
+  rankB: number, 
+  level: number, 
+  group: number, 
+  season: number, 
+  tour: number
+): [number, number] {
+  // Ключ детерминизма привязан к координатам пирамиды
+  const combinedKey = `v11-L${level}-G${group}-S${season}-T${tour}-R${rankA}-vs-R${rankB}`;
   
   let hash = 0;
   for (let i = 0; i < combinedKey.length; i++) {
@@ -161,6 +169,7 @@ export function getMatchResult(idA: string, idB: string, season: number, tour: n
   const absHash = Math.abs(hash);
   const roll = absHash % 100;
   
+  // 35% Победа дома, 35% Победа в гостях, 30% Ничья
   if (roll < 35) return [2, 0];
   if (roll < 70) return [0, 2];
   return [1, 1];

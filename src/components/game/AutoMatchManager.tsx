@@ -14,9 +14,8 @@ import { useFirestore, setDocumentNonBlocking } from '@/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 
 /**
- * ГЛОБАЛЬНЫЙ МЕНЕДЖЕР МАТЧЕЙ v6.7 (Stability Fix)
+ * ГЛОБАЛЬНЫЙ МЕНЕДЖЕР МАТЧЕЙ v6.8 (Slot-Deterministic Sync)
  * Генерирует календарь и ФИКСИРУЕТ результаты на основе рангов слотов в группе.
- * Добавлена защита от устаревших данных без рангов.
  */
 export function AutoMatchManager() {
   const { 
@@ -34,16 +33,17 @@ export function AutoMatchManager() {
     const info = getGlobalSeasonInfo();
     const currentSeason = info.activeSeasonNumber;
 
-    // Проверка целостности данных календаря (наличие рангов для фиксации)
+    // Проверка целостности данных календаря
     const isCalendarStale = allSeasonMatches && allSeasonMatches.length > 0 && 
                            (allSeasonMatches[0].homeRank === undefined || allSeasonMatches[0].awayRank === undefined);
 
-    // 1. СИНХРОНИЗАЦИЯ ЭПОХИ / HARD RESET / STALE DATA RECOVERY
+    // 1. СИНХРОНИЗАЦИЯ ЭПОХИ / HARD RESET
     if (isCalendarStale || lastProcessedSeason < currentSeason || (lastProcessedSeason > currentSeason && currentSeason === 1)) {
       let nextLevel = leagueLevel;
       let nextGroup = groupId;
       
       if (!isCalendarStale && lastProcessedSeason > 0 && lastProcessedSeason < currentSeason) {
+        // Логика перехода между сезонами
         const teamData = getStableGroupTeams(leagueLevel, groupId, selectedLeagueId, [{
           id: userId, name: clubName || "Local Club", rank: rank || 1, logo: clubLogo || null, isBot: false
         }]);
@@ -51,8 +51,8 @@ export function AutoMatchManager() {
         const finalStandings = teamData.map(t => {
           let pts = 0;
           for (let tour = 1; tour <= 14; tour++) {
-            const [scoreA, scoreB] = getMatchResult(t.id, "opp", lastProcessedSeason, tour);
-            pts += (scoreA > scoreB ? 3 : (scoreA === scoreB ? 1 : 0));
+            const [scoreH, scoreA] = getMatchResult(t.rank, 99, leagueLevel, groupId, lastProcessedSeason, tour);
+            pts += (scoreH > scoreA ? 3 : (scoreH === scoreA ? 1 : 0));
           }
           return { id: t.id, pts };
         }).sort((a, b) => b.pts - a.pts);
@@ -110,11 +110,9 @@ export function AutoMatchManager() {
       for (let i = 0; i < updatedMatches.length; i++) {
         const m = updatedMatches[i];
         if (m.isFinished || !isMatchOverdue(m.startTime)) continue;
-        
-        // Защита от отсутствующих данных рангов
         if (m.homeRank === undefined || m.awayRank === undefined) continue;
 
-        // ID привязан к СЛОТАМ (Рангам), а не к ID команд. Это решает проблему наложений.
+        // ID привязан к СЛОТАМ (Рангам), что гарантирует стабильность при замещении бота игроком
         const globalMatchId = `v11_s${currentSeason}_l${selectedLeagueId}_lv${leagueLevel}_g${groupId}_t${m.tour}_hR${m.homeRank}_aR${m.awayRank}`;
         const matchRef = doc(db, 'matches_v11', globalMatchId);
         
@@ -123,7 +121,8 @@ export function AutoMatchManager() {
           let finalScoreA, finalScoreB;
 
           if (!snap.exists()) {
-            const [sA, sB] = getMatchResult(m.homeId, m.awayId, currentSeason, m.tour);
+            // Используем новую детерминированную функцию на основе слотов
+            const [sA, sB] = getMatchResult(m.homeRank, m.awayRank, leagueLevel, groupId, currentSeason, m.tour);
             finalScoreA = sA;
             finalScoreB = sB;
 

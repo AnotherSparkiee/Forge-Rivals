@@ -84,7 +84,7 @@ export default function RankingsPage() {
       const teamMatches = groupCalendar.filter(m => m.homeRank === t.rank || m.awayRank === t.rank);
 
       teamMatches.forEach(m => {
-        // Поиск по рангам слотов
+        // Поиск по рангам слотов (v11)
         const fixed = fixedMatches?.find(fm => 
           (fm.homeRank === m.homeRank && fm.awayRank === m.awayRank && fm.tour === m.tour)
         );
@@ -100,7 +100,8 @@ export default function RankingsPage() {
           else { losses++; }
         } else if (isMatchOverdue(m.startTime)) {
           played++;
-          const [scoreH, scoreA] = getMatchResult(m.homeId, m.awayId, seasonNumber, m.tour);
+          // Важно: хэш должен использовать те же параметры, что и резолвер
+          const [scoreH, scoreA] = getMatchResult(m.homeRank, m.awayRank, contextLevel, contextGroup, seasonNumber, m.tour);
           const isHome = m.homeRank === t.rank;
           const myScore = isHome ? scoreH : scoreA;
           const oppScore = isHome ? scoreA : scoreH;
