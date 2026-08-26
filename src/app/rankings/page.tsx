@@ -19,7 +19,7 @@ import {
   generateSeasonCalendar,
   LEAGUES
 } from '../lib/leagues-data';
-import { isMatchOverdue } from '../lib/time-utils';
+import { isMatchStarted } from '../lib/time-utils';
 import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
@@ -73,13 +73,11 @@ export default function RankingsPage() {
 
   // 3. Таблица (Объединение матчей и имен)
   const standings = useMemo(() => {
-    if (!isLoaded || isPlayersLoading) return [];
+    // Ждем полной загрузки всех данных для исключения рассинхрона
+    if (!isLoaded || isPlayersLoading || isMatchesLoading) return [];
 
     const realOnes = groupRealPlayers || [];
-    // Формируем состав группы: маппинг Ранг -> Игрок
     const teams = getStableGroupTeams(contextLevel, contextGroup, contextLeagueId, realOnes);
-    
-    // Генерируем структуру календаря (она едина для всех по Circle Method)
     const baseCalendar = generateSeasonCalendar(teams, seasonNumber, contextLeagueId);
 
     return teams.map((t) => {
@@ -88,10 +86,12 @@ export default function RankingsPage() {
       const teamMatches = baseCalendar.filter(m => m.homeRank === t.rank || m.awayRank === t.rank);
 
       teamMatches.forEach(m => {
-        // Проверяем БД на наличие зафиксированного результата
         const fixed = fixedMatches?.find(fm => 
           (fm.homeRank === m.homeRank && fm.awayRank === m.awayRank && fm.tour === m.tour)
         );
+
+        // Используем isMatchStarted для идентичного счетчика "И" во всех группах
+        const isStarted = isMatchStarted(m.startTime);
 
         if (fixed && fixed.isFinished) {
           played++;
@@ -102,8 +102,8 @@ export default function RankingsPage() {
           if (myScore > oppScore) { wins++; pts += 3; }
           else if (myScore === oppScore) { draws++; pts += 1; }
           else { losses++; }
-        } else if (isMatchOverdue(m.startTime)) {
-          // Fallback: детерминированный расчет (совпадает с логикой Seeder)
+        } else if (isStarted) {
+          // Если матч начался, но еще не зафиксирован в БД - считаем его сыгранным через детерминированный расчет
           played++;
           const [sH, sA] = getMatchResult(m.homeRank, m.awayRank, contextLevel, contextGroup, seasonNumber, m.tour);
           const isHome = m.homeRank === t.rank;
@@ -124,7 +124,7 @@ export default function RankingsPage() {
         diff: (wins * 2) - losses
       };
     }).sort((a, b) => b.points - a.points || b.wins - a.wins || b.diff - a.diff);
-  }, [isLoaded, contextLevel, contextGroup, contextLeagueId, seasonNumber, groupRealPlayers, fixedMatches, isPlayersLoading]);
+  }, [isLoaded, contextLevel, contextGroup, contextLeagueId, seasonNumber, groupRealPlayers, fixedMatches, isPlayersLoading, isMatchesLoading]);
 
   const t = {
     en: {
@@ -139,7 +139,7 @@ export default function RankingsPage() {
       ]
     },
     ru: {
-      title: "ТАБЛИЦЫ РЕЙТИНГА", subtitle: "Терминалы глобальных соревнований",
+      title: "ТАБЛИЦЫ РЕЙТИТИНГА", subtitle: "Терминалы глобальных соревнований",
       pts: "О", winLoss: "В-Н-П", m: "И", back: "Назад",
       loading: "Синхронизация данных...",
       menu: [

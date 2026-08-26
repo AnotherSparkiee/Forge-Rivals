@@ -1,7 +1,6 @@
 /**
- * @fileOverview Ядро времени v115 (Season Progress Sync). 
- * Глобальная синхронизация цикла (15 дней).
- * Установлена эпоха на 16 февраля 2025 года, чтобы сегодня был День 9.
+ * @fileOverview Ядро времени v116 (Universal Sync). 
+ * Обеспечивает единство отсчета для всех групп лиги.
  */
 
 let syncPoint = {
@@ -9,11 +8,9 @@ let syncPoint = {
   perfMs: typeof performance !== 'undefined' ? performance.now() : 0
 };
 
-// Смещение отключено (0), используем реальное время
 const SIMULATION_OFFSET_MS = 0; 
 const MSK_OFFSET = 3 * 60 * 60 * 1000;
 
-// Эпоха: 16 февраля 2025. При текущей дате ~24 февраля это делает сегодня Днем 9 (8 туров позади).
 export const GLOBAL_EPOCH_ISO = '2025-02-16T00:00:00Z'; 
 
 export function setServerTime(serverMs: number) {
@@ -80,7 +77,6 @@ export function getGlobalSeasonInfo() {
   const dayMs = 24 * 60 * 60 * 1000;
   const cycleMs = cycleDuration * dayMs;
 
-  // Если мы ПЕРЕД эпохой
   if (diffMs < 0) {
     return {
       seasonDay: 0,
@@ -117,6 +113,20 @@ export function getGlobalSeasonInfo() {
   };
 }
 
+/**
+ * Проверяет, начался ли матч (без учета времени симуляции).
+ * Используется для синхронного отображения счетчика сыгранных игр.
+ */
+export function isMatchStarted(startTimeIso: string): boolean {
+  const simNow = getMoscowTime();
+  const start = new Date(startTimeIso);
+  return simNow.getTime() >= start.getTime();
+}
+
+/**
+ * Проверяет, должен ли матч быть уже завершен (с учетом времени симуляции 45 мин).
+ * Используется для фиксации официальных результатов в БД.
+ */
 export function isMatchOverdue(startTimeIso: string): boolean {
   const simNow = getMoscowTime();
   const start = new Date(startTimeIso);

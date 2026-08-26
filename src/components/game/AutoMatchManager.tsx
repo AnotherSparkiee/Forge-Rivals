@@ -14,8 +14,8 @@ import { useFirestore, setDocumentNonBlocking } from '@/firebase';
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 
 /**
- * ГЛОБАЛЬНЫЙ МЕНЕДЖЕР МАТЧЕЙ v11.3 (Auto-Seeding enabled)
- * Обеспечивает единство календаря. Автоматически публикует сетку в фазе подготовки.
+ * ГЛОБАЛЬНЫЙ МЕНЕДЖЕР МАТЧЕЙ v11.4 (High Precision Resolver)
+ * Исправлена проблема рассинхронизации счетчика сыгранных игр в таблицах.
  */
 export function AutoMatchManager() {
   const { 
@@ -59,7 +59,7 @@ export function AutoMatchManager() {
       if (playerPos === 1 && leagueLevel > 1) {
         const target = getPromotionTarget(leagueLevel, groupId);
         nextLevel = target.level; nextGroup = target.group;
-      } else if (playerPos >= 7 && leagueLevel < 9) {
+      } else if (playerPos >= 7 && leagueLevel < MAX_LEVELS) {
         const target = getRelegationTarget(leagueLevel, groupId, playerPos);
         nextLevel = target.level; nextGroup = target.group;
       }
