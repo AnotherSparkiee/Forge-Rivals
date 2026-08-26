@@ -6,7 +6,7 @@ import { useGameState } from '../lib/store';
 import { 
   Trophy, ChevronLeft, ChevronRight, 
   Shield, Globe, Layers, RefreshCw,
-  Bot, ShieldAlert, ArrowUp, X, Circle
+  ShieldAlert, ArrowUp, X, Circle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -226,7 +226,7 @@ export default function RankingsPage() {
                          {clubLogo ? (
                            <img src={clubLogo} alt="" className="w-6 h-6 object-contain shrink-0" />
                          ) : entry.isBot ? (
-                           <span className="text-2xl leading-none shrink-0">🤖</span>
+                           <img src="https://i.postimg.cc/8cpvcNZ9/logo-lote.png" alt="Bot" className="w-7 h-7 object-contain shrink-0 drop-shadow-[0_0_10px_rgba(var(--primary),0.3)]" />
                          ) : (
                            <Shield className="w-4 h-4 text-primary/30 shrink-0" />
                          )}
@@ -281,7 +281,7 @@ export default function RankingsPage() {
               <CardContent className="p-4 flex justify-between items-center">
                 <span className="text-sm font-bold uppercase group-hover:text-white transition-colors">Д {lvl}</span>
                 <div className="flex items-center gap-2">
-                  <Badge variant="secondary" className="text-[8px] bg-white/5 font-black uppercase">{getGroupsCountInLevel(lvl)} ГР</Badge>
+                  <Badge variant="secondary" className="text-[8px] bg-white/5 font-black uppercase">{getGroupsCountInLevel(lvl)} ГРУППА</Badge>
                   <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-all" />
                 </div>
               </CardContent>
