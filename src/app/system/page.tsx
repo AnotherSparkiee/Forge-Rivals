@@ -14,15 +14,11 @@ import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query } from 'firebase/firestore';
 import { useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
-import { initializeLeagueWorld } from '@/app/actions/world-engine';
-import { useToast } from '@/hooks/use-toast';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 
 export default function SystemPage() {
   const { language } = useGameState();
   const db = useFirestore();
-  const { toast } = useToast();
-  const [isInitializingWorld, setIsInitializingWorld] = useState(false);
 
   // Запрос всех игроков v11 для подсчета статистики
   const playersQuery = useMemoFirebase(() => {
@@ -47,21 +43,6 @@ export default function SystemPage() {
     return { total: Math.max(total, 1), online: Math.max(onlineCount, 1) };
   }, [players]);
 
-  const handleGlobalInit = async () => {
-    if (isInitializingWorld) return;
-    setIsInitializingWorld(true);
-    try {
-      const info = getGlobalSeasonInfo();
-      await initializeLeagueWorld('ALPHA', info.activeSeasonNumber);
-      toast({ title: `Мир проинициализирован (S${info.activeSeasonNumber})` });
-    } catch (e) {
-      console.error(e);
-      toast({ title: "Ошибка инициализации", variant: "destructive" });
-    } finally {
-      setIsInitializingWorld(false);
-    }
-  };
-
   const t = {
     ru: { 
       title: "СИСТЕМА", 
@@ -78,8 +59,8 @@ export default function SystemPage() {
       itemsDesc: "Каталог артефактов и снаряжения",
       config: "Глобальная конфигурация",
       admin: "Инструменты администратора",
-      initWorld: "Инициализировать мир",
-      initWorldDesc: "Создать 511 групп и календари для текущего сезона",
+      autonomous: "Автономный цикл",
+      autonomousDesc: "Мир обновляется автоматически каждый сезон",
       loading: "Синхронизация...",
       hostId: "ID хоста",
     },
@@ -98,8 +79,8 @@ export default function SystemPage() {
       itemsDesc: "Artifact and equipment catalog",
       config: "Global Config",
       admin: "Administrator Tools",
-      initWorld: "Initialize World",
-      initWorldDesc: "Create 511 groups and calendars for active season",
+      autonomous: "Autonomous Cycle",
+      autonomousDesc: "The world updates automatically every season",
       loading: "Syncing...",
       hostId: "Host ID",
     }
@@ -157,24 +138,16 @@ export default function SystemPage() {
 
         <section className="space-y-2">
           <h2 className="text-[10px] font-black uppercase tracking-widest text-accent px-1">{t.admin}</h2>
-          <Card className="glass-card border-red-500/20 bg-red-500/5">
+          <Card className="glass-card border-green-500/20 bg-green-500/5">
             <CardContent className="p-4 flex items-center justify-between">
               <div className="flex items-center gap-4">
-                <div className="p-2 rounded-lg bg-red-500/20"><Database className="w-5 h-5 text-red-400" /></div>
+                <div className="p-2 rounded-lg bg-green-500/20"><Database className="w-5 h-5 text-green-400" /></div>
                 <div>
-                  <h3 className="text-xs font-bold uppercase text-white">{t.initWorld}</h3>
-                  <p className="text-[8px] text-muted-foreground uppercase">{t.initWorldDesc}</p>
+                  <h3 className="text-xs font-bold uppercase text-white">{t.autonomous}</h3>
+                  <p className="text-[8px] text-muted-foreground uppercase">{t.autonomousDesc}</p>
                 </div>
               </div>
-              <Button 
-                size="sm" 
-                variant="destructive" 
-                className="h-8 text-[9px] font-black uppercase" 
-                onClick={handleGlobalInit}
-                disabled={isInitializingWorld}
-              >
-                {isInitializingWorld ? <Loader2 className="w-3 h-3 animate-spin" /> : 'RUN'}
-              </Button>
+              <Badge variant="outline" className="text-[8px] border-green-500/30 text-green-400 font-black uppercase tracking-widest">ACTIVE</Badge>
             </CardContent>
           </Card>
         </section>

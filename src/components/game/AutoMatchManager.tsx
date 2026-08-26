@@ -9,10 +9,11 @@ import {
 } from '@/app/lib/leagues-data';
 import { useFirestore, updateDocumentNonBlocking } from '@/firebase';
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { initializeLeagueWorld } from '@/app/actions/world-engine';
 
 /**
- * ГЛОБАЛЬНЫЙ МЕНЕДЖЕР МАТЧЕЙ v13.1 (Cloud Sync Aware)
- * Синхронизирует расписание только после того, как профиль игрока подгружен из БД.
+ * ГЛОБАЛЬНЫЙ МЕНЕДЖЕР МАТЧЕЙ v14.0 (Autonomous Cycle)
+ * Автоматически инициализирует мир при обнаружении нового сезона.
  */
 export function AutoMatchManager() {
   const { 
@@ -23,28 +24,62 @@ export function AutoMatchManager() {
   
   const db = useFirestore();
   const syncStartedRef = useRef<string | null>(null);
+  const worldInitLockRef = useRef<number | null>(null);
 
   useEffect(() => {
-    // Ждем полной инициализации стора
     if (!isLoaded || !db) return;
     
-    // Если лига еще не выбрана (новый пользователь), сразу ставим готовность
+    const info = getGlobalSeasonInfo();
+    const currentSeason = info.activeSeasonNumber;
+
+    // АВТО-ИНИЦИАЛИЗАЦИЯ МИРА (Цикличная)
+    const checkWorldAndSync = async () => {
+      // 1. Проверяем, не инициировали ли мы уже мир в этой сессии
+      if (worldInitLockRef.current === currentSeason) return;
+      
+      const leagueId = selectedLeagueId || "ALPHA";
+      
+      try {
+        // Проверяем наличие таблицы для текущего игрока или любой базовой таблицы сезона
+        const sampleTableId = `table_S${currentSeason}_L${leagueId}_V1_G1`;
+        const sampleSnap = await getDoc(doc(db, 'league_tables_v1', sampleTableId));
+        
+        if (!sampleSnap.exists()) {
+          console.log(`[AUTO WORLD] Season ${currentSeason} not found. Running Autonomous Init...`);
+          await initializeLeagueWorld(leagueId, currentSeason);
+          worldInitLockRef.current = currentSeason;
+        }
+
+        // Если мы в межсезонье (день 15), готовим СЛЕДУЮЩИЙ сезон заранее
+        if (info.isOffseason) {
+          const nextSeason = currentSeason + 1;
+          const nextSampleId = `table_S${nextSeason}_L${leagueId}_V1_G1`;
+          const nextSnap = await getDoc(doc(db, 'league_tables_v1', nextSampleId));
+          if (!nextSnap.exists()) {
+            console.log(`[AUTO WORLD] Preparing Next Season S${nextSeason} structure...`);
+            await initializeLeagueWorld(leagueId, nextSeason);
+          }
+        }
+      } catch (e) {
+        console.warn("[AUTO WORLD] Init check failed:", e);
+      }
+    };
+
+    checkWorldAndSync();
+
+    // СИНХРОНИЗАЦИЯ КАЛЕНДАРЯ
     if (!selectedLeagueId) {
       setWorldReady(true);
       return;
     }
     
-    // Предотвращаем повторную синхронизацию
-    const currentContext = `${selectedLeagueId}_L${leagueLevel}_G${groupId}`;
+    const currentContext = `${selectedLeagueId}_L${leagueLevel}_G${groupId}_S${currentSeason}`;
     if (syncStartedRef.current === currentContext) return;
     syncStartedRef.current = currentContext;
 
-    const info = getGlobalSeasonInfo();
-    const currentSeason = info.activeSeasonNumber;
-
     const syncMatches = async () => {
       try {
-        console.log(`[AUTO MATCH] Syncing calendar for ${currentContext}, Season ${currentSeason}`);
+        console.log(`[AUTO MATCH] Syncing calendar for ${currentContext}`);
         const q = query(collection(db, 'matches_v1'), 
           where('leagueId', '==', selectedLeagueId),
           where('level', '==', leagueLevel),
@@ -88,7 +123,6 @@ export function AutoMatchManager() {
             resolvedAt: new Date().toISOString()
           });
           
-          // Локальный апдейт
           const updated = allSeasonMatches.map(am => am.id === m.id ? { ...am, isFinished: true, scoreA: sA, scoreB: sB } : am);
           saveToLocal({ allSeasonMatches: updated });
         }

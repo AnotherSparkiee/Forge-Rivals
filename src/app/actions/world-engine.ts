@@ -2,14 +2,14 @@
 'use server';
 
 /**
- * @fileOverview Глобальный двигатель инициализации мира v1.2.
+ * @fileOverview Глобальный двигатель инициализации мира v1.3 (Автономный цикл).
  * Создает всю структуру лиги (511 групп) со всеми ботами и календарями.
- * Теперь автоматически определяет текущий сезон.
+ * Теперь поддерживает автоматическую проверку и создание пропущенных сезонов.
  */
 
 import { 
   collection, doc, getDoc, writeBatch, 
-  Firestore, serverTimestamp 
+  Firestore, serverTimestamp, setDoc 
 } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import { 
@@ -55,7 +55,16 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
   const info = getGlobalSeasonInfo();
   const seasonNum = targetSeason || info.activeSeasonNumber;
 
-  console.log(`[WORLD ENGINE v1.2] STARTING GLOBAL INIT: League ${leagueId}, Season ${seasonNum}`);
+  // Помечаем старт инициализации, чтобы другие клиенты не триггерили дубли
+  const statusRef = doc(db, 'system_v1', `init_S${seasonNum}_L${leagueId}`);
+  const statusSnap = await getDoc(statusRef);
+  if (statusSnap.exists() && statusSnap.data().status === 'completed') {
+    return { success: true, alreadyDone: true };
+  }
+
+  await setDoc(statusRef, { status: 'processing', startedAt: serverTimestamp() }, { merge: true });
+
+  console.log(`[WORLD ENGINE v1.3] STARTING GLOBAL INIT: League ${leagueId}, Season ${seasonNum}`);
 
   let totalGroupsCreated = 0;
 
@@ -67,7 +76,6 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
       const tableId = `table_S${seasonNum}_L${leagueId}_V${tier}_G${group}`;
       const tableRef = doc(db, 'league_tables_v1', tableId);
       
-      // Идемпотентность
       const tableSnap = await getDoc(tableRef);
       if (tableSnap.exists()) {
         continue;
@@ -116,5 +124,6 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
     }
   }
 
+  await setDoc(statusRef, { status: 'completed', finishedAt: serverTimestamp() }, { merge: true });
   return { success: true, created: totalGroupsCreated };
 }
