@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -44,15 +45,12 @@ export default function RankingsPage() {
 
   const { data: profile, isLoading: isProfileLoading } = useDoc(userProfileRef);
 
-  // 2. ОПРЕДЕЛЯЕМ КОНТЕКСТ ПРОСМОТРА (СВОЯ ГРУППА ИЛИ ЧУЖАЯ)
-  const isViewingMyLeague = activeTab === 'my_league';
-  
+  // 2. ОПРЕДЕЛЯЕМ КОНТЕКСТ ПРОСМОТРА
   const contextLeagueId = String(navLeague || profile?.selectedLeagueId || "ALPHA");
   const contextLevel = Number(navLevel || profile?.leagueLevel || 9);
   const contextGroup = Number(navGroup || profile?.groupId || 1);
 
   // 3. ПОДПИСЫВАЕМСЯ НА ТАБЛИЦУ В БД
-  // ID таблицы должен совпадать с тем, что генерирует season-init.ts
   const tableId = `table_S${seasonNumber}_L${contextLeagueId}_V${contextLevel}_G${contextGroup}`;
   const tableRef = useMemoFirebase(() => {
     if (!db || !isLoaded) return null;
@@ -83,8 +81,8 @@ export default function RankingsPage() {
       noTable: "SECTOR NOT INITIALIZED",
       noTableDesc: "This division sector is currently empty. No managers have deployed here yet.",
       menu: [
-        { id: 'my_league', label: 'League Standings', desc: `Division ${profile?.leagueLevel}.${profile?.groupId}`, icon: Shield, color: 'text-primary' },
-        { id: 'my_pyramid', label: 'League Pyramid', desc: `Explore ${profile?.selectedLeagueId || 'League'}`, icon: Layers, color: 'text-accent' },
+        { id: 'my_league', label: 'League Standings', desc: `Division ${profile?.leagueLevel || 9}.${profile?.groupId || 1}`, icon: Shield, color: 'text-primary' },
+        { id: 'my_pyramid', label: 'League Pyramid', desc: `Explore ${profile?.selectedLeagueId || 'ALPHA'}`, icon: Layers, color: 'text-accent' },
         { id: 'all_pyramids', label: 'Global Map', desc: 'Browse all active leagues', icon: Globe, color: 'text-blue-400' },
         { id: 'cup', label: 'Pyramid Cup', desc: 'Elimination grid', icon: Trophy, color: 'text-yellow-500', href: '/tournaments/cup' },
       ]
@@ -96,7 +94,7 @@ export default function RankingsPage() {
       noTable: "СЕКТОР НЕ ИНИЦИАЛИЗИРОВАН",
       noTableDesc: "Данный сектор дивизиона пока пуст. В нем нет ни одного активного менеджера.",
       menu: [
-        { id: 'my_league', label: 'Таблица Лиги', desc: `Дивизион ${profile?.leagueLevel}.${profile?.groupId}`, icon: Shield, color: 'text-primary' },
+        { id: 'my_league', label: 'Таблица Лиги', desc: `Дивизион ${profile?.leagueLevel || 9}.${profile?.groupId || 1}`, icon: Shield, color: 'text-primary' },
         { id: 'my_pyramid', label: 'Пирамида Лиги', desc: `Изучить лигу ${profile?.selectedLeagueId || 'ALPHA'}`, icon: Layers, color: 'text-accent' },
         { id: 'all_pyramids', label: 'Карта мира', desc: 'Все активные лиги мира', icon: Globe, color: 'text-blue-400' },
         { id: 'cup', label: 'Кубок Пирамиды', desc: 'Сетка турнира', icon: Trophy, color: 'text-yellow-500', href: '/tournaments/cup' },
@@ -116,8 +114,7 @@ export default function RankingsPage() {
     router.push('/');
   };
 
-  // Ждем загрузки профиля
-  if (!isLoaded || isProfileLoading) return <LoadingScreen />;
+  if (!isLoaded || (isProfileLoading && activeTab === 'menu')) return <LoadingScreen />;
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-24">
@@ -174,7 +171,6 @@ export default function RankingsPage() {
                  </div>
                  {standings.map((entry: any, i: number) => {
                    const pos = i + 1;
-                   // Важно: сравниваем с реальным Firebase UID
                    const isMe = entry.id === user?.uid;
                    return (
                     <div key={entry.id} className={cn(

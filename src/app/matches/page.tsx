@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -25,7 +26,7 @@ export default function MatchesPage() {
   const db = useFirestore();
   const router = useRouter();
   const { 
-    isLoaded, isDataReady, language,
+    isLoaded, language,
     selectedLeagueId, leagueLevel, groupId,
     clubLogo: myClubLogo, seasonNumber
   } = useGameState();
@@ -38,7 +39,7 @@ export default function MatchesPage() {
     return () => clearInterval(timer);
   }, []);
 
-  // 1. Загрузка актуальных владельцев слотов из v11
+  // 1. Загрузка участников группы
   const groupPlayersQuery = useMemoFirebase(() => {
     if (!db) return null;
     return query(collection(db, 'players_v11'), 
@@ -50,10 +51,10 @@ export default function MatchesPage() {
 
   const { data: players } = useCollection(groupPlayersQuery);
 
-  // 2. Загрузка официального фиксированного календаря из БД
+  // 2. Загрузка календаря из БД (v1)
   const groupMatchesQuery = useMemoFirebase(() => {
-    if (!db) return null;
-    return query(collection(db, 'matches_v11'), 
+    if (!db || !selectedLeagueId) return null;
+    return query(collection(db, 'matches_v1'), 
       where('leagueId', '==', selectedLeagueId),
       where('level', '==', leagueLevel),
       where('groupId', '==', groupId),
@@ -88,7 +89,6 @@ export default function MatchesPage() {
     }
   }[language === 'ru' ? 'ru' : 'en'];
 
-  // Маппинг имен: Ранг -> Имя (динамически разрешаем из players_v11)
   const nameMap = useMemo(() => {
     const map: Record<number, string> = {};
     const logos: Record<number, string> = {};
@@ -102,17 +102,15 @@ export default function MatchesPage() {
   }, [players]);
 
   const resolveMatchData = useCallback((m: any) => {
-    const leagueIdx = "01";
-    const groupPrefix = String(groupId).padStart(3, '0');
-    
-    // Генерируем технические имена ботов для соответствия таблице
-    const botHome = `BOT${leagueIdx}${leagueLevel}${groupPrefix}${m.homeRank}`;
-    const botAway = `BOT${leagueIdx}${leagueLevel}${groupPrefix}${m.awayRank}`;
+    const hRank = Number(m.homeRank);
+    const aRank = Number(m.awayRank);
+    const botHome = `BOT_ALPHA_L${leagueLevel}_G${groupId}_R${hRank}`;
+    const botAway = `BOT_ALPHA_L${leagueLevel}_G${groupId}_R${aRank}`;
 
-    const homeName = nameMap.map[m.homeRank] || botHome;
-    const awayName = nameMap.map[m.awayRank] || botAway;
-    const homeLogo = nameMap.logos[m.homeRank] || null;
-    const awayLogo = nameMap.logos[m.awayRank] || null;
+    const homeName = nameMap.map[hRank] || m.homeName || botHome;
+    const awayName = nameMap.map[aRank] || m.awayName || botAway;
+    const homeLogo = nameMap.logos[hRank] || null;
+    const awayLogo = nameMap.logos[aRank] || null;
     return { ...m, homeName, awayName, homeLogo, awayLogo };
   }, [nameMap, leagueLevel, groupId]);
 
