@@ -1,7 +1,6 @@
-
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -17,7 +16,7 @@ import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 import { getRandomStartingSquad } from '@/app/lib/moba-data';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { findStrategicPlacement } from '@/app/actions/season-init';
-import { useFirestore, setDocumentNonBlocking } from '@/firebase';
+import { useFirestore, useUser, setDocumentNonBlocking } from '@/firebase';
 import { doc, serverTimestamp } from 'firebase/firestore';
 
 const CLUBS = [
@@ -31,16 +30,10 @@ const CLUBS = [
   { id: 'navi', name: 'NAVI', logo: 'https://iili.io/CYupwe2.webp' },
 ];
 
-function generateSecureTeamId() {
-  if (typeof window !== 'undefined' && window.crypto && window.crypto.randomUUID) {
-    return `team_${window.crypto.randomUUID().split('-')[0]}_${Date.now().toString(36)}`;
-  }
-  return `team_${Math.random().toString(36).substring(2, 10)}_${Date.now().toString(36)}`;
-}
-
 export default function SetupPage() {
   const router = useRouter();
   const db = useFirestore();
+  const { user, isUserLoading } = useUser();
   const { toast } = useToast();
   const { language, isLoaded, saveToLocal } = useGameState();
   
@@ -50,11 +43,15 @@ export default function SetupPage() {
   const [selectedClubId, setSelectedClubId] = useState<string | null>(null);
   const [customClubName, setCustomClubName] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
-  
-  const [uniqueTeamId] = useState(() => generateSecureTeamId());
+
+  useEffect(() => {
+    if (!isUserLoading && !user) {
+      router.push('/auth/login');
+    }
+  }, [user, isUserLoading, router]);
 
   const handleCompleteSetup = async () => {
-    if (!selectedLeagueId || !selectedCountryCode || !selectedClubId || customClubName.trim().length < 3 || isUpdating) return;
+    if (!selectedLeagueId || !selectedCountryCode || !selectedClubId || customClubName.trim().length < 3 || isUpdating || !user) return;
     setIsUpdating(true);
     
     try {
@@ -94,9 +91,9 @@ export default function SetupPage() {
 
       const finalClubName = customClubName.trim();
 
-      // 2. Сохранение в локальный стор (Немедленно)
+      // 2. Сохранение в локальный стор
       saveToLocal({
-        id: uniqueTeamId,
+        id: user.uid,
         selectedLeagueId,
         leagueLevel: Number(placement.tier),
         groupId: Number(placement.group),
@@ -114,9 +111,9 @@ export default function SetupPage() {
 
       // 3. Неблокирующая запись в Firestore (v11)
       if (db) {
-        const playerRef = doc(db, 'players_v11', uniqueTeamId);
+        const playerRef = doc(db, 'players_v11', user.uid);
         setDocumentNonBlocking(playerRef, {
-          id: uniqueTeamId,
+          id: user.uid,
           displayName: finalClubName,
           clubName: finalClubName,
           clubLogo: selectedClub?.logo || null,
@@ -142,7 +139,7 @@ export default function SetupPage() {
     }
   };
 
-  if (!isLoaded) return <LoadingScreen />;
+  if (!isLoaded || isUserLoading) return <LoadingScreen />;
 
   const t = {
     ru: {
@@ -277,7 +274,7 @@ export default function SetupPage() {
                    </div>
                  </div>
                </Card>
-               <p className="text-[8px] text-center text-muted-foreground uppercase font-black tracking-widest opacity-40">System Node v11: {uniqueTeamId.substring(0, 16)}...</p>
+               <p className="text-[8px] text-center text-muted-foreground uppercase font-black tracking-widest opacity-40">System Node v11: Auth Linked</p>
             </div>
           )}
         </div>
