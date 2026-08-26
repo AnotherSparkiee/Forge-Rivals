@@ -1,18 +1,15 @@
 'use client';
 
 /**
- * @fileOverview Модуль интеграции Telegram Auth v1.0.
- * Позволяет автоматически авторизовать пользователя на основе его Telegram ID.
+ * @fileOverview Модуль интеграции Telegram Auth v1.1.
+ * Теперь только авторизует пользователя, не создавая игровой профиль автоматически.
  */
 
 import { Auth, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { initializeFirebase } from './index';
 
 /**
  * Генерирует детерминированные учетные данные для Telegram пользователя.
- * В продакшене рекомендуется использовать Custom Tokens через серверную часть.
- * Для прототипа используем фиксированный формат почты.
  */
 export function getTelegramCredentials(tgId: number) {
   return {
@@ -23,9 +20,9 @@ export function getTelegramCredentials(tgId: number) {
 
 /**
  * Автоматически входит или регистрирует пользователя через Telegram.
+ * Направляет пользователя на этап Setup, не создавая профиль в БД.
  */
 export async function syncTelegramUser(auth: Auth, tgUser: any) {
-  const { firestore: db } = initializeFirebase();
   const { email, password } = getTelegramCredentials(tgUser.id);
 
   try {
@@ -33,26 +30,11 @@ export async function syncTelegramUser(auth: Auth, tgUser: any) {
     await signInWithEmailAndPassword(auth, email, password);
     return { status: 'logged_in' };
   } catch (error: any) {
-    if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
-      // 2. Если пользователя нет, создаем его
+    if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential' || error.code === 'auth/invalid-email') {
+      // 2. Если пользователя нет, создаем только Auth-аккаунт
       try {
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        const userId = userCredential.user.uid;
-        
-        const displayName = tgUser.username || `${tgUser.first_name}${tgUser.last_name ? ' ' + tgUser.last_name : ''}` || "TG Manager";
-        
-        const profileData = {
-          id: userId,
-          displayName: displayName,
-          email: email,
-          tgId: tgUser.id,
-          lastLoginDate: new Date().toISOString(),
-          createdAt: new Date().toISOString(),
-          lastProcessedSeason: 1
-        };
-
-        await setDoc(doc(db, 'players_v10', userId), profileData);
-        return { status: 'registered', userId };
+        return { status: 'registered', userId: userCredential.user.uid };
       } catch (regError) {
         console.error("TG Registration failed", regError);
         throw regError;

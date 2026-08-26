@@ -4,8 +4,9 @@ import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { COUNTRIES } from '@/app/lib/countries-data';
-import { Loader2, ChevronLeft } from 'lucide-react';
+import { Loader2, ChevronLeft, Edit3, Flag, Shield } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useGameState, LineupSlot } from '@/app/lib/store';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
@@ -27,6 +28,8 @@ const CLUBS = [
   { id: 'navi', name: 'NAVI', logo: 'https://iili.io/CYupwe2.webp' },
 ];
 
+type SetupStep = 'name' | 'country' | 'club';
+
 export default function SetupPage() {
   const router = useRouter();
   const db = useFirestore();
@@ -34,30 +37,32 @@ export default function SetupPage() {
   const { toast } = useToast();
   const { language, isLoaded, saveToLocal } = useGameState();
   
-  // Упрощенный процесс: Страна -> Логотип. Название = Логин (из Auth)
-  const [step, setStep] = useState<'country' | 'club'>('country');
+  const [step, setStep] = useState<SetupStep>('name');
+  const [teamName, setTeamName] = useState('');
   const [selectedCountryCode, setSelectedCountryCode] = useState<string | null>(null);
   const [selectedClubId, setSelectedClubId] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
+
+  // Извлекаем дефолтное имя из email
+  const loginName = useMemo(() => {
+    if (!user?.email) return "";
+    return user.email.split('@')[0];
+  }, [user?.email]);
 
   useEffect(() => {
     if (!isUserLoading && !user) {
       router.push('/auth/login');
     }
-  }, [user, isUserLoading, router]);
-
-  // Извлекаем "логин" из email (часть до @)
-  const loginName = useMemo(() => {
-    if (!user?.email) return "Manager";
-    return user.email.split('@')[0];
-  }, [user?.email]);
+    if (user && !teamName) {
+      setTeamName(loginName);
+    }
+  }, [user, isUserLoading, router, loginName, teamName]);
 
   const handleCompleteSetup = async () => {
-    if (!selectedCountryCode || !selectedClubId || isUpdating || !user) return;
+    if (!selectedCountryCode || !selectedClubId || !teamName.trim() || isUpdating || !user) return;
     setIsUpdating(true);
     
     try {
-      // 1. Поиск свободного места в лиге ALPHA по умолчанию
       const targetLeagueId = "ALPHA";
       let placement = { tier: 9, group: 1, rank: 1 };
       try {
@@ -92,10 +97,8 @@ export default function SetupPage() {
         res1: null, res2: null, res3: null, res4: null, res5: null, res6: null, res7: null, res8: null
       };
 
-      // Финальное название клуба — это логин пользователя
-      const finalClubName = loginName;
+      const finalClubName = teamName.trim();
 
-      // 2. Сохранение в локальный стор (для мгновенного UI)
       saveToLocal({
         id: user.uid,
         selectedLeagueId: targetLeagueId,
@@ -113,7 +116,6 @@ export default function SetupPage() {
         lastProcessedSeason: activeSeasonNumber
       });
 
-      // 3. Запись в Firestore (v11)
       if (db) {
         const playerRef = doc(db, 'players_v11', user.uid);
         setDocumentNonBlocking(playerRef, {
@@ -132,10 +134,7 @@ export default function SetupPage() {
         }, { merge: true });
       }
 
-      toast({ 
-        title: language === 'ru' ? "Клуб инициализирован!" : "Club Initialized!",
-      });
-
+      toast({ title: language === 'ru' ? "Клуб инициализирован!" : "Club Initialized!" });
       router.replace('/');
     } catch (e: any) {
       console.error("[SETUP ERROR]:", e);
@@ -147,39 +146,59 @@ export default function SetupPage() {
 
   const t = {
     ru: {
+      name: 'НАЗВАНИЕ КОМАНДЫ',
       country: 'ВЫБОР ФЛАГА',
       club: 'ВЫБОР ЛОГОТИПА',
       finalize: 'СОЗДАТЬ КЛУБ',
       continue: 'ПРОДОЛЖИТЬ',
       subtitles: {
+        name: 'Введите публичный позывной вашей организации',
         country: 'Выберите страну которую будете представлять',
         club: 'Выберите логотип вашей организации',
       }
     },
     en: {
+      name: 'TEAM CALLSIGN',
       country: 'SELECT FLAG',
       club: 'SELECT LOGO',
       finalize: 'CREATE CLUB',
       continue: 'CONTINUE',
       subtitles: {
+        name: 'Enter the public callsign for your organization',
         country: 'Select the country you will represent',
         club: 'Choose your organization logo',
       }
     }
   }[language === 'ru' ? 'ru' : 'en'];
 
+  const canContinue = 
+    (step === 'name' && teamName.trim().length >= 3) ||
+    (step === 'country' && selectedCountryCode) ||
+    (step === 'club' && selectedClubId);
+
+  const handleNext = () => {
+    if (step === 'name') setStep('country');
+    else if (step === 'country') setStep('club');
+    else handleCompleteSetup();
+  };
+
+  const handleBack = () => {
+    if (step === 'country') setStep('name');
+    else if (step === 'club') setStep('country');
+  };
+
   return (
     <div className="min-h-screen bg-background flex flex-col relative overflow-hidden">
       <div className="absolute inset-0 pointer-events-none opacity-20 bg-[radial-gradient(circle_at_50%_50%,_hsl(var(--primary)/0.15),_transparent_70%)]" />
       <div className="relative z-10 w-full max-w-md mx-auto px-4 flex flex-col min-h-screen pt-12 pb-32">
         <header className="text-center mb-8 relative shrink-0">
-          {step !== 'country' && (
-            <Button variant="ghost" size="icon" className="absolute left-0 top-0 rounded-full" onClick={() => setStep('country')}>
+          {step !== 'name' && (
+            <Button variant="ghost" size="icon" className="absolute left-0 top-0 rounded-full" onClick={handleBack}>
               <ChevronLeft className="w-6 h-6" />
             </Button>
           )}
           <h1 className="text-2xl font-headline font-bold text-white uppercase tracking-tighter">
-            {step === 'country' ? t.country : t.club}
+            {t[step]}
           </h1>
           <p className="text-muted-foreground text-[10px] uppercase tracking-widest mt-1 opacity-60 px-4 leading-tight">
             {t.subtitles[step]}
@@ -187,6 +206,29 @@ export default function SetupPage() {
         </header>
         
         <div className="flex-1 flex flex-col justify-center animate-in fade-in duration-700">
+          {step === 'name' && (
+            <div className="space-y-6">
+              <div className="relative group">
+                <div className="absolute -inset-1 bg-gradient-to-r from-primary to-accent rounded-2xl blur opacity-20 group-focus-within:opacity-40 transition duration-500"></div>
+                <Card className="glass-card border-white/10 relative bg-secondary/20">
+                  <CardContent className="p-6">
+                    <div className="relative">
+                      <Edit3 className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-primary/50" />
+                      <Input 
+                        value={teamName}
+                        onChange={(e) => setTeamName(e.target.value)}
+                        placeholder="Team name..."
+                        className="h-14 pl-12 bg-background/50 border-white/5 text-lg font-bold uppercase tracking-tight focus-visible:ring-primary"
+                        maxLength={20}
+                      />
+                    </div>
+                    <p className="text-[8px] text-muted-foreground uppercase font-black mt-4 text-center tracking-[0.2em]">Minimum 3 characters required</p>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+          )}
+
           {step === 'country' && (
             <div className="grid grid-cols-4 gap-2 w-full">
               {COUNTRIES.map((c) => (
@@ -229,20 +271,9 @@ export default function SetupPage() {
         
         <footer className="fixed bottom-0 left-0 right-0 p-4 bg-background/80 backdrop-blur-xl border-t border-white/10 z-50 shadow-[0_-10px_30px_rgba(0,0,0,0.5)]">
           <div className="max-w-md mx-auto">
-            <div className="mb-4 flex flex-col items-center gap-1 opacity-60">
-               <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">COMMAND CALLSIGN:</p>
-               <p className="text-sm font-headline font-bold text-primary uppercase italic">{loginName}</p>
-            </div>
             <Button 
-              disabled={
-                isUpdating || 
-                (step === 'country' && !selectedCountryCode) || 
-                (step === 'club' && !selectedClubId)
-              } 
-              onClick={() => {
-                if (step === 'country') setStep('club');
-                else handleCompleteSetup();
-              }} 
+              disabled={isUpdating || !canContinue} 
+              onClick={handleNext} 
               className="w-full h-16 hero-gradient font-black text-xs tracking-[0.2em] uppercase shadow-2xl active:scale-95 transition-all"
             >
               {isUpdating ? <Loader2 className="animate-spin" /> : (step === 'club' ? t.finalize : t.continue)}
