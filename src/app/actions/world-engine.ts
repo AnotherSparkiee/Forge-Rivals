@@ -1,7 +1,8 @@
+
 'use server';
 
 /**
- * @fileOverview Глобальный двигатель инициализации мира v1.0.
+ * @fileOverview Глобальный двигатель инициализации мира v1.1.
  * Создает всю структуру лиги (511 групп) со всеми ботами и календарями.
  */
 
@@ -27,6 +28,7 @@ class FirestoreBatcher {
   async set(ref: any, data: any) {
     this.batch.set(ref, data);
     this.count++;
+    // Firestore limit is 500, we use 450 for safety
     if (this.count >= 450) {
       await this.commit();
       this.batch = writeBatch(this.db);
@@ -48,25 +50,30 @@ class FirestoreBatcher {
  */
 export async function initializeLeagueWorld(leagueId: string, seasonNum: number) {
   const { firestore: db } = initializeFirebase();
-  const batcher = new FirestoreBatcher(db);
+  const globalBatcher = new FirestoreBatcher(db);
 
-  console.log(`[WORLD ENGINE] Starting global initialization for League ${leagueId}, Season ${seasonNum}`);
+  console.log(`[WORLD ENGINE v1.1] STARTING GLOBAL INIT: League ${leagueId}, Season ${seasonNum}`);
+
+  let totalGroupsCreated = 0;
 
   for (let tier = 1; tier <= 9; tier++) {
     const groupsInTier = getGroupsCountInLevel(tier);
-    console.log(`[WORLD ENGINE] Initializing Tier ${tier} (${groupsInTier} groups)...`);
+    console.log(`[WORLD ENGINE] Tier ${tier}: Processing ${groupsInTier} groups...`);
 
     for (let group = 1; group <= groupsInTier; group++) {
       const tableId = `table_S${seasonNum}_L${leagueId}_V${tier}_G${group}`;
       const tableRef = doc(db, 'league_tables_v1', tableId);
       
-      // Проверка на идемпотентность
+      // Идемпотентность: проверяем только таблицу. Если она есть, считаем группу созданной.
       const tableSnap = await getDoc(tableRef);
-      if (tableSnap.exists()) continue;
+      if (tableSnap.exists()) {
+        continue;
+      }
 
       const initialStats: any = {};
       const teamsForCalendar = [];
 
+      // Создаем 8 ботов для группы
       for (let r = 1; r <= TEAMS_PER_GROUP; r++) {
         const bId = getBotId(leagueId, tier, group, r);
         initialStats[bId] = {
@@ -79,17 +86,19 @@ export async function initializeLeagueWorld(leagueId: string, seasonNum: number)
         teamsForCalendar.push({ id: bId, name: bId, rank: r });
       }
 
-      await batcher.set(tableRef, {
+      // 1. Сохраняем таблицу
+      await globalBatcher.set(tableRef, {
         id: tableId, leagueId, level: tier, group, season: seasonNum,
         stats: initialStats,
         createdAt: serverTimestamp(),
         version: 11
       });
 
+      // 2. Генерируем и сохраняем 56 матчей (2 круга по 8 команд)
       const calendar = generateSeasonCalendar(teamsForCalendar, seasonNum, leagueId);
       for (const m of calendar) {
         const mId = `match_S${seasonNum}_L${leagueId}_V${tier}_G${group}_T${m.tour}_R${m.homeRank}_vs_R${m.awayRank}`;
-        await batcher.set(doc(db, 'matches_v1', mId), {
+        await globalBatcher.set(doc(db, 'matches_v1', mId), {
           ...m,
           id: mId,
           leagueId, level: tier, groupId: group, season: seasonNum,
@@ -98,10 +107,15 @@ export async function initializeLeagueWorld(leagueId: string, seasonNum: number)
           version: 11
         });
       }
+
+      totalGroupsCreated++;
+      if (totalGroupsCreated % 10 === 0) {
+        console.log(`[WORLD ENGINE] Created ${totalGroupsCreated} groups so far...`);
+      }
     }
   }
 
-  await batcher.commit();
-  console.log(`[WORLD ENGINE] Global initialization complete.`);
-  return { success: true };
+  await globalBatcher.commit();
+  console.log(`[WORLD ENGINE] SUCCESS: ${totalGroupsCreated} new groups initialized.`);
+  return { success: true, created: totalGroupsCreated };
 }
