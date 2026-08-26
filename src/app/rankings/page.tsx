@@ -6,7 +6,7 @@ import { useGameState } from '../lib/store';
 import { 
   Trophy, ChevronLeft, ChevronRight, 
   Shield, Globe, Layers, RefreshCw,
-  Bot, ShieldAlert
+  Bot, ShieldAlert, ArrowUp, X, Circle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -96,6 +96,8 @@ export default function RankingsPage() {
       loading: "Syncing League Data...",
       noTable: "SECTOR NOT INITIALIZED",
       noTableDesc: "This division sector is currently empty. No managers have deployed here yet.",
+      promotion: "PROMOTION",
+      relegation: "RELEGATION",
       menu: [
         { id: 'my_league', label: 'League Standings', desc: `Division ${profile?.leagueLevel || '...'}.${profile?.groupId || '...'}`, icon: Shield, color: 'text-primary' },
         { id: 'my_pyramid', label: 'League Pyramid', desc: `Explore ${profile?.selectedLeagueId || 'ALPHA'}`, icon: Layers, color: 'text-accent' },
@@ -109,6 +111,8 @@ export default function RankingsPage() {
       loading: "Синхронизация данных...",
       noTable: "СЕКТОР НЕ ИНИЦИАЛИЗИРОВАН",
       noTableDesc: "Данный сектор дивизиона пока пуст. В нем нет ни одного активного менеджера.",
+      promotion: "ПОВЫШЕНИЕ",
+      relegation: "ВЫЛЕТ",
       menu: [
         { id: 'my_league', label: 'Таблица Лиги', desc: `Дивизион ${profile?.leagueLevel || '...'}.${profile?.groupId || '...'}`, icon: Shield, color: 'text-primary' },
         { id: 'my_pyramid', label: 'Пирамида Лиги', desc: `Изучить лигу ${profile?.selectedLeagueId || 'ALPHA'}`, icon: Layers, color: 'text-accent' },
@@ -178,7 +182,18 @@ export default function RankingsPage() {
            ) : standings.length > 0 ? (
              <>
                <div className="flex items-center justify-between px-1">
-                 <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase italic">DIV {contextLevel} • G {contextGroup}</Badge>
+                 <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase italic rounded-full px-4">DIV {contextLevel} • G {contextGroup}</Badge>
+                 
+                 <div className="flex items-center gap-3 text-[7px] font-black uppercase tracking-widest">
+                    <div className="flex items-center gap-1 text-green-400">
+                      <div className="w-2.5 h-2.5 rounded-full border border-green-400 flex items-center justify-center"><ArrowUp className="w-1.5 h-1.5" /></div>
+                      {t.promotion}
+                    </div>
+                    <div className="flex items-center gap-1 text-red-400">
+                      <div className="w-2.5 h-2.5 rounded-full border border-red-400 flex items-center justify-center"><X className="w-1.5 h-1.5" /></div>
+                      {t.relegation}
+                    </div>
+                 </div>
                </div>
                
                <div className="space-y-1">
@@ -189,28 +204,46 @@ export default function RankingsPage() {
                    const pos = i + 1;
                    const isMe = entry.id === user?.uid;
                    const clubLogo = logoMap[entry.id] || entry.clubLogo;
+                   const isPromotionZone = pos <= 2;
+                   const isRelegationZone = pos >= 7;
 
                    return (
                     <div key={entry.id} className={cn(
                       "grid grid-cols-[24px_1fr_25px_60px_35px] gap-1 items-center p-2.5 rounded-xl border mb-1 transition-all", 
-                      isMe ? "bg-primary/20 border-primary/40 shadow-[0_0_15px_rgba(var(--primary),0.1)]" : "bg-secondary/20 border-white/5"
+                      isMe ? "bg-primary/20 border-primary/40 shadow-[0_0_15px_rgba(var(--primary),0.1)] z-10" : 
+                      isPromotionZone ? "bg-green-500/10 border-green-500/20 shadow-[0_0_10px_rgba(34,197,94,0.05)]" :
+                      isRelegationZone ? "bg-red-500/10 border-red-500/20 shadow-[0_0_10px_rgba(239,68,68,0.05)]" :
+                      "bg-secondary/20 border-white/5"
                     )}>
-                      <div className="text-[10px] font-black italic text-muted-foreground">{pos}</div>
+                      <div className={cn(
+                        "text-[10px] font-black italic",
+                        isMe ? "text-primary" : 
+                        isPromotionZone ? "text-green-400" :
+                        isRelegationZone ? "text-red-400" :
+                        "text-muted-foreground"
+                      )}>{pos}</div>
+                      
                       <div className="truncate flex items-center gap-2 min-w-0">
                          {clubLogo ? (
                            <img src={clubLogo} alt="" className="w-6 h-6 object-contain shrink-0" />
                          ) : entry.isBot ? (
-                           <span className="text-2xl leading-none shrink-0">🤖</span>
+                           <span className="text-lg leading-none shrink-0" style={{ fontSize: '1.2rem' }}>🤖</span>
                          ) : (
                            <Shield className="w-4 h-4 text-primary/30 shrink-0" />
                          )}
-                        <span className={cn("text-[10px] font-bold uppercase truncate", isMe ? "text-primary font-black" : "text-white/90")}>
+                        <span className={cn(
+                          "text-[10px] font-bold uppercase truncate", 
+                          isMe ? "text-primary font-black" : "text-white/90"
+                        )}>
                           {entry.name}
                         </span>
                       </div>
+                      
                       <div className="text-center font-mono text-[9px] text-muted-foreground">{entry.matchesPlayed}</div>
                       <div className="text-center font-mono text-[9px] text-muted-foreground/60">{entry.wins}-{entry.draws}-{entry.losses}</div>
-                      <div className="text-right font-headline font-black text-primary italic pr-1">{entry.points}</div>
+                      <div className="text-right pr-1">
+                        <span className="text-lg font-headline font-black text-primary italic leading-none">{entry.points}</span>
+                      </div>
                     </div>
                    );
                  })}
@@ -233,7 +266,7 @@ export default function RankingsPage() {
       {activeTab === 'all_pyramids' && !navLeague && (
         <div className="grid grid-cols-1 gap-2">
           {LEAGUES.map(l => (
-            <Card key={l.id} className="glass-card border-white/5 hover:bg-white/5 cursor-pointer group" onClick={() => setNavLeague(l.id)}>
+            <Card key={l.id} className="glass-card border-white/5 hover:bg-white/5 transition-all cursor-pointer group" onClick={() => setNavLeague(l.id)}>
               <CardContent className="p-4 text-center">
                 <p className="text-sm font-headline font-bold text-white italic tracking-widest group-hover:text-primary transition-colors">{l.id}</p>
               </CardContent>
