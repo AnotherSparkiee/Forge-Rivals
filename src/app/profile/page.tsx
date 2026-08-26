@@ -64,7 +64,7 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (!isUserLoading && !user) {
-      router.push('/');
+      router.push('/auth/login');
     }
   }, [user, isUserLoading, router]);
 
@@ -109,6 +109,7 @@ export default function ProfilePage() {
       xp: "XP Progress",
       popularity: "Global Status",
       resetBtn: "RESET PROFILE",
+      logoutBtn: "LOGOUT",
       resetTitle: "ABSOLUTE RESET",
       resetDesc: "This action will PERMANENTLY delete your team, progress, and assets. You will have to initialize your club again. THIS CANNOT BE UNDONE.",
       teamStats: "Operational Balance",
@@ -127,6 +128,7 @@ export default function ProfilePage() {
       xp: "Опыт менеджера",
       popularity: "Статус в мире",
       resetBtn: "СБРОСИТЬ ПРОФИЛЬ",
+      logoutBtn: "ВЫЙТИ ИЗ ПРОФИЛЯ",
       resetTitle: "ПОЛНЫЙ СБРОС",
       resetDesc: "Это действие НАВСЕГДА удалит вашу команду, весь прогресс и активы. Вам придется заново инициализировать клуб. ЭТО ДЕЙСТВИЕ НЕЛЬЗЯ ОТМЕНИТЬ.",
       teamStats: "Операционный баланс",
@@ -153,6 +155,16 @@ export default function ProfilePage() {
     } finally {
       setIsResetting(false);
       setShowResetDialog(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    if (!auth) return;
+    try {
+      await signOut(auth);
+      router.push('/auth/login');
+    } catch (e) {
+      console.error("Logout error", e);
     }
   };
 
@@ -245,11 +257,124 @@ export default function ProfilePage() {
           <div className="grid grid-cols-1 gap-2">
             <Button variant="outline" className="h-12 border-white/5 bg-secondary/20 hover:bg-white/5 justify-between px-4 group" onClick={() => setActiveTab('team')}><div className="flex items-center gap-3"><Shield className="w-4 h-4 text-primary group-hover:scale-110 transition-transform" /><span className="text-[10px] font-black uppercase">Club Infrastructure Overview</span></div><ChevronRight className="w-4 h-4 text-muted-foreground" /></Button>
           </div>
-          <div className="pt-6">
+          <div className="pt-6 space-y-2">
             <Button variant="destructive" className="w-full h-14 hero-gradient border-none font-black text-xs tracking-[0.2em] uppercase shadow-2xl active:scale-95 transition-all" onClick={() => setShowResetDialog(true)} disabled={isResetting}>
               {isResetting ? <Loader2 className="animate-spin" /> : <><RefreshCw className="w-4 h-4 mr-2" /> {t.resetBtn}</>}
             </Button>
+            <Button variant="outline" className="w-full h-12 border-white/10 bg-secondary/20 hover:bg-white/5 font-black text-xs tracking-[0.2em] uppercase active:scale-95 transition-all" onClick={handleLogout}>
+              <LogOut className="w-4 h-4 mr-2 text-red-400" /> {t.logoutBtn}
+            </Button>
           </div>
+        </div>
+      )}
+
+      {activeTab === 'team' && (
+        <div className="space-y-4 animate-in fade-in duration-500 pb-20">
+           <Card className="glass-card border-white/5 bg-secondary/10 p-6">
+              <div className="flex items-center gap-3 mb-6">
+                <Shield className="w-6 h-6 text-primary" />
+                <h3 className="text-sm font-black uppercase text-white tracking-widest">Club Intelligence</h3>
+              </div>
+              <div className="space-y-4">
+                <div className="flex justify-between items-center border-b border-white/5 pb-2">
+                   <span className="text-[10px] font-bold text-muted-foreground uppercase">Popularity Rank</span>
+                   <span className="text-sm font-headline font-bold text-accent">{popularityPoints.toLocaleString()} PR</span>
+                </div>
+                <div className="flex justify-between items-center border-b border-white/5 pb-2">
+                   <span className="text-[10px] font-bold text-muted-foreground uppercase">League Level</span>
+                   <span className="text-sm font-headline font-bold text-white">Division {leagueLevel}</span>
+                </div>
+                <div className="flex justify-between items-center border-b border-white/5 pb-2">
+                   <span className="text-[10px] font-bold text-muted-foreground uppercase">License Tier</span>
+                   <Badge variant="outline" className="text-[8px] border-primary/30 text-primary uppercase font-black">
+                     {activeLicenseTier === 1 ? 'S-TIER' : activeLicenseTier === 2 ? 'A-TIER' : activeLicenseTier === 3 ? 'B-TIER' : 'STANDARD'}
+                   </Badge>
+                </div>
+                <div className="flex justify-between items-center border-b border-white/5 pb-2">
+                   <span className="text-[10px] font-bold text-muted-foreground uppercase">Manager Level</span>
+                   <span className="text-sm font-headline font-bold text-primary">{managerLevel}</span>
+                </div>
+              </div>
+           </Card>
+
+           <div className="space-y-3">
+             <h3 className="text-[10px] font-black uppercase tracking-widest text-accent px-1 flex items-center gap-2"><Award className="w-4 h-4" /> {t.skills.title}</h3>
+             <div className="grid grid-cols-1 gap-2">
+                {[
+                  { id: 'sponsors', label: t.skills.sponsors, icon: CircleDollarSign, color: 'text-yellow-500' },
+                  { id: 'agents', label: t.skills.agents, icon: UserCog, color: 'text-blue-400' },
+                  { id: 'training', label: t.skills.training, icon: GraduationCap, color: 'text-green-400' },
+                  { id: 'medical', label: t.skills.medical, icon: HeartPulse, color: 'text-red-400' }
+                ].map((skill) => (
+                  <div key={skill.id} className="bg-secondary/20 p-4 rounded-xl border border-white/5 flex items-center justify-between">
+                     <div className="flex items-center gap-3">
+                        <div className={cn("p-2 rounded-lg bg-secondary/50", skill.color)}><skill.icon className="w-5 h-5" /></div>
+                        <div>
+                          <p className="text-xs font-bold uppercase text-white">{skill.label}</p>
+                          <p className="text-[8px] text-muted-foreground uppercase font-black">Level {(managerSkills as any)[skill.id]}</p>
+                        </div>
+                     </div>
+                     <div className="flex items-center gap-2">
+                        {Array.from({ length: 5 }).map((_, i) => (
+                          <div key={i} className={cn("w-2 h-2 rounded-full", i < (managerSkills as any)[skill.id] ? "bg-primary shadow-[0_0_5px_rgba(var(--primary),0.5)]" : "bg-white/5")} />
+                        ))}
+                     </div>
+                  </div>
+                ))}
+             </div>
+           </div>
+        </div>
+      )}
+
+      {activeTab === 'gifts' && (
+        <div className="space-y-4 animate-in fade-in duration-500 pb-20">
+           <Card className="glass-card border-accent/20 bg-accent/5 p-6">
+              <div className="flex items-center gap-3 mb-6">
+                <GiftIcon className="w-6 h-6 text-accent" />
+                <h3 className="text-sm font-black uppercase text-white tracking-widest">{t.gifts.title}</h3>
+              </div>
+              <div className="bg-background/40 p-4 rounded-xl border border-white/5 space-y-4">
+                 <p className="text-[10px] text-muted-foreground italic leading-relaxed">
+                   {t.gifts.noGiftsDesc}
+                 </p>
+              </div>
+           </Card>
+
+           <div className="space-y-3">
+             <h3 className="text-[10px] font-black uppercase tracking-widest text-primary px-1 flex items-center gap-2"><Package className="w-4 h-4" /> {t.gifts.received}</h3>
+             {receivedGifts && receivedGifts.length > 0 ? (
+               <div className="grid grid-cols-1 gap-2">
+                 {receivedGifts.map((gift) => (
+                   <Card key={gift.id} className="glass-card border-white/5 overflow-hidden">
+                     <CardContent className="p-4 flex items-center justify-between">
+                       <div className="flex items-center gap-4">
+                         <div className="p-2.5 rounded-xl bg-accent/20 border border-accent/30">
+                           <GiftIcon className="w-6 h-6 text-accent" />
+                         </div>
+                         <div>
+                           <h4 className="text-xs font-bold uppercase text-white">{gift.label}</h4>
+                           <p className="text-[8px] text-muted-foreground uppercase font-black mt-1">From: {gift.senderName || 'Unknown Ally'}</p>
+                         </div>
+                       </div>
+                       <Button 
+                         size="sm" 
+                         className="hero-gradient font-black text-[9px] uppercase px-4 h-9"
+                         onClick={() => handleClaimGiftAction(gift)}
+                         disabled={isClaiming === gift.id}
+                       >
+                         {isClaiming === gift.id ? <Loader2 className="w-3 h-3 animate-spin" /> : t.gifts.activate}
+                       </Button>
+                     </CardContent>
+                   </Card>
+                 ))}
+               </div>
+             ) : (
+               <div className="py-12 text-center opacity-30 border border-dashed border-white/10 rounded-2xl flex flex-col items-center gap-4">
+                 <GiftIcon className="w-10 h-10" />
+                 <p className="text-[10px] font-black uppercase tracking-widest">{t.gifts.noGifts}</p>
+               </div>
+             )}
+           </div>
         </div>
       )}
 
