@@ -92,7 +92,7 @@ export default function RankingsPage() {
   const t = {
     en: {
       title: "RANKINGS HUB", subtitle: "Global Competitive Terminals",
-      pts: "PTS", winLoss: "W-D-L", m: "M", back: "Back", team: "Team",
+      pts: "PTS", winLoss: "W-D-L", m: "M", back: "Back", team: "TEAM",
       loading: "Syncing League Data...",
       noTable: "SECTOR NOT INITIALIZED",
       noTableDesc: "This division sector is currently empty. No managers have deployed here yet.",
