@@ -92,7 +92,7 @@ export default function RankingsPage() {
   const t = {
     en: {
       title: "RANKINGS HUB", subtitle: "Global Competitive Terminals",
-      pts: "PTS", winLoss: "W-D-L", m: "M", back: "Back",
+      pts: "PTS", winLoss: "W-D-L", m: "M", back: "Back", team: "Team",
       loading: "Syncing League Data...",
       noTable: "SECTOR NOT INITIALIZED",
       noTableDesc: "This division sector is currently empty. No managers have deployed here yet.",
@@ -107,7 +107,7 @@ export default function RankingsPage() {
     },
     ru: {
       title: "ТАБЛИЦЫ РЕЙТИНГА", subtitle: "Терминалы глобальных соревнований",
-      pts: "О", winLoss: "В-Н-П", m: "И", back: "Назад",
+      pts: "О", winLoss: "В-Н-П", m: "И", back: "Назад", team: "Команда",
       loading: "Синхронизация данных...",
       noTable: "СЕКТОР НЕ ИНИЦИАЛИЗИРОВАН",
       noTableDesc: "Данный сектор дивизиона пока пуст. В нем нет ни одного активного менеджера.",
@@ -198,7 +198,7 @@ export default function RankingsPage() {
                
                <div className="space-y-1">
                  <div className="grid grid-cols-[24px_1fr_25px_60px_35px] gap-1 px-3 py-2 text-[8px] font-black text-muted-foreground uppercase tracking-widest border-b border-white/5">
-                   <span>#</span><span>Team</span><span className="text-center">{t.m}</span><span className="text-center">{t.winLoss}</span><span className="text-right">{t.pts}</span>
+                   <span>#</span><span>{t.team}</span><span className="text-center">{t.m}</span><span className="text-center">{t.winLoss}</span><span className="text-right">{t.pts}</span>
                  </div>
                  {standings.map((entry: any, i: number) => {
                    const pos = i + 1;
