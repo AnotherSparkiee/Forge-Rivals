@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useGameState } from '../lib/store';
@@ -7,7 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { 
   ChevronLeft, Settings, Users, ShieldCheck, 
-  Info, Loader2, Package,
+  Info, Loader2, Package, Gift,
   ChevronRight, Sparkles, Database, Sword
 } from 'lucide-react';
 import Link from 'next/link';
@@ -15,7 +14,6 @@ import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query } from 'firebase/firestore';
 import { useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
-import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 
 export default function SystemPage() {
   const { language } = useGameState();
@@ -58,10 +56,8 @@ export default function SystemPage() {
       rolesDesc: "Специализации и позиции на карте",
       items: "Предметы",
       itemsDesc: "Каталог артефактов и снаряжения",
-      config: "Глобальная конфигурация",
-      admin: "Инструменты администратора",
-      autonomous: "Автономный цикл",
-      autonomousDesc: "Мир обновляется автоматически каждый сезон",
+      bonuses: "Список бонусов",
+      bonusesDesc: "Справочник усилений и модификаторов",
       loading: "Синхронизация...",
       hostId: "ID хоста",
     },
@@ -78,10 +74,8 @@ export default function SystemPage() {
       rolesDesc: "Specializations and roles",
       items: "Items",
       itemsDesc: "Artifact and equipment catalog",
-      config: "Global Config",
-      admin: "Administrator Tools",
-      autonomous: "Autonomous Cycle",
-      autonomousDesc: "The world updates automatically every season",
+      bonuses: "Bonus List",
+      bonusesDesc: "Guide to buffs and modifiers",
       loading: "Syncing...",
       hostId: "Host ID",
     }
@@ -138,22 +132,6 @@ export default function SystemPage() {
         </section>
 
         <section className="space-y-2">
-          <h2 className="text-[10px] font-black uppercase tracking-widest text-accent px-1">{t.admin}</h2>
-          <Card className="glass-card border-green-500/20 bg-green-500/5">
-            <CardContent className="p-4 flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="p-2 rounded-lg bg-green-500/20"><Database className="w-5 h-5 text-green-400" /></div>
-                <div>
-                  <h3 className="text-xs font-bold uppercase text-white">{t.autonomous}</h3>
-                  <p className="text-[8px] text-muted-foreground uppercase">{t.autonomousDesc}</p>
-                </div>
-              </div>
-              <Badge variant="outline" className="text-[8px] border-green-500/30 text-green-400 font-black uppercase tracking-widest">ACTIVE</Badge>
-            </CardContent>
-          </Card>
-        </section>
-
-        <section className="space-y-2">
           <h2 className="text-[10px] font-black uppercase tracking-widest text-accent px-1">{t.knowledge}</h2>
           <Link href="/system/knowledge-base/heroes" className="block">
             <Card className="glass-card border-white/5 bg-secondary/10 hover:bg-white/5 transition-all cursor-pointer">
@@ -183,6 +161,17 @@ export default function SystemPage() {
                 <div className="flex items-center gap-4">
                   <div className="p-2 rounded-lg bg-blue-500/10"><Package className="w-5 h-5 text-blue-400" /></div>
                   <div><h3 className="text-xs font-bold uppercase">{t.items}</h3><p className="text-[9px] text-muted-foreground uppercase">{t.itemsDesc}</p></div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-muted-foreground" />
+              </CardContent>
+            </Card>
+          </Link>
+          <Link href="/system/knowledge-base/bonuses" className="block">
+            <Card className="glass-card border-white/5 bg-secondary/10 hover:bg-white/5 transition-all cursor-pointer">
+              <CardContent className="p-4 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="p-2 rounded-lg bg-yellow-500/10"><Gift className="w-5 h-5 text-yellow-500" /></div>
+                  <div><h3 className="text-xs font-bold uppercase">{t.bonuses}</h3><p className="text-[9px] text-muted-foreground uppercase">{t.bonusesDesc}</p></div>
                 </div>
                 <ChevronRight className="w-4 h-4 text-muted-foreground" />
               </CardContent>
