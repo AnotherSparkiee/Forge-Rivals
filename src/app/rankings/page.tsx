@@ -181,9 +181,7 @@ export default function RankingsPage() {
              </div>
            ) : standings.length > 0 ? (
              <>
-               <div className="flex items-center justify-between px-1">
-                 <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase italic rounded-full px-4">ДИВИЗИОН {contextLevel} • ГРУППА {contextGroup}</Badge>
-                 
+               <div className="flex items-center justify-end px-1">
                  <div className="flex items-center gap-3 text-[7px] font-black uppercase tracking-widest">
                     <div className="flex items-center gap-1 text-green-400">
                       <div className="w-2.5 h-2.5 rounded-full border border-green-400 flex items-center justify-center"><ArrowUp className="w-1.5 h-1.5" /></div>
@@ -204,6 +202,7 @@ export default function RankingsPage() {
                    const pos = i + 1;
                    const isMe = entry.id === user?.uid;
                    const clubLogo = logoMap[entry.id] || entry.clubLogo;
+                   
                    const isChampionZone = pos === 1;
                    const isRelegationZone = pos >= 7;
 
@@ -211,7 +210,7 @@ export default function RankingsPage() {
                     <div key={entry.id} className={cn(
                       "grid grid-cols-[24px_1fr_25px_60px_35px] gap-1 items-center p-2.5 rounded-xl border mb-1 transition-all", 
                       isMe ? "bg-primary/20 border-primary/40 shadow-[0_0_15px_rgba(var(--primary),0.1)] z-10" : 
-                      isChampionZone ? "bg-green-500/10 border-green-500/20" :
+                      isChampionZone ? "bg-green-500/10 border-green-500/20 shadow-[0_0_10px_rgba(34,197,94,0.05)]" :
                       isRelegationZone ? "bg-red-500/10 border-red-500/20" :
                       "bg-secondary/20 border-white/5"
                     )}>
