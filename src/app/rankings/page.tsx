@@ -62,6 +62,8 @@ export default function RankingsPage() {
       title: "RANKINGS HUB", subtitle: "Global Competitive Terminals",
       pts: "PTS", winLoss: "W-D-L", m: "M", back: "Back",
       loading: "Syncing League Data...",
+      noTable: "STANDINGS NOT FOUND",
+      noTableDesc: "This division sector is currently uninitialized.",
       menu: [
         { id: 'my_league', label: 'League Standings', desc: `Division ${leagueLevel}.${groupId}`, icon: Shield, color: 'text-primary' },
         { id: 'my_pyramid', label: 'League Pyramid', desc: `Explore ${selectedLeagueId}`, icon: Layers, color: 'text-accent' },
@@ -73,6 +75,8 @@ export default function RankingsPage() {
       title: "ТАБЛИЦЫ РЕЙТИТИНГА", subtitle: "Терминалы глобальных соревнований",
       pts: "О", winLoss: "В-Н-П", m: "И", back: "Назад",
       loading: "Синхронизация данных...",
+      noTable: "ТАБЛИЦА НЕ НАЙДЕНА",
+      noTableDesc: "Данный сектор дивизиона еще не инициализирован.",
       menu: [
         { id: 'my_league', label: 'Таблица Лиги', desc: `Дивизион ${leagueLevel}.${groupId}`, icon: Shield, color: 'text-primary' },
         { id: 'my_pyramid', label: 'Пирамида Лиги', desc: `Изучить лигу ${selectedLeagueId}`, icon: Layers, color: 'text-accent' },
@@ -139,7 +143,7 @@ export default function RankingsPage() {
                 <RefreshCw className="w-10 h-10 text-primary animate-spin" />
                 <p className="text-[10px] font-black uppercase tracking-[0.3em] text-primary">{t.loading}</p>
              </div>
-           ) : (
+           ) : standings.length > 0 ? (
              <>
                <div className="flex items-center justify-between px-1">
                  <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase italic">DIV {contextLevel} • G {contextGroup}</Badge>
@@ -174,6 +178,16 @@ export default function RankingsPage() {
                  })}
                </div>
              </>
+           ) : (
+             <div className="py-20 text-center opacity-30 flex flex-col items-center gap-4 border border-dashed border-white/10 rounded-3xl p-10">
+                <Shield className="w-12 h-12 text-muted-foreground" />
+                <div className="space-y-1">
+                  <p className="text-sm font-bold uppercase text-white">{t.noTable}</p>
+                  <p className="text-[9px] uppercase font-black tracking-widest leading-relaxed">
+                    {t.noTableDesc}
+                  </p>
+                </div>
+             </div>
            )}
         </div>
       )}

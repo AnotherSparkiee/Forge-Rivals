@@ -1,15 +1,16 @@
 'use client';
 
 /**
- * Глобальное локальное хранилище v223 (User-ID Bound).
- * Теперь данные жестко привязаны к UID пользователя. 
- * При смене аккаунта старые данные автоматически заменяются.
+ * Глобальное локальное хранилище v224 (Hybrid Firestore-Local Sync).
+ * Теперь данные не только сохраняются локально, но и автоматически
+ * синхронизируются с профилем игрока в Firestore (players_v11).
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useMemo } from 'react';
 import { Player, StaffMember, StaffRole, generateScoutedPlayer, getRandomStartingSquad } from './moba-data';
 import { getMoscowTime, getGlobalSeasonInfo, getMoscowDateString, getLevelThreshold } from './time-utils';
-import { useUser } from '@/firebase';
+import { useUser, initializeFirebase } from '@/firebase';
+import { doc, onSnapshot } from 'firebase/firestore';
 
 export { getLevelThreshold };
 
@@ -124,7 +125,7 @@ interface GameState {
   saveToLocal: (state: Partial<GameState>) => void;
 }
 
-const STORAGE_KEY = 'lote_game_state_v223';
+const STORAGE_KEY = 'lote_game_state_v224';
 
 const DEFAULT_STATE: GameState = {
   credits: 1000000, crystals: 50, experiencePoints: 0, managerLevel: 1,
@@ -144,7 +145,7 @@ const DEFAULT_STATE: GameState = {
   arena: { capacity: 5000 }, hq: {}, bootcamp: {}, academy: {}, medical: {},
   country: null, isPremium: false, premiumUntil: null, activeSeasonNumber: 1, seasonNumber: 1, seasonDay: 1, isSyncing: false, language: 'ru',
   isDataReady: false, allSeasonMatches: [], nextMatch: null, isMatchesLoading: true,
-  lastProcessedSeason: 0, trophies: [], version: 223,
+  lastProcessedSeason: 0, trophies: [], version: 224,
   availableGiftsToSend: [], receivedGifts: [], lastGiftGenDate: null,
   addCrystals: () => {}, addCredits: () => {}, updatePlayer: () => {}, removePlayer: () => {}, assignToRole: () => {}, updateLineup: () => {}, updateTactics: () => {},
   claimReward: () => {}, setLanguage: () => {}, purchaseLicense: () => false, purchasePremium: () => false,
@@ -172,7 +173,15 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const { user, isUserLoading } = useUser();
   const staticSeasonInfo = useMemo(() => getGlobalSeasonInfo(), []);
 
-  // Первичная загрузка и валидация пользователя
+  const saveToLocal = useCallback((updates: Partial<GameState>) => {
+    setState(prev => {
+      const newState = { ...prev, ...updates };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(newState));
+      return newState;
+    });
+  }, []);
+
+  // 1. Первичная загрузка из локального хранилища
   useEffect(() => {
     if (isUserLoading) return;
 
@@ -181,16 +190,12 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       try {
         const parsed = JSON.parse(saved);
         
-        // КРИТИЧЕСКАЯ ПРОВЕРКА: Если сохраненный ID не совпадает с текущим пользователем Firebase
-        // то мы игнорируем старые данные и начинаем с чистого листа
         if (user && parsed.id && parsed.id !== user.uid) {
-          console.warn("[STORE] User mismatch detected. Resetting to fresh state for new user.");
           setState(prev => ({
             ...DEFAULT_STATE,
             id: user.uid,
             isLoaded: true,
-            isTeamLoaded: false,
-            language: parsed.language || 'ru' // Сохраняем только язык
+            language: parsed.language || 'ru'
           }));
           return;
         }
@@ -200,13 +205,11 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
           ...parsed,
           id: user?.uid || parsed.id || '',
           isLoaded: true,
-          isTeamLoaded: !!parsed.selectedLeagueId,
           activeSeasonNumber: staticSeasonInfo.activeSeasonNumber,
           seasonNumber: staticSeasonInfo.seasonNumber,
           seasonDay: staticSeasonInfo.seasonDay
         }));
       } catch (e) {
-        console.error("Failed to load local state", e);
         setState(prev => ({ ...prev, isLoaded: true }));
       }
     } else {
@@ -214,10 +217,44 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     }
   }, [isUserLoading, user, staticSeasonInfo]);
 
-  // Следим за сменой пользователя в реальном времени
+  // 2. СИНХРОНИЗАЦИЯ С FIRESTORE (players_v11)
+  // Это критично для восстановления прогресса при обновлении страницы
+  useEffect(() => {
+    if (!user?.uid || !state.isLoaded) return;
+
+    const { firestore: db } = initializeFirebase();
+    const playerRef = doc(db, 'players_v11', user.uid);
+
+    const unsubscribe = onSnapshot(playerRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        
+        // Обновляем состояние только теми полями, которые критичны для навигации и лиги
+        saveToLocal({
+          clubName: data.clubName,
+          clubLogo: data.clubLogo,
+          country: data.country,
+          selectedLeagueId: data.selectedLeagueId,
+          leagueLevel: Number(data.leagueLevel),
+          groupId: Number(data.groupId),
+          rank: Number(data.rank),
+          isTeamLoaded: true,
+          // managerLevel и опыт тоже можно синхронить, если они есть в БД
+          managerLevel: data.managerLevel || state.managerLevel,
+          experiencePoints: data.experiencePoints || state.experiencePoints
+        });
+      } else {
+        // Если документа в v11 нет, значит клуб еще не создан
+        setState(prev => ({ ...prev, isTeamLoaded: false }));
+      }
+    });
+
+    return () => unsubscribe();
+  }, [user?.uid, state.isLoaded, saveToLocal]);
+
+  // 3. Следим за сменой пользователя
   useEffect(() => {
     if (user && state.id && state.id !== user.uid) {
-      // Смена аккаунта произошла во время сессии
       localStorage.removeItem(STORAGE_KEY);
       setState({ ...DEFAULT_STATE, id: user.uid, isLoaded: true });
     }
@@ -246,14 +283,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       }
     }
   }, [state.allSeasonMatches, state.rank]);
-
-  const saveToLocal = useCallback((updates: Partial<GameState>) => {
-    setState(prev => {
-      const newState = { ...prev, ...updates };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(newState));
-      return newState;
-    });
-  }, []);
 
   const addCrystals = useCallback((amount: number) => saveToLocal({ crystals: (state.crystals || 0) + amount }), [state.crystals, saveToLocal]);
   const addCredits = useCallback((amount: number) => saveToLocal({ credits: (state.credits || 0) + amount }), [state.credits, saveToLocal]);
