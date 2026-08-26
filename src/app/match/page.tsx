@@ -1,9 +1,9 @@
+
 'use client';
 
 /**
- * @fileOverview ОФИЦИАЛЬНЫЙ ПЛЕЕР МАТЧЕЙ v6.3 (Hook Order Fix).
- * Исправлена ошибка нарушения порядка хуков (Rules of Hooks).
- * rank теперь извлекается в начале компонента вместе с остальными данными состояния.
+ * @fileOverview ОФИЦИАЛЬНЫЙ ПЛЕЕР МАТЧЕЙ v6.4 (Database Target Fix).
+ * Исправлена работа с базой данных: теперь система ищет матчи в 'matches_v1'.
  */
 
 import { useState, useEffect, useMemo, Suspense, useRef } from 'react';
@@ -113,9 +113,6 @@ function MatchContent() {
     
     // Если это матч лиги с рангами, разрешаем имена динамически
     if (matchData.homeRank && matchData.awayRank) {
-      const leagueIdx = "01";
-      const groupPrefix = String(groupId).padStart(3, '0');
-      
       const hRank = Number(matchData.homeRank);
       const aRank = Number(matchData.awayRank);
       
@@ -202,7 +199,7 @@ function MatchContent() {
       comparison: "TEAM CUMULATIVE SKILL ANALYSIS",
       progression: "POST-MATCH IMPACT",
       staffInfluence: "STAFF PERFORMANCE CONTRIBUTION",
-      compFarm: "Total Resource Farm", compTactics: "Tactical Execution", compTeam: "Strategic Unity", compRef: "Combat Reflexes",
+      compFarm: "Total Resource Farm", compTactics: "Tactical Execution", compTeam: "Strategic Unity", compTeamPower: "Team Synergy", compRef: "Combat Reflexes",
       tbdTitle: "TECHNICAL WIN SECURED",
       tbdDesc: "Opponent (TBD) failed to deploy for tactical engagement. Result officially recorded as 2:0.",
       victory: "VICTORY:", draw: "MATCH DRAWN",
@@ -215,7 +212,7 @@ function MatchContent() {
       comparison: "АНАЛИЗ СУММАРНЫХ НАВЫКОВ КОМАНД",
       progression: "ПОСЛЕМАТЧЕВЫЙ ОТЧЕТ",
       staffInfluence: "ВКЛАД ПЕРСОНАЛА КЛУБА",
-      compFarm: "Суммарный фарм", compTactics: "Тактическая точность", compTeam: "Командная синергия", compRef: "Боевые рефлексы",
+      compFarm: "Суммарный фарм", compTactics: "Тактическая точность", compTeamPower: "Командная синергия", compTeam: "Стратегическое единство", compRef: "Боевые рефлексы",
       tbdTitle: "ТЕХНИЧЕСКАЯ ПОБЕДА",
       tbdDesc: "Соперник (TBD) не явился на поле боя. Результат официально зафиксирован как 2:0.",
       victory: "ПОБЕДА:", draw: "НИЧЬЯ В СЕРИИ",

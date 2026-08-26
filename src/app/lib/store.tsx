@@ -1,3 +1,4 @@
+
 'use client';
 
 /**
@@ -190,6 +191,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       try {
         const parsed = JSON.parse(saved);
         
+        // Принудительный сброс если ID не совпадает с UID Firebase
         if (user && parsed.id && parsed.id !== user.uid) {
           setState(prev => ({
             ...DEFAULT_STATE,
@@ -218,7 +220,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   }, [isUserLoading, user, staticSeasonInfo]);
 
   // 2. СИНХРОНИЗАЦИЯ С FIRESTORE (players_v11)
-  // Это критично для восстановления прогресса при обновлении страницы
   useEffect(() => {
     if (!user?.uid || !state.isLoaded) return;
 
@@ -229,7 +230,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       if (snapshot.exists()) {
         const data = snapshot.data();
         
-        // Обновляем состояние только теми полями, которые критичны для навигации и лиги
         saveToLocal({
           clubName: data.clubName,
           clubLogo: data.clubLogo,
@@ -239,12 +239,10 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
           groupId: Number(data.groupId),
           rank: Number(data.rank),
           isTeamLoaded: true,
-          // managerLevel и опыт тоже можно синхронить, если они есть в БД
           managerLevel: data.managerLevel || state.managerLevel,
           experiencePoints: data.experiencePoints || state.experiencePoints
         });
       } else {
-        // Если документа в v11 нет, значит клуб еще не создан
         setState(prev => ({ ...prev, isTeamLoaded: false }));
       }
     });

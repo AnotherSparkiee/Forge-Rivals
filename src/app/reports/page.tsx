@@ -1,8 +1,9 @@
+
 'use client';
 
 /**
- * @fileOverview ЦЕНТР ОТЧЕТОВ МАТЧЕЙ v1.3.
- * Исправлена фильтрация отчетов: теперь поиск идет по рангу игрока, что совпадает с логикой счетчика на главной.
+ * @fileOverview ЦЕНТР ОТЧЕТОВ МАТЧЕЙ v1.4.
+ * Исправлено: переход на коллекцию 'matches_v1' для синхронизации с миром.
  */
 
 import { useGameState } from '@/app/lib/store';
@@ -73,19 +74,16 @@ export default function ReportsPage() {
       source: 'history'
     }));
 
-    // 2. Из текущего сезона лиги (Фильтруем по рангу, как на главной)
+    // 2. Из текущего сезона лиги
     const leagueReports = (allSeasonMatches || [])
       .filter(m => (Number(m.homeRank) === rank || Number(m.awayRank) === rank) && m.isFinished)
       .map(m => {
         // Разрешаем имена для лиги
-        const leagueIdx = "01";
-        const groupPrefix = String(groupId).padStart(3, '0');
-        
         const hRank = Number(m.homeRank);
         const aRank = Number(m.awayRank);
         
-        const botHome = `BOT${leagueIdx}${leagueLevel}${groupPrefix}${hRank}`;
-        const botAway = `BOT${leagueIdx}${leagueLevel}${groupPrefix}${aRank}`;
+        const botHome = `BOT_ALPHA_L${leagueLevel}_G${groupId}_R${hRank}`;
+        const botAway = `BOT_ALPHA_L${leagueLevel}_G${groupId}_R${aRank}`;
 
         const hName = nameMap.names[hRank] || botHome;
         const aName = nameMap.names[aRank] || botAway;

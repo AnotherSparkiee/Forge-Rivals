@@ -46,6 +46,7 @@ export default function RankingsPage() {
   const { data: profile, isLoading: isProfileLoading } = useDoc(userProfileRef);
 
   // 2. ОПРЕДЕЛЯЕМ КОНТЕКСТ ПРОСМОТРА
+  // Ждем профиль для правильного определения "моей лиги"
   const contextLeagueId = String(navLeague || profile?.selectedLeagueId || "ALPHA");
   const contextLevel = Number(navLevel || profile?.leagueLevel || 9);
   const contextGroup = Number(navGroup || profile?.groupId || 1);
@@ -114,7 +115,8 @@ export default function RankingsPage() {
     router.push('/');
   };
 
-  if (!isLoaded || (isProfileLoading && activeTab === 'menu')) return <LoadingScreen />;
+  // Ждем профиль если мы на вкладке своей лиги
+  if (!isLoaded || (isProfileLoading && (activeTab === 'menu' || activeTab === 'my_league'))) return <LoadingScreen />;
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-24">

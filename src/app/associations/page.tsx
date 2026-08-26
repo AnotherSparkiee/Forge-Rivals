@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -69,7 +70,7 @@ export default function AssociationPage() {
 
   const userRef = useMemoFirebase(() => {
     if (!db || !user) return null;
-    return doc(db, 'players_v10', user.uid);
+    return doc(db, 'players_v11', user.uid);
   }, [db, user]);
   
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
@@ -301,7 +302,7 @@ export default function AssociationPage() {
           requests: arrayRemove(applicant),
           news: arrayUnion({ type: 'join', userName: applicant.name, timestamp: nowIso })
         });
-        updateDocumentNonBlocking(doc(db, 'players_v10', applicant.uid), { 
+        updateDocumentNonBlocking(doc(db, 'players_v11', applicant.uid), { 
           associationId: myAssoc.id,
           lastJoinedAssocAt: nowIso
         });
@@ -351,7 +352,7 @@ export default function AssociationPage() {
         news: arrayUnion({ type: 'kick', userName: selectedPlayer.name, timestamp: nowIso }),
         ...(myAssoc.deputyId === selectedPlayer.id ? { deputyId: null } : {})
       });
-      updateDocumentNonBlocking(doc(db, 'players_v10', selectedPlayer.id), { associationId: null });
+      updateDocumentNonBlocking(doc(db, 'players_v11', selectedPlayer.id), { associationId: null });
       toast({ title: language === 'ru' ? "Игрок исключен" : "Player Kicked" });
       setSelectedUser(null);
     } finally {
@@ -408,7 +409,7 @@ export default function AssociationPage() {
       const batch = writeBatch(db);
       const members = myAssoc.members || [];
       members.forEach((uid: string) => {
-        batch.update(doc(db, 'players_v10', uid), { associationId: null });
+        batch.update(doc(db, 'players_v11', uid), { associationId: null });
       });
       batch.delete(doc(db, 'associations_v4', myAssoc.id));
       await batch.commit();
