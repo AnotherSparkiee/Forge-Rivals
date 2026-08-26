@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useGameState, getLevelThreshold, Gift } from '../lib/store';
@@ -54,7 +55,6 @@ export default function ProfilePage() {
   const [showResetDialog, setShowResetDialog] = useState(false);
   const [isClaiming, setIsClaiming] = useState<string | null>(null);
 
-  // Updated to use players_v11
   const userRef = useMemoFirebase(() => {
     if (!db || !user?.uid) return null;
     return doc(db, 'players_v11', user.uid);
@@ -105,7 +105,7 @@ export default function ProfilePage() {
     en: {
       title: "LEGENDARY MANAGER",
       backToMenu: "Back to Hub",
-      lvl: "УР",
+      lvl: "LVL",
       xp: "XP Progress",
       popularity: "Global Status",
       resetBtn: "RESET PROFILE",
@@ -161,8 +161,12 @@ export default function ProfilePage() {
   const handleLogout = async () => {
     if (!auth) return;
     try {
+      // 1. Сначала полностью сбрасываем локальное состояние игры
+      await resetProfile();
+      // 2. Затем выходим из Firebase Auth
       await signOut(auth);
-      router.push('/auth/login');
+      // 3. Перенаправляем на страницу логина
+      router.replace('/auth/login');
     } catch (e) {
       console.error("Logout error", e);
     }
@@ -386,7 +390,7 @@ export default function ProfilePage() {
             <DialogDescription className="text-center text-xs text-muted-foreground mt-2">{t.resetDesc}</DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-2 mt-6">
-            <Button variant="destructive" className="h-12 font-black uppercase text-[10px]" onClick={handleReset} disabled={isResetting}>{isResetting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />} {language === 'ru' ? 'ПОДТВЕРДИТЬ СБРОС' : 'CONFIRM RESET'}</Button>
+            <Button variant="destructive" className="h-12 font-black uppercase text-[10px]" onClick={handleReset} disabled={isResetting}>{isResetting ? <Loader2 className="animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />} {language === 'ru' ? 'ПОДТВЕРДИТЬ СБРОС' : 'CONFIRM RESET'}</Button>
             <Button variant="outline" className="h-12 font-bold uppercase text-[10px] border-white/10" onClick={() => setShowResetDialog(false)} disabled={isResetting}>{language === 'ru' ? 'ОТМЕНА' : 'CANCEL'}</Button>
           </div>
         </DialogContent>

@@ -1,16 +1,13 @@
+
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { LEAGUES } from '@/app/lib/leagues-data';
 import { COUNTRIES } from '@/app/lib/countries-data';
-import { Loader2, ChevronLeft, Edit3 } from 'lucide-react';
+import { Loader2, ChevronLeft } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { cn } from '@/lib/utils';
 import { useGameState, LineupSlot } from '@/app/lib/store';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 import { getRandomStartingSquad } from '@/app/lib/moba-data';
@@ -37,11 +34,10 @@ export default function SetupPage() {
   const { toast } = useToast();
   const { language, isLoaded, saveToLocal } = useGameState();
   
-  const [step, setStep] = useState<'league' | 'country' | 'club' | 'name'>('league');
-  const [selectedLeagueId, setSelectedLeagueId] = useState<string | null>(null);
+  // Упрощенный процесс: Страна -> Логотип. Название = Логин (из Auth)
+  const [step, setStep] = useState<'country' | 'club'>('country');
   const [selectedCountryCode, setSelectedCountryCode] = useState<string | null>(null);
   const [selectedClubId, setSelectedClubId] = useState<string | null>(null);
-  const [customClubName, setCustomClubName] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
 
   useEffect(() => {
@@ -50,15 +46,22 @@ export default function SetupPage() {
     }
   }, [user, isUserLoading, router]);
 
+  // Извлекаем "логин" из email (часть до @)
+  const loginName = useMemo(() => {
+    if (!user?.email) return "Manager";
+    return user.email.split('@')[0];
+  }, [user?.email]);
+
   const handleCompleteSetup = async () => {
-    if (!selectedLeagueId || !selectedCountryCode || !selectedClubId || customClubName.trim().length < 3 || isUpdating || !user) return;
+    if (!selectedCountryCode || !selectedClubId || isUpdating || !user) return;
     setIsUpdating(true);
     
     try {
-      // 1. Поиск свободного места (Серверное действие)
+      // 1. Поиск свободного места в лиге ALPHA по умолчанию
+      const targetLeagueId = "ALPHA";
       let placement = { tier: 9, group: 1, rank: 1 };
       try {
-        const result = await findStrategicPlacement(selectedLeagueId);
+        const result = await findStrategicPlacement(targetLeagueId);
         if (result) placement = result;
       } catch (e) {
         console.warn("[SETUP] Placement fallback active");
@@ -89,12 +92,13 @@ export default function SetupPage() {
         res1: null, res2: null, res3: null, res4: null, res5: null, res6: null, res7: null, res8: null
       };
 
-      const finalClubName = customClubName.trim();
+      // Финальное название клуба — это логин пользователя
+      const finalClubName = loginName;
 
-      // 2. Сохранение в локальный стор
+      // 2. Сохранение в локальный стор (для мгновенного UI)
       saveToLocal({
         id: user.uid,
-        selectedLeagueId,
+        selectedLeagueId: targetLeagueId,
         leagueLevel: Number(placement.tier),
         groupId: Number(placement.group),
         rank: Number(placement.rank),
@@ -109,7 +113,7 @@ export default function SetupPage() {
         lastProcessedSeason: activeSeasonNumber
       });
 
-      // 3. Неблокирующая запись в Firestore (v11)
+      // 3. Запись в Firestore (v11)
       if (db) {
         const playerRef = doc(db, 'players_v11', user.uid);
         setDocumentNonBlocking(playerRef, {
@@ -117,7 +121,7 @@ export default function SetupPage() {
           displayName: finalClubName,
           clubName: finalClubName,
           clubLogo: selectedClub?.logo || null,
-          selectedLeagueId: String(selectedLeagueId),
+          selectedLeagueId: String(targetLeagueId),
           leagueLevel: Number(placement.tier),
           groupId: Number(placement.group),
           rank: Number(placement.rank),
@@ -129,10 +133,10 @@ export default function SetupPage() {
       }
 
       toast({ 
-        title: language === 'ru' ? "Клуб создан!" : "Club Initialized!",
+        title: language === 'ru' ? "Клуб инициализирован!" : "Club Initialized!",
       });
 
-      router.push('/');
+      router.replace('/');
     } catch (e: any) {
       console.error("[SETUP ERROR]:", e);
       setIsUpdating(false);
@@ -143,36 +147,24 @@ export default function SetupPage() {
 
   const t = {
     ru: {
-      league: 'ВЫБОР ЛИГИ',
-      country: 'ФЛАГ КЛУБА',
-      club: 'ВЫБОР КЛУБА',
-      name: 'НАЗВАНИЕ КЛУБА',
+      country: 'ВЫБОР ФЛАГА',
+      club: 'ВЫБОР ЛОГОТИПА',
+      finalize: 'СОЗДАТЬ КЛУБ',
       continue: 'ПРОДОЛЖИТЬ',
-      finalize: 'ЗАВЕРШИТЬ ПРОФИЛЬ',
       subtitles: {
-        league: 'Выберите удобное для вас время матчей лиги',
         country: 'Выберите страну которую будете представлять',
-        club: 'Выберите логотип вашего будущего клуба',
-        name: 'Придумайте уникальное название вашей будущей команды',
-      },
-      msk: 'МСК',
-      namePlaceholder: 'Введите название клуба...',
+        club: 'Выберите логотип вашей организации',
+      }
     },
     en: {
-      league: 'LEAGUE SELECTION',
-      country: 'CLUB FLAG',
-      club: 'CLUB CHOICE',
-      name: 'CLUB NAME',
+      country: 'SELECT FLAG',
+      club: 'SELECT LOGO',
+      finalize: 'CREATE CLUB',
       continue: 'CONTINUE',
-      finalize: 'FINALIZE PROFILE',
       subtitles: {
-        league: 'Select a convenient time for league matches',
         country: 'Select the country you will represent',
-        club: 'Choose your future club logo',
-        name: 'Create a unique name for your future organization',
-      },
-      msk: 'MSK',
-      namePlaceholder: 'Enter club name...',
+        club: 'Choose your organization logo',
+      }
     }
   }[language === 'ru' ? 'ru' : 'en'];
 
@@ -181,42 +173,20 @@ export default function SetupPage() {
       <div className="absolute inset-0 pointer-events-none opacity-20 bg-[radial-gradient(circle_at_50%_50%,_hsl(var(--primary)/0.15),_transparent_70%)]" />
       <div className="relative z-10 w-full max-w-md mx-auto px-4 flex flex-col min-h-screen pt-12 pb-32">
         <header className="text-center mb-8 relative shrink-0">
-          {step !== 'league' && (
-            <Button variant="ghost" size="icon" className="absolute left-0 top-0 rounded-full" onClick={() => {
-              if (step === 'country') setStep('league');
-              else if (step === 'club') setStep('country');
-              else if (step === 'name') setStep('club');
-            }}>
+          {step !== 'country' && (
+            <Button variant="ghost" size="icon" className="absolute left-0 top-0 rounded-full" onClick={() => setStep('country')}>
               <ChevronLeft className="w-6 h-6" />
             </Button>
           )}
           <h1 className="text-2xl font-headline font-bold text-white uppercase tracking-tighter">
-            {step === 'league' ? t.league : step === 'country' ? t.country : step === 'club' ? t.club : t.name}
+            {step === 'country' ? t.country : t.club}
           </h1>
-          <p className="text-muted-foreground text-[10px] uppercase tracking-widest mt-1 opacity-60 px-4 leading-tight">{t.subtitles[step]}</p>
+          <p className="text-muted-foreground text-[10px] uppercase tracking-widest mt-1 opacity-60 px-4 leading-tight">
+            {t.subtitles[step]}
+          </p>
         </header>
         
         <div className="flex-1 flex flex-col justify-center animate-in fade-in duration-700">
-          {step === 'league' && (
-            <div className="flex justify-center w-full">
-              {LEAGUES.map((l) => (
-                <Card 
-                  key={l.id} 
-                  className={cn(
-                    "glass-card border-white/5 cursor-pointer transition-all w-32 h-32 flex items-center justify-center", 
-                    selectedLeagueId === l.id ? "ring-2 ring-primary bg-primary/10 shadow-[0_0_15px_rgba(var(--primary),0.3)]" : "hover:bg-white/5"
-                  )} 
-                  onClick={() => setSelectedLeagueId(l.id)}
-                >
-                  <CardContent className="p-0 text-center flex flex-col items-center justify-center">
-                    <p className="text-3xl font-headline font-black text-primary italic uppercase leading-none mb-1.5">S1</p>
-                    <span className="text-sm font-bold text-white/60 tracking-wider font-mono">{l.startTime}</span>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-
           {step === 'country' && (
             <div className="grid grid-cols-4 gap-2 w-full">
               {COUNTRIES.map((c) => (
@@ -255,49 +225,27 @@ export default function SetupPage() {
               ))}
             </div>
           )}
-
-          {step === 'name' && (
-            <div className="space-y-6 w-full">
-               <Card className="glass-card border-primary/20 bg-primary/5 p-6 shadow-2xl">
-                 <div className="space-y-4">
-                   <div className="space-y-2">
-                     <Label className="text-[10px] font-black uppercase text-muted-foreground ml-1">{t.name}</Label>
-                     <div className="relative">
-                       <Edit3 className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-primary" />
-                       <Input 
-                        value={customClubName} 
-                        onChange={(e) => setCustomClubName(e.target.value)} 
-                        placeholder={t.namePlaceholder}
-                        className="pl-12 h-14 bg-background/50 border-white/10 text-lg font-bold focus-visible:ring-primary shadow-inner"
-                       />
-                     </div>
-                   </div>
-                 </div>
-               </Card>
-               <p className="text-[8px] text-center text-muted-foreground uppercase font-black tracking-widest opacity-40">System Node v11: Auth Linked</p>
-            </div>
-          )}
         </div>
         
         <footer className="fixed bottom-0 left-0 right-0 p-4 bg-background/80 backdrop-blur-xl border-t border-white/10 z-50 shadow-[0_-10px_30px_rgba(0,0,0,0.5)]">
           <div className="max-w-md mx-auto">
+            <div className="mb-4 flex flex-col items-center gap-1 opacity-60">
+               <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">COMMAND CALLSIGN:</p>
+               <p className="text-sm font-headline font-bold text-primary uppercase italic">{loginName}</p>
+            </div>
             <Button 
               disabled={
                 isUpdating || 
-                (step === 'league' && !selectedLeagueId) || 
                 (step === 'country' && !selectedCountryCode) || 
-                (step === 'club' && !selectedClubId) ||
-                (step === 'name' && customClubName.trim().length < 3)
+                (step === 'club' && !selectedClubId)
               } 
               onClick={() => {
-                if (step === 'league') setStep('country');
-                else if (step === 'country') setStep('club');
-                else if (step === 'club') setStep('name');
+                if (step === 'country') setStep('club');
                 else handleCompleteSetup();
               }} 
               className="w-full h-16 hero-gradient font-black text-xs tracking-[0.2em] uppercase shadow-2xl active:scale-95 transition-all"
             >
-              {isUpdating ? <Loader2 className="animate-spin" /> : (step === 'name' ? t.finalize : t.continue)}
+              {isUpdating ? <Loader2 className="animate-spin" /> : (step === 'club' ? t.finalize : t.continue)}
             </Button>
           </div>
         </footer>
