@@ -1,12 +1,12 @@
 'use client';
 
 /**
- * @fileOverview ЦЕНТР ОТЧЕТОВ МАТЧЕЙ v1.2.
- * Исправлена ошибка дублирования ключей React при объединении локальной истории и глобальных матчей.
+ * @fileOverview ЦЕНТР ОТЧЕТОВ МАТЧЕЙ v1.3.
+ * Исправлена фильтрация отчетов: теперь поиск идет по рангу игрока, что совпадает с логикой счетчика на главной.
  */
 
 import { useGameState } from '@/app/lib/store';
-import { useUser } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { useRouter } from 'next/navigation';
 import { useState, useMemo, useEffect } from 'react';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
@@ -21,62 +21,107 @@ import {
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { collection, query, where } from 'firebase/firestore';
 
 export default function ReportsPage() {
   const { user, isUserLoading } = useUser();
+  const db = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
   const { 
     language, isLoaded, isDataReady, matchHistory, 
     allSeasonMatches, lastSeenMatchDay, deleteMatchHistoryEntry, clearMatchHistory,
-    clubLogo: myClubLogo
+    clubLogo: myClubLogo, rank, selectedLeagueId, leagueLevel, groupId, clubName, displayName
   } = useGameState();
 
   useEffect(() => {
     if (!isUserLoading && !user) router.push('/auth/login');
   }, [user, isUserLoading, router]);
 
+  // Загрузка участников группы для разрешения имен
+  const groupPlayersQuery = useMemoFirebase(() => {
+    if (!db || !selectedLeagueId) return null;
+    return query(collection(db, 'players_v11'), 
+      where('selectedLeagueId', '==', selectedLeagueId),
+      where('leagueLevel', '==', leagueLevel),
+      where('groupId', '==', groupId)
+    );
+  }, [db, selectedLeagueId, leagueLevel, groupId]);
+
+  const { data: groupPlayers } = useCollection(groupPlayersQuery);
+
+  const nameMap = useMemo(() => {
+    const names: Record<number, string> = {};
+    const logos: Record<number, string> = {};
+    if (groupPlayers) {
+      groupPlayers.forEach(p => {
+        names[p.rank] = p.clubName || p.displayName;
+        logos[p.rank] = p.clubLogo;
+      });
+    }
+    return { names, logos };
+  }, [groupPlayers]);
+
   // Сбор всех завершенных отчетов
   const allReports = useMemo(() => {
-    if (!user) return [];
+    if (!user || !rank) return [];
 
-    // 1. Из истории (дружеские, турниры, корзина)
+    // 1. Из истории (дружеские, турниры)
     const historyReports = (matchHistory || []).map(m => ({
       ...m,
       isUnread: m.seen === false,
       source: 'history'
     }));
 
-    // 2. Из текущего сезона лиги
+    // 2. Из текущего сезона лиги (Фильтруем по рангу, как на главной)
     const leagueReports = (allSeasonMatches || [])
-      .filter(m => (m.homeId === user.uid || m.awayId === user.uid) && m.isFinished)
-      .map(m => ({
-        ...m,
-        isUnread: Number(m.day) > (lastSeenMatchDay || 0),
-        source: 'league'
-      }));
+      .filter(m => (Number(m.homeRank) === rank || Number(m.awayRank) === rank) && m.isFinished)
+      .map(m => {
+        // Разрешаем имена для лиги
+        const leagueIdx = "01";
+        const groupPrefix = String(groupId).padStart(3, '0');
+        
+        const hRank = Number(m.homeRank);
+        const aRank = Number(m.awayRank);
+        
+        const botHome = `BOT${leagueIdx}${leagueLevel}${groupPrefix}${hRank}`;
+        const botAway = `BOT${leagueIdx}${leagueLevel}${groupPrefix}${aRank}`;
+
+        const hName = nameMap.names[hRank] || botHome;
+        const aName = nameMap.names[aRank] || botAway;
+        const hLogo = nameMap.logos[hRank] || null;
+        const aLogo = nameMap.logos[aRank] || null;
+
+        return {
+          ...m,
+          homeName: hName,
+          awayName: aName,
+          homeLogo: hLogo,
+          awayLogo: aLogo,
+          isUnread: Number(m.day) > (lastSeenMatchDay || 0),
+          source: 'league'
+        };
+      });
 
     // Объединяем
     const combined = [...historyReports, ...leagueReports];
     
-    // Дедупликация по ID (используем Map для сохранения последней версии)
+    // Дедупликация по ID
     const uniqueMap = new Map();
     combined.forEach(report => {
       if (report.id) {
-        // Если ID уже есть, сохраняем версию из history (так как в ней надежнее хранятся локальные флаги seen)
         if (!uniqueMap.has(report.id) || report.source === 'history') {
           uniqueMap.set(report.id, report);
         }
       }
     });
 
-    // Сортируем по дате (новые сверху)
     return Array.from(uniqueMap.values()).sort((a, b) => {
       const timeA = a.playedAt ? new Date(a.playedAt).getTime() : (a.startTime ? new Date(a.startTime).getTime() : 0);
       const timeB = b.playedAt ? new Date(b.playedAt).getTime() : (b.startTime ? new Date(b.startTime).getTime() : 0);
       return timeB - timeA;
     });
-  }, [matchHistory, allSeasonMatches, user, lastSeenMatchDay]);
+  }, [matchHistory, allSeasonMatches, user, lastSeenMatchDay, rank, nameMap, groupId, leagueLevel]);
 
   if (isUserLoading || !isLoaded || !isDataReady) return <LoadingScreen />;
 
@@ -89,12 +134,9 @@ export default function ReportsPage() {
       emptyDesc: "Завершите матч лиги или турнира, чтобы получить отчет.",
       view: "ПРОСМОТРЕТЬ",
       clearAll: "ОЧИСТИТЬ ВСЁ",
-      history: "Архив",
       league: "Лига",
       tournament: "Турнир",
       friendly: "Товарищеский",
-      basket: "КВ Корзина",
-      trial: "Пробный",
       deleted: "Отчет удален",
       cleared: "История отчетов очищена"
     },
@@ -106,12 +148,9 @@ export default function ReportsPage() {
       emptyDesc: "Complete a league or tournament match to receive a report.",
       view: "REVIEW REPORT",
       clearAll: "CLEAR ALL",
-      history: "Archive",
       league: "League",
       tournament: "Tournament",
       friendly: "Friendly",
-      basket: "CW Basket",
-      trial: "Trial",
       deleted: "Report deleted",
       cleared: "Reports history cleared"
     }
@@ -124,7 +163,7 @@ export default function ReportsPage() {
       deleteMatchHistoryEntry(id);
       toast({ title: t.deleted });
     } else {
-      toast({ title: language === 'ru' ? "Матчи лиги нельзя удалить из истории" : "League matches cannot be removed", variant: "destructive" });
+      toast({ title: language === 'ru' ? "Матчи лиги нельзя удалить" : "League matches are permanent", variant: "destructive" });
     }
   };
 
@@ -161,8 +200,8 @@ export default function ReportsPage() {
       <div className="space-y-3">
         {allReports.length > 0 ? (
           allReports.map((report, idx) => {
-            const isMeHome = report.homeId === user?.uid;
-            const isMeAway = report.awayId === user?.uid;
+            const isMeHome = Number(report.homeRank) === rank || report.homeId === user?.uid;
+            const isMeAway = Number(report.awayRank) === rank || report.awayId === user?.uid;
             const typeLabel = (t as any)[report.type] || report.type || t.league;
             
             const homeLogo = isMeHome ? myClubLogo : report.homeLogo;
