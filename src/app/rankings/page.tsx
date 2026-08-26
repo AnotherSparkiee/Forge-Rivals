@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -19,8 +18,8 @@ import {
 } from '../lib/leagues-data';
 import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
-import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
-import { doc } from 'firebase/firestore';
+import { useUser, useFirestore, useDoc, useMemoFirebase, useCollection } from '@/firebase';
+import { doc, collection, query, where } from 'firebase/firestore';
 
 type RankingTab = 'menu' | 'my_league' | 'my_pyramid' | 'all_pyramids' | 'cup';
 
@@ -56,6 +55,28 @@ export default function RankingsPage() {
   }, [db, tableId, isLoaded]);
 
   const { data: tableData, isLoading: isTableLoading } = useDoc(tableRef);
+
+  // ПОДПИСЫВАЕМСЯ НА ИГРОКОВ ГРУППЫ ДЛЯ ЛОГОТИПОВ
+  const groupPlayersQuery = useMemoFirebase(() => {
+    if (!db) return null;
+    return query(collection(db, 'players_v11'), 
+      where('selectedLeagueId', '==', contextLeagueId),
+      where('leagueLevel', '==', contextLevel),
+      where('groupId', '==', contextGroup)
+    );
+  }, [db, contextLeagueId, contextLevel, contextGroup]);
+
+  const { data: groupPlayers } = useCollection(groupPlayersQuery);
+
+  const logoMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    if (groupPlayers) {
+      groupPlayers.forEach(p => {
+        if (p.clubLogo) map[p.id] = p.clubLogo;
+      });
+    }
+    return map;
+  }, [groupPlayers]);
 
   // СОРТИРОВКА ДАННЫХ
   const standings = useMemo(() => {
@@ -167,17 +188,25 @@ export default function RankingsPage() {
                  {standings.map((entry: any, i: number) => {
                    const pos = i + 1;
                    const isMe = entry.id === user?.uid;
+                   const clubLogo = logoMap[entry.id] || entry.clubLogo;
+
                    return (
                     <div key={entry.id} className={cn(
                       "grid grid-cols-[24px_1fr_25px_60px_35px] gap-1 items-center p-2.5 rounded-xl border mb-1 transition-all", 
                       isMe ? "bg-primary/20 border-primary/40 shadow-[0_0_15px_rgba(var(--primary),0.1)]" : "bg-secondary/20 border-white/5"
                     )}>
                       <div className="text-[10px] font-black italic text-muted-foreground">{pos}</div>
-                      <div className="truncate flex items-center gap-1.5 min-w-0">
-                        <div className="w-4 h-4 rounded-full bg-secondary overflow-hidden shrink-0 flex items-center justify-center border border-white/5">
-                           {entry.isBot ? <Bot className="w-2.5 h-2.5 opacity-30" /> : <Shield className="w-2.5 h-2.5 text-primary opacity-50" />}
+                      <div className="truncate flex items-center gap-2 min-w-0">
+                        <div className="w-6 h-6 rounded-lg bg-secondary overflow-hidden shrink-0 flex items-center justify-center border border-white/5 shadow-inner">
+                           {clubLogo ? (
+                             <img src={clubLogo} alt="" className="w-full h-full object-contain p-0.5" />
+                           ) : entry.isBot ? (
+                             <span className="text-[10px]">🤖</span>
+                           ) : (
+                             <Shield className="w-3 h-3 text-primary opacity-30" />
+                           )}
                         </div>
-                        <span className={cn("text-[10px] font-bold uppercase truncate", isMe ? "text-primary" : "text-white")}>
+                        <span className={cn("text-[10px] font-bold uppercase truncate", isMe ? "text-primary font-black" : "text-white/90")}>
                           {entry.name}
                         </span>
                       </div>

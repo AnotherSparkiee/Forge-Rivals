@@ -1,9 +1,8 @@
-
 'use server';
 
 /**
- * @fileOverview Серверный модуль инициализации v61 (Tier 1 Priority).
- * Реализует приоритетное заполнение лиги сверху вниз и захват слотов ботов.
+ * @fileOverview Серверный модуль инициализации v62 (Table Logo Support).
+ * Добавлена запись логотипа клуба в статистику турнирной таблицы.
  */
 
 import { collection, getDocs, query, where, doc, getDoc, writeBatch, serverTimestamp } from 'firebase/firestore';
@@ -86,10 +85,12 @@ export async function initializeClubV11(userId: string, data: any) {
       const isTargetSlot = (r === rank);
       const currentId = isTargetSlot ? userId : bId;
       const currentName = isTargetSlot ? clubName : bId;
+      const currentLogo = isTargetSlot ? clubLogo : null;
 
       initialStats[currentId] = {
         id: currentId,
         name: currentName,
+        clubLogo: currentLogo,
         rank: r,
         matchesPlayed: 0, wins: 0, draws: 0, losses: 0, points: 0, diff: 0,
         isBot: !isTargetSlot
@@ -130,6 +131,7 @@ export async function initializeClubV11(userId: string, data: any) {
         ...botStats,
         id: userId,
         name: clubName,
+        clubLogo: clubLogo || null,
         isBot: false
       };
       delete stats[botId];
@@ -153,11 +155,13 @@ export async function initializeClubV11(userId: string, data: any) {
       if (mData.homeId === botId) {
         updates.homeId = userId;
         updates.homeName = clubName;
+        updates.homeLogo = clubLogo || null;
         needsUpdate = true;
       }
       if (mData.awayId === botId) {
         updates.awayId = userId;
         updates.awayName = clubName;
+        updates.awayLogo = clubLogo || null;
         needsUpdate = true;
       }
 
