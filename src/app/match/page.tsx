@@ -1,13 +1,14 @@
 'use client';
 
 /**
- * @fileOverview ОФИЦИАЛЬНЫЙ ПЛЕЕР МАТЧЕЙ v6.1 (UI & Localization Fix).
- * Исправлены названия вкладок на "КАРТА" и добавлены названия команд в итоговый счет.
+ * @fileOverview ОФИЦИАЛЬНЫЙ ПЛЕЕР МАТЧЕЙ v6.2 (DB Sync Fix).
+ * Исправлено получение данных матча из актуальной коллекции matches_v11.
+ * Добавлена поддержка динамического разрешения имен команд.
  */
 
 import { useState, useEffect, useMemo, Suspense, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useUser, useFirestore } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { useGameState } from '../lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -24,7 +25,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where } from 'firebase/firestore';
 
 type MatchStep = 'preview' | 'live' | 'stats';
 
@@ -35,7 +36,7 @@ function MatchContent() {
   const db = useFirestore();
   const { 
     language, isLoaded, markMatchIdAsSeen,
-    matchHistory, clubLogo: myClubLogo
+    matchHistory, clubLogo: myClubLogo, selectedLeagueId, leagueLevel, groupId
   } = useGameState();
 
   const matchIdFromUrl = searchParams.get('id');
@@ -47,18 +48,51 @@ function MatchContent() {
   const [visibleEvents, setVisibleEvents] = useState<any[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // Динамическое разрешение имен для актуальности
+  const groupPlayersQuery = useMemoFirebase(() => {
+    if (!db || !selectedLeagueId) return null;
+    return query(collection(db, 'players_v11'), 
+      where('selectedLeagueId', '==', selectedLeagueId),
+      where('leagueLevel', '==', leagueLevel),
+      where('groupId', '==', groupId)
+    );
+  }, [db, selectedLeagueId, leagueLevel, groupId]);
+
+  const { data: groupPlayers } = useCollection(groupPlayersQuery);
+
+  const nameMap = useMemo(() => {
+    const names: Record<number, string> = {};
+    const logos: Record<number, string> = {};
+    if (groupPlayers) {
+      groupPlayers.forEach(p => {
+        names[p.rank] = p.clubName || p.displayName;
+        logos[p.rank] = p.clubLogo;
+      });
+    }
+    return { names, logos };
+  }, [groupPlayers]);
+
   useEffect(() => {
-    if (!matchIdFromUrl) {
-      setIsDataLoading(false);
+    if (!matchIdFromUrl || !db) {
+      if (!matchIdFromUrl) setIsDataLoading(false);
       return;
     }
+
     const fetchMatch = async () => {
       setIsDataLoading(true);
       try {
-        const snap = await getDoc(doc(db, 'matches_v1', matchIdFromUrl));
+        // 1. Проверяем основную коллекцию лиги v11
+        let snap = await getDoc(doc(db, 'matches_v11', matchIdFromUrl));
+        
+        // 2. Если не найдено, проверяем старую v1
+        if (!snap.exists()) {
+          snap = await getDoc(doc(db, 'matches_v1', matchIdFromUrl));
+        }
+
         if (snap.exists()) {
           setMatchData({ ...snap.data(), id: snap.id });
         } else {
+          // 3. Ищем в локальной истории (дружеские, пробные)
           const hist = (matchHistory || []).find(m => m.id === matchIdFromUrl);
           if (hist) setMatchData(hist);
         }
@@ -78,6 +112,32 @@ function MatchContent() {
       isTbdWin: matchData.isTbdWin
     };
   }, [matchData]);
+
+  const resolvedMatchData = useMemo(() => {
+    if (!matchData) return null;
+    
+    // Если это матч лиги с рангами, разрешаем имена динамически
+    if (matchData.homeRank && matchData.awayRank) {
+      const leagueIdx = "01";
+      const groupPrefix = String(groupId).padStart(3, '0');
+      
+      const hRank = Number(matchData.homeRank);
+      const aRank = Number(matchData.awayRank);
+      
+      const botHome = `BOT${leagueIdx}${leagueLevel}${groupPrefix}${hRank}`;
+      const botAway = `BOT${leagueIdx}${leagueLevel}${groupPrefix}${aRank}`;
+
+      return {
+        ...matchData,
+        homeName: nameMap.names[hRank] || matchData.homeName || botHome,
+        awayName: nameMap.names[aRank] || matchData.awayName || botAway,
+        homeLogo: nameMap.logos[hRank] || matchData.homeLogo || null,
+        awayLogo: nameMap.logos[aRank] || matchData.awayLogo || null,
+      };
+    }
+    
+    return matchData;
+  }, [matchData, nameMap, leagueLevel, groupId]);
 
   useEffect(() => {
     if (step !== 'live' || !currentSimulation || !currentSimulation.games) return;
@@ -132,12 +192,12 @@ function MatchContent() {
     else if (step === 'live') setStep('stats'); 
     else { 
       if (matchIdFromUrl) markMatchIdAsSeen(matchIdFromUrl); 
-      router.push('/'); 
+      router.push('/reports'); 
     }
   };
 
   if (isUserLoading || isDataLoading || !isLoaded || !user) return <LoadingScreen />;
-  if (!matchData || !currentSimulation) return <div className="p-20 text-center"><p className="text-muted-foreground uppercase text-[10px] font-black">Match data not found</p></div>;
+  if (!resolvedMatchData || !currentSimulation) return <div className="p-20 text-center"><p className="text-muted-foreground uppercase text-[10px] font-black">Match data not found</p></div>;
 
   const t = {
     en: {
@@ -180,8 +240,8 @@ function MatchContent() {
     }
 
     const scoreboard = game.scoreboard || [];
-    const homeHeroes = scoreboard.filter((p: any) => p.team === matchData.homeName);
-    const awayHeroes = scoreboard.filter((p: any) => p.team === matchData.awayName);
+    const homeHeroes = scoreboard.filter((p: any) => p.team === resolvedMatchData.homeName);
+    const awayHeroes = scoreboard.filter((p: any) => p.team === resolvedMatchData.awayName);
 
     const renderHeroRow = (p: any, side: 'left' | 'right') => (
       <div key={p.name} className={cn("flex flex-col gap-1.5 p-3 rounded-2xl border border-white/5 bg-secondary/10 shadow-sm", side === 'right' ? "items-end text-right" : "items-start text-left")}>
@@ -305,11 +365,11 @@ function MatchContent() {
     }
   };
 
-  const isMeHome = matchData.homeId === user?.uid;
-  const isMeAway = matchData.awayId === user?.uid;
+  const isMeHome = resolvedMatchData.homeId === user?.uid || Number(resolvedMatchData.homeRank) === Number(useGameState().rank);
+  const isMeAway = resolvedMatchData.awayId === user?.uid || Number(resolvedMatchData.awayRank) === Number(useGameState().rank);
 
-  const displayHomeLogo = isMeHome ? myClubLogo : matchData.homeLogo;
-  const displayAwayLogo = isMeAway ? myClubLogo : matchData.awayLogo;
+  const displayHomeLogo = isMeHome ? myClubLogo : resolvedMatchData.homeLogo;
+  const displayAwayLogo = isMeAway ? myClubLogo : resolvedMatchData.awayLogo;
 
   const isDraw = currentSimulation.winner === "Ничья" || currentSimulation.winner === "Draw";
 
@@ -334,7 +394,7 @@ function MatchContent() {
                     {displayHomeLogo ? <img src={displayHomeLogo} alt="" className="w-full h-full object-contain" /> : <div className="text-4xl">🛡️</div>}
                   </div>
                   <div className="space-y-1 w-full">
-                    <h3 className="text-[11px] font-headline font-bold uppercase truncate text-white px-1 leading-tight">{matchData.homeName}</h3>
+                    <h3 className="text-[11px] font-headline font-bold uppercase truncate text-white px-1 leading-tight">{resolvedMatchData.homeName}</h3>
                     <div className="bg-primary/20 text-primary border border-primary/30 rounded-xl py-1 mt-2 shadow-[0_0_15px_rgba(var(--primary),0.2)]">
                       <p className="text-[8px] font-black uppercase tracking-widest opacity-70 leading-none mb-0.5">Rating</p>
                       <p className="text-xl font-headline font-black italic">{currentSimulation?.games?.[0]?.teamAOvr || currentSimulation?.teamAOvr || '--'}</p>
@@ -347,7 +407,7 @@ function MatchContent() {
                     {displayAwayLogo ? <img src={displayAwayLogo} alt="" className="w-full h-full object-contain" /> : <div className="text-4xl">⚔️</div>}
                   </div>
                   <div className="space-y-1 w-full">
-                    <h3 className="text-[11px] font-headline font-bold uppercase truncate text-white px-1 leading-tight">{matchData.awayName}</h3>
+                    <h3 className="text-[11px] font-headline font-bold uppercase truncate text-white px-1 leading-tight">{resolvedMatchData.awayName}</h3>
                     <div className="bg-accent/20 text-accent border border-accent/30 rounded-xl py-1 mt-2 shadow-[0_0_15px_rgba(var(--accent),0.2)]">
                       <p className="text-[8px] font-black uppercase tracking-widest opacity-70 leading-none mb-0.5">Rating</p>
                       <p className="text-xl font-headline font-black italic">{currentSimulation?.games?.[0]?.teamBOvr || currentSimulation?.teamBOvr || '--'}</p>
@@ -361,12 +421,12 @@ function MatchContent() {
               <div className="bg-secondary/20 p-4 rounded-xl border border-white/5 text-center">
                 <Castle className="w-5 h-5 text-yellow-500 mx-auto mb-2" />
                 <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">TOWER CONTROL</p>
-                <p className="text-lg font-headline font-bold text-white">{matchData.scoreA || 0} : {matchData.scoreB || 0}</p>
+                <p className="text-lg font-headline font-bold text-white">{resolvedMatchData.scoreA || 0} : {resolvedMatchData.scoreB || 0}</p>
               </div>
               <div className="bg-secondary/20 p-4 rounded-xl border border-white/5 text-center">
                 <Target className="w-5 h-5 text-accent mx-auto mb-2" />
                 <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">TOURNAMENT</p>
-                <p className="text-lg font-headline font-bold text-white uppercase">{matchData.type || 'league'}</p>
+                <p className="text-lg font-headline font-bold text-white uppercase">{resolvedMatchData.type || 'league'}</p>
               </div>
             </div>
             <p className="text-[8px] text-center text-muted-foreground uppercase font-black animate-pulse pt-8 tracking-[0.3em]">
@@ -409,14 +469,14 @@ function MatchContent() {
                   <div className="w-14 h-14 rounded-2xl bg-secondary/50 border border-white/5 flex items-center justify-center overflow-hidden p-2 shrink-0 shadow-lg">
                     {displayHomeLogo ? <img src={displayHomeLogo} alt="" className="w-full h-full object-contain" /> : <Shield className="w-6 h-6 text-muted-foreground/30" />}
                   </div>
-                  <p className="text-[9px] font-black uppercase truncate w-full text-center text-white/90 leading-tight">{matchData.homeName}</p>
+                  <p className="text-[9px] font-black uppercase truncate w-full text-center text-white/90 leading-tight">{resolvedMatchData.homeName}</p>
                 </div>
 
                 {/* Score */}
                 <div className="text-4xl font-headline font-black italic tracking-tighter flex items-center justify-center gap-2 text-white shrink-0 px-1">
-                  <span className={cn(matchData.scoreA > matchData.scoreB && "text-primary")}>{matchData.scoreA}</span>
+                  <span className={cn(resolvedMatchData.scoreA > resolvedMatchData.scoreB && "text-primary")}>{resolvedMatchData.scoreA}</span>
                   <span className="opacity-20 text-2xl">:</span>
-                  <span className={cn(matchData.scoreB > matchData.scoreA && "text-primary")}>{matchData.scoreB}</span>
+                  <span className={cn(resolvedMatchData.scoreB > resolvedMatchData.scoreA && "text-primary")}>{resolvedMatchData.scoreB}</span>
                 </div>
 
                 {/* Away Team */}
@@ -424,7 +484,7 @@ function MatchContent() {
                   <div className="w-14 h-14 rounded-2xl bg-secondary/50 border border-white/5 flex items-center justify-center overflow-hidden p-2 shrink-0 shadow-lg">
                     {displayAwayLogo ? <img src={displayAwayLogo} alt="" className="w-full h-full object-contain" /> : <Shield className="w-6 h-6 text-muted-foreground/30" />}
                   </div>
-                  <p className="text-[9px] font-black uppercase truncate w-full text-center text-white/90 leading-tight">{matchData.awayName}</p>
+                  <p className="text-[9px] font-black uppercase truncate w-full text-center text-white/90 leading-tight">{resolvedMatchData.awayName}</p>
                 </div>
               </div>
               
@@ -485,7 +545,7 @@ function MatchContent() {
 
       <div className="fixed bottom-0 left-0 right-0 z-50 bg-background/90 backdrop-blur-xl border-t border-white/10 h-24 flex items-center px-6">
         <div className="w-full max-md mx-auto flex gap-3" data-stop-propagation="true">
-          <Button variant="outline" className="flex-1 h-12 uppercase font-black text-[10px] border-white/10 rounded-xl" onClick={(e) => { e.stopPropagation(); router.push('/'); }}>{t.exit}</Button>
+          <Button variant="outline" className="flex-1 h-12 uppercase font-black text-[10px] border-white/10 rounded-xl" onClick={(e) => { e.stopPropagation(); router.push('/reports'); }}>{t.exit}</Button>
           <Button className="flex-[2] h-12 hero-gradient font-black text-[10px] uppercase shadow-xl rounded-xl" onClick={() => handleNext()}>
             {step === 'stats' ? <Check className="w-4 h-4 mr-2" /> : <ArrowRight className="w-4 h-4 mr-2" />}
             {step === 'preview' ? t.next : (step === 'live' ? t.skip : t.accept)}
