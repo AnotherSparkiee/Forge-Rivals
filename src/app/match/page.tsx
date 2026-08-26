@@ -1,9 +1,9 @@
 'use client';
 
 /**
- * @fileOverview ОФИЦИАЛЬНЫЙ ПЛЕЕР МАТЧЕЙ v6.2 (DB Sync Fix).
- * Исправлено получение данных матча из актуальной коллекции matches_v11.
- * Добавлена поддержка динамического разрешения имен команд.
+ * @fileOverview ОФИЦИАЛЬНЫЙ ПЛЕЕР МАТЧЕЙ v6.3 (Hook Order Fix).
+ * Исправлена ошибка нарушения порядка хуков (Rules of Hooks).
+ * rank теперь извлекается в начале компонента вместе с остальными данными состояния.
  */
 
 import { useState, useEffect, useMemo, Suspense, useRef } from 'react';
@@ -20,7 +20,7 @@ import {
   Timer, ChevronRight, Crown,
   Skull, Activity as ActivityIcon, Castle, Radio,
   Package, Sparkles, Flame, HeartPulse, GraduationCap,
-  Microscope, X, Shield
+  Microscope, X
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -36,7 +36,7 @@ function MatchContent() {
   const db = useFirestore();
   const { 
     language, isLoaded, markMatchIdAsSeen,
-    matchHistory, clubLogo: myClubLogo, selectedLeagueId, leagueLevel, groupId
+    matchHistory, clubLogo: myClubLogo, selectedLeagueId, leagueLevel, groupId, rank
   } = useGameState();
 
   const matchIdFromUrl = searchParams.get('id');
@@ -365,8 +365,8 @@ function MatchContent() {
     }
   };
 
-  const isMeHome = resolvedMatchData.homeId === user?.uid || Number(resolvedMatchData.homeRank) === Number(useGameState().rank);
-  const isMeAway = resolvedMatchData.awayId === user?.uid || Number(resolvedMatchData.awayRank) === Number(useGameState().rank);
+  const isMeHome = resolvedMatchData.homeId === user?.uid || Number(resolvedMatchData.homeRank) === Number(rank);
+  const isMeAway = resolvedMatchData.awayId === user?.uid || Number(resolvedMatchData.awayRank) === Number(rank);
 
   const displayHomeLogo = isMeHome ? myClubLogo : resolvedMatchData.homeLogo;
   const displayAwayLogo = isMeAway ? myClubLogo : resolvedMatchData.awayLogo;
