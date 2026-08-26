@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useGameState } from '../lib/store';
@@ -7,18 +6,22 @@ import { Card, CardContent } from '@/components/ui/card';
 import { 
   ChevronLeft, Settings, Users, ShieldCheck, Mail, 
   Info, Palette, Loader2, BookOpen, Sword, Package,
-  ChevronRight, Sparkles
+  ChevronRight, Sparkles, Database, Globe
 } from 'lucide-react';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query } from 'firebase/firestore';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
+import { initializeLeagueWorld } from '@/app/actions/world-engine';
+import { useToast } from '@/hooks/use-toast';
 
 export default function SystemPage() {
   const { language } = useGameState();
   const db = useFirestore();
+  const { toast } = useToast();
+  const [isInitializingWorld, setIsInitializingWorld] = useState(false);
 
   // Запрос всех игроков v11 для подсчета статистики
   const playersQuery = useMemoFirebase(() => {
@@ -43,6 +46,20 @@ export default function SystemPage() {
     return { total: Math.max(total, 1), online: Math.max(onlineCount, 1) };
   }, [players]);
 
+  const handleGlobalInit = async () => {
+    if (isInitializingWorld) return;
+    setIsInitializingWorld(true);
+    try {
+      await initializeLeagueWorld('ALPHA', 1);
+      toast({ title: "Мир успешно проинициализирован!" });
+    } catch (e) {
+      console.error(e);
+      toast({ title: "Ошибка инициализации", variant: "destructive" });
+    } finally {
+      setIsInitializingWorld(false);
+    }
+  };
+
   const t = {
     ru: { 
       title: "СИСТЕМА", 
@@ -58,6 +75,9 @@ export default function SystemPage() {
       items: "Предметы",
       itemsDesc: "Каталог артефактов и снаряжения",
       config: "Глобальная конфигурация",
+      admin: "Инструменты администратора",
+      initWorld: "Инициализировать мир (S1)",
+      initWorldDesc: "Создать 511 групп и календари",
       skins: "Визуальные скины",
       skinsDesc: "Настройка акцентов интерфейса",
       support: "Техническая поддержка",
@@ -80,6 +100,9 @@ export default function SystemPage() {
       items: "Items",
       itemsDesc: "Artifact and equipment catalog",
       config: "Global Config",
+      admin: "Administrator Tools",
+      initWorld: "Initialize World (S1)",
+      initWorldDesc: "Create 511 groups and calendars",
       skins: "Visual Skins",
       skinsDesc: "Customize UI accents",
       support: "Technical Support",
@@ -138,6 +161,30 @@ export default function SystemPage() {
               </CardContent>
             </Card>
           </div>
+        </section>
+
+        <section className="space-y-2">
+          <h2 className="text-[10px] font-black uppercase tracking-widest text-accent px-1">{t.admin}</h2>
+          <Card className="glass-card border-red-500/20 bg-red-500/5">
+            <CardContent className="p-4 flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="p-2 rounded-lg bg-red-500/20"><Database className="w-5 h-5 text-red-400" /></div>
+                <div>
+                  <h3 className="text-xs font-bold uppercase text-white">{t.initWorld}</h3>
+                  <p className="text-[8px] text-muted-foreground uppercase">{t.initWorldDesc}</p>
+                </div>
+              </div>
+              <Button 
+                size="sm" 
+                variant="destructive" 
+                className="h-8 text-[9px] font-black uppercase" 
+                onClick={handleGlobalInit}
+                disabled={isInitializingWorld}
+              >
+                {isInitializingWorld ? <Loader2 className="w-3 h-3 animate-spin" /> : 'RUN'}
+              </Button>
+            </CardContent>
+          </Card>
         </section>
 
         <section className="space-y-2">

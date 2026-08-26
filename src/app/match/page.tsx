@@ -81,18 +81,13 @@ function MatchContent() {
     const fetchMatch = async () => {
       setIsDataLoading(true);
       try {
-        // 1. Проверяем основную коллекцию лиги v11
-        let snap = await getDoc(doc(db, 'matches_v11', matchIdFromUrl));
+        // 1. Проверяем основную коллекцию лиги
+        let snap = await getDoc(doc(db, 'matches_v1', matchIdFromUrl));
         
-        // 2. Если не найдено, проверяем старую v1
-        if (!snap.exists()) {
-          snap = await getDoc(doc(db, 'matches_v1', matchIdFromUrl));
-        }
-
         if (snap.exists()) {
           setMatchData({ ...snap.data(), id: snap.id });
         } else {
-          // 3. Ищем в локальной истории (дружеские, пробные)
+          // 2. Ищем в локальной истории (дружеские, пробные)
           const hist = (matchHistory || []).find(m => m.id === matchIdFromUrl);
           if (hist) setMatchData(hist);
         }
@@ -124,8 +119,8 @@ function MatchContent() {
       const hRank = Number(matchData.homeRank);
       const aRank = Number(matchData.awayRank);
       
-      const botHome = `BOT${leagueIdx}${leagueLevel}${groupPrefix}${hRank}`;
-      const botAway = `BOT${leagueIdx}${leagueLevel}${groupPrefix}${aRank}`;
+      const botHome = `BOT_ALPHA_L${leagueLevel}_G${groupId}_R${hRank}`;
+      const botAway = `BOT_ALPHA_L${leagueLevel}_G${groupId}_R${aRank}`;
 
       return {
         ...matchData,
@@ -484,7 +479,7 @@ function MatchContent() {
                   <div className="w-14 h-14 rounded-2xl bg-secondary/50 border border-white/5 flex items-center justify-center overflow-hidden p-2 shrink-0 shadow-lg">
                     {displayAwayLogo ? <img src={displayAwayLogo} alt="" className="w-full h-full object-contain" /> : <Shield className="w-6 h-6 text-muted-foreground/30" />}
                   </div>
-                  <p className="text-[9px] font-black uppercase truncate w-full text-center text-white/90 leading-tight">{resolvedMatchData.awayName}</p>
+                  <p className="text-[9px] font-black uppercase truncate w-full text-center text-white/90 Bird-leading-tight">{resolvedMatchData.awayName}</p>
                 </div>
               </div>
               
