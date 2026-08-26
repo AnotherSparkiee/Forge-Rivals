@@ -7,7 +7,7 @@ import {
   ChevronLeft, Gift, Zap, Crown, Award, 
   ShieldCheck, TrendingUp, Users, Coins, 
   Target, HeartPulse, GraduationCap, Package,
-  Hammer, Sparkles, Gem, Flame, Skull, Box
+  Hammer, Sparkles, Gem, Flame, Skull, Box, Info
 } from 'lucide-react';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
