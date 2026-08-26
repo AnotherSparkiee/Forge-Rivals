@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useGameState, getLevelThreshold, Gift } from '../lib/store';
@@ -64,7 +63,7 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (!isUserLoading && !user) {
-      router.push('/auth/login');
+      router.replace('/auth/login');
     }
   }, [user, isUserLoading, router]);
 
@@ -161,12 +160,12 @@ export default function ProfilePage() {
   const handleLogout = async () => {
     if (!auth) return;
     try {
-      // 1. Сначала полностью сбрасываем локальное состояние игры
+      // 1. Полный сброс локального состояния
       await resetProfile();
-      // 2. Затем выходим из Firebase Auth
+      // 2. Выход из Firebase
       await signOut(auth);
-      // 3. Перенаправляем на страницу логина
-      router.replace('/auth/login');
+      // 3. Жесткая перезагрузка страницы для полной очистки React-контекстов
+      window.location.href = '/auth/login';
     } catch (e) {
       console.error("Logout error", e);
     }

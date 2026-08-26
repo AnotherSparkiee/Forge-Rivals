@@ -1,12 +1,15 @@
 'use client';
 
 /**
- * Глобальное локальное хранилище v222 (Reverted to Real Time).
+ * Глобальное локальное хранилище v223 (User-ID Bound).
+ * Теперь данные жестко привязаны к UID пользователя. 
+ * При смене аккаунта старые данные автоматически заменяются.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useMemo } from 'react';
 import { Player, StaffMember, StaffRole, generateScoutedPlayer, getRandomStartingSquad } from './moba-data';
 import { getMoscowTime, getGlobalSeasonInfo, getMoscowDateString, getLevelThreshold } from './time-utils';
+import { useUser } from '@/firebase';
 
 export { getLevelThreshold };
 
@@ -121,12 +124,12 @@ interface GameState {
   saveToLocal: (state: Partial<GameState>) => void;
 }
 
-const STORAGE_KEY = 'lote_game_state_v222';
+const STORAGE_KEY = 'lote_game_state_v223';
 
 const DEFAULT_STATE: GameState = {
   credits: 1000000, crystals: 50, experiencePoints: 0, managerLevel: 1,
   leagueLevel: 9, groupId: 1, selectedLeagueId: null,
-  displayName: 'Local Manager', id: 'init-node', isLoaded: false, isTeamLoaded: false,
+  displayName: 'Local Manager', id: '', isLoaded: false, isTeamLoaded: false,
   clubName: null, clubLogo: null,
   lineup: { 
     carry: null, mid: null, offlane: null, support: null, full_support: null, 
@@ -141,7 +144,7 @@ const DEFAULT_STATE: GameState = {
   arena: { capacity: 5000 }, hq: {}, bootcamp: {}, academy: {}, medical: {},
   country: null, isPremium: false, premiumUntil: null, activeSeasonNumber: 1, seasonNumber: 1, seasonDay: 1, isSyncing: false, language: 'ru',
   isDataReady: false, allSeasonMatches: [], nextMatch: null, isMatchesLoading: true,
-  lastProcessedSeason: 0, trophies: [], version: 222,
+  lastProcessedSeason: 0, trophies: [], version: 223,
   availableGiftsToSend: [], receivedGifts: [], lastGiftGenDate: null,
   addCrystals: () => {}, addCredits: () => {}, updatePlayer: () => {}, removePlayer: () => {}, assignToRole: () => {}, updateLineup: () => {}, updateTactics: () => {},
   claimReward: () => {}, setLanguage: () => {}, purchaseLicense: () => false, purchasePremium: () => false,
@@ -166,16 +169,36 @@ const GameStateContext = createContext<GameState | undefined>(DEFAULT_STATE);
 
 export function GameStateProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<GameState>(DEFAULT_STATE);
+  const { user, isUserLoading } = useUser();
   const staticSeasonInfo = useMemo(() => getGlobalSeasonInfo(), []);
 
+  // Первичная загрузка и валидация пользователя
   useEffect(() => {
+    if (isUserLoading) return;
+
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
+        
+        // КРИТИЧЕСКАЯ ПРОВЕРКА: Если сохраненный ID не совпадает с текущим пользователем Firebase
+        // то мы игнорируем старые данные и начинаем с чистого листа
+        if (user && parsed.id && parsed.id !== user.uid) {
+          console.warn("[STORE] User mismatch detected. Resetting to fresh state for new user.");
+          setState(prev => ({
+            ...DEFAULT_STATE,
+            id: user.uid,
+            isLoaded: true,
+            isTeamLoaded: false,
+            language: parsed.language || 'ru' // Сохраняем только язык
+          }));
+          return;
+        }
+
         setState(prev => ({
           ...DEFAULT_STATE,
           ...parsed,
+          id: user?.uid || parsed.id || '',
           isLoaded: true,
           isTeamLoaded: !!parsed.selectedLeagueId,
           activeSeasonNumber: staticSeasonInfo.activeSeasonNumber,
@@ -187,9 +210,18 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
         setState(prev => ({ ...prev, isLoaded: true }));
       }
     } else {
-      setState(prev => ({ ...prev, isLoaded: true }));
+      setState(prev => ({ ...prev, id: user?.uid || '', isLoaded: true }));
     }
-  }, [staticSeasonInfo]);
+  }, [isUserLoading, user, staticSeasonInfo]);
+
+  // Следим за сменой пользователя в реальном времени
+  useEffect(() => {
+    if (user && state.id && state.id !== user.uid) {
+      // Смена аккаунта произошла во время сессии
+      localStorage.removeItem(STORAGE_KEY);
+      setState({ ...DEFAULT_STATE, id: user.uid, isLoaded: true });
+    }
+  }, [user, state.id]);
 
   useEffect(() => {
     if (state.allSeasonMatches && state.allSeasonMatches.length > 0 && state.rank) {
@@ -357,8 +389,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
 
   const resetProfile = useCallback(async () => {
     localStorage.removeItem(STORAGE_KEY);
-    setState({ ...DEFAULT_STATE, isLoaded: true });
-  }, []);
+    setState({ ...DEFAULT_STATE, id: user?.uid || '', isLoaded: true });
+  }, [user?.uid]);
 
   const recordMatch = useCallback((w: string, res: any, rew: number, opp: string, t: string, p: string, mId?: string, extra?: any) => {
     const id = mId || `match_${Date.now()}`;
