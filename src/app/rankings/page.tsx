@@ -7,7 +7,7 @@ import { useGameState } from '../lib/store';
 import { 
   Trophy, ChevronLeft, ChevronRight, 
   Shield, Globe, Layers, RefreshCw,
-  Bot, ShieldAlert, Lock
+  Bot, ShieldAlert
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -28,16 +28,14 @@ export default function RankingsPage() {
   const router = useRouter();
   const { user } = useUser();
   const db = useFirestore();
-  const { 
-    isLoaded, language, seasonNumber
-  } = useGameState();
+  const { isLoaded, language, seasonNumber } = useGameState();
   
   const [activeTab, setActiveTab] = useState<RankingTab>('menu');
   const [navLeague, setNavLeague] = useState<string | null>(null);
   const [navLevel, setNavLevel] = useState<number | null>(null);
   const [navGroup, setNavGroup] = useState<number | null>(null);
 
-  // 1. ПОЛУЧАЕМ ПРОФИЛЬ ТЕКУЩЕГО ПОЛЬЗОВАТЕЛЯ ИЗ БД (v11)
+  // ПОЛУЧАЕМ ПРОФИЛЬ ТЕКУЩЕГО ПОЛЬЗОВАТЕЛЯ ИЗ БД (v11)
   const userProfileRef = useMemoFirebase(() => {
     if (!db || !user?.uid) return null;
     return doc(db, 'players_v11', user.uid);
@@ -45,13 +43,12 @@ export default function RankingsPage() {
 
   const { data: profile, isLoading: isProfileLoading } = useDoc(userProfileRef);
 
-  // 2. ОПРЕДЕЛЯЕМ КОНТЕКСТ ПРОСМОТРА
-  // Ждем профиль для правильного определения "моей лиги"
+  // ОПРЕДЕЛЯЕМ КОНТЕКСТ ПРОСМОТРА
   const contextLeagueId = String(navLeague || profile?.selectedLeagueId || "ALPHA");
   const contextLevel = Number(navLevel || profile?.leagueLevel || 9);
   const contextGroup = Number(navGroup || profile?.groupId || 1);
 
-  // 3. ПОДПИСЫВАЕМСЯ НА ТАБЛИЦУ В БД
+  // ПОДПИСЫВАЕМСЯ НА ТАБЛИЦУ В БД
   const tableId = `table_S${seasonNumber}_L${contextLeagueId}_V${contextLevel}_G${contextGroup}`;
   const tableRef = useMemoFirebase(() => {
     if (!db || !isLoaded) return null;
@@ -60,16 +57,13 @@ export default function RankingsPage() {
 
   const { data: tableData, isLoading: isTableLoading } = useDoc(tableRef);
 
-  // 4. СОРТИРОВКА ДАННЫХ
+  // СОРТИРОВКА ДАННЫХ
   const standings = useMemo(() => {
     if (!tableData?.stats) return [];
     
     return Object.values(tableData.stats).sort((a: any, b: any) => {
-      // 1. Очки
       if (b.points !== a.points) return b.points - a.points;
-      // 2. Победы
       if (b.wins !== a.wins) return b.wins - a.wins;
-      // 3. Разница (diff)
       return b.diff - a.diff;
     });
   }, [tableData]);
@@ -82,7 +76,7 @@ export default function RankingsPage() {
       noTable: "SECTOR NOT INITIALIZED",
       noTableDesc: "This division sector is currently empty. No managers have deployed here yet.",
       menu: [
-        { id: 'my_league', label: 'League Standings', desc: `Division ${profile?.leagueLevel || 9}.${profile?.groupId || 1}`, icon: Shield, color: 'text-primary' },
+        { id: 'my_league', label: 'League Standings', desc: `Division ${profile?.leagueLevel || '...'}.${profile?.groupId || '...'}`, icon: Shield, color: 'text-primary' },
         { id: 'my_pyramid', label: 'League Pyramid', desc: `Explore ${profile?.selectedLeagueId || 'ALPHA'}`, icon: Layers, color: 'text-accent' },
         { id: 'all_pyramids', label: 'Global Map', desc: 'Browse all active leagues', icon: Globe, color: 'text-blue-400' },
         { id: 'cup', label: 'Pyramid Cup', desc: 'Elimination grid', icon: Trophy, color: 'text-yellow-500', href: '/tournaments/cup' },
@@ -95,7 +89,7 @@ export default function RankingsPage() {
       noTable: "СЕКТОР НЕ ИНИЦИАЛИЗИРОВАН",
       noTableDesc: "Данный сектор дивизиона пока пуст. В нем нет ни одного активного менеджера.",
       menu: [
-        { id: 'my_league', label: 'Таблица Лиги', desc: `Дивизион ${profile?.leagueLevel || 9}.${profile?.groupId || 1}`, icon: Shield, color: 'text-primary' },
+        { id: 'my_league', label: 'Таблица Лиги', desc: `Дивизион ${profile?.leagueLevel || '...'}.${profile?.groupId || '...'}`, icon: Shield, color: 'text-primary' },
         { id: 'my_pyramid', label: 'Пирамида Лиги', desc: `Изучить лигу ${profile?.selectedLeagueId || 'ALPHA'}`, icon: Layers, color: 'text-accent' },
         { id: 'all_pyramids', label: 'Карта мира', desc: 'Все активные лиги мира', icon: Globe, color: 'text-blue-400' },
         { id: 'cup', label: 'Кубок Пирамиды', desc: 'Сетка турнира', icon: Trophy, color: 'text-yellow-500', href: '/tournaments/cup' },
@@ -115,8 +109,7 @@ export default function RankingsPage() {
     router.push('/');
   };
 
-  // Ждем профиль если мы на вкладке своей лиги
-  if (!isLoaded || (isProfileLoading && (activeTab === 'menu' || activeTab === 'my_league'))) return <LoadingScreen />;
+  if (!isLoaded || (isProfileLoading && activeTab === 'my_league')) return <LoadingScreen />;
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-24">

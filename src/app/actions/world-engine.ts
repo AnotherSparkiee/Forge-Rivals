@@ -2,8 +2,9 @@
 'use server';
 
 /**
- * @fileOverview Глобальный двигатель инициализации мира v1.1.
+ * @fileOverview Глобальный двигатель инициализации мира v1.2.
  * Создает всю структуру лиги (511 групп) со всеми ботами и календарями.
+ * Теперь автоматически определяет текущий сезон.
  */
 
 import { 
@@ -17,6 +18,7 @@ import {
   TEAMS_PER_GROUP, 
   generateSeasonCalendar 
 } from '@/app/lib/leagues-data';
+import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 
 class FirestoreBatcher {
   private count = 0;
@@ -28,7 +30,7 @@ class FirestoreBatcher {
   async set(ref: any, data: any) {
     this.batch.set(ref, data);
     this.count++;
-    // Firestore limit is 500, we use 450 for safety
+    // Firestore limit is 500
     if (this.count >= 450) {
       await this.commit();
       this.batch = writeBatch(this.db);
@@ -48,11 +50,12 @@ class FirestoreBatcher {
  * Инициализирует весь мир лиги для конкретного сезона.
  * Генерирует 511 групп, 511 таблиц и ~28616 матчей.
  */
-export async function initializeLeagueWorld(leagueId: string, seasonNum: number) {
+export async function initializeLeagueWorld(leagueId: string, targetSeason?: number) {
   const { firestore: db } = initializeFirebase();
-  const globalBatcher = new FirestoreBatcher(db);
+  const info = getGlobalSeasonInfo();
+  const seasonNum = targetSeason || info.activeSeasonNumber;
 
-  console.log(`[WORLD ENGINE v1.1] STARTING GLOBAL INIT: League ${leagueId}, Season ${seasonNum}`);
+  console.log(`[WORLD ENGINE v1.2] STARTING GLOBAL INIT: League ${leagueId}, Season ${seasonNum}`);
 
   let totalGroupsCreated = 0;
 
@@ -64,16 +67,16 @@ export async function initializeLeagueWorld(leagueId: string, seasonNum: number)
       const tableId = `table_S${seasonNum}_L${leagueId}_V${tier}_G${group}`;
       const tableRef = doc(db, 'league_tables_v1', tableId);
       
-      // Идемпотентность: проверяем только таблицу. Если она есть, считаем группу созданной.
+      // Идемпотентность
       const tableSnap = await getDoc(tableRef);
       if (tableSnap.exists()) {
         continue;
       }
 
+      const groupBatcher = new FirestoreBatcher(db);
       const initialStats: any = {};
       const teamsForCalendar = [];
 
-      // Создаем 8 ботов для группы
       for (let r = 1; r <= TEAMS_PER_GROUP; r++) {
         const bId = getBotId(leagueId, tier, group, r);
         initialStats[bId] = {
@@ -86,19 +89,19 @@ export async function initializeLeagueWorld(leagueId: string, seasonNum: number)
         teamsForCalendar.push({ id: bId, name: bId, rank: r });
       }
 
-      // 1. Сохраняем таблицу
-      await globalBatcher.set(tableRef, {
+      // 1. Таблица
+      await groupBatcher.set(tableRef, {
         id: tableId, leagueId, level: tier, group, season: seasonNum,
         stats: initialStats,
         createdAt: serverTimestamp(),
         version: 11
       });
 
-      // 2. Генерируем и сохраняем 56 матчей (2 круга по 8 команд)
+      // 2. Матчи
       const calendar = generateSeasonCalendar(teamsForCalendar, seasonNum, leagueId);
       for (const m of calendar) {
         const mId = `match_S${seasonNum}_L${leagueId}_V${tier}_G${group}_T${m.tour}_R${m.homeRank}_vs_R${m.awayRank}`;
-        await globalBatcher.set(doc(db, 'matches_v1', mId), {
+        await groupBatcher.set(doc(db, 'matches_v1', mId), {
           ...m,
           id: mId,
           leagueId, level: tier, groupId: group, season: seasonNum,
@@ -108,14 +111,10 @@ export async function initializeLeagueWorld(leagueId: string, seasonNum: number)
         });
       }
 
+      await groupBatcher.commit();
       totalGroupsCreated++;
-      if (totalGroupsCreated % 10 === 0) {
-        console.log(`[WORLD ENGINE] Created ${totalGroupsCreated} groups so far...`);
-      }
     }
   }
 
-  await globalBatcher.commit();
-  console.log(`[WORLD ENGINE] SUCCESS: ${totalGroupsCreated} new groups initialized.`);
   return { success: true, created: totalGroupsCreated };
 }

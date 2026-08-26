@@ -1,21 +1,22 @@
+
 'use client';
 
 import { useGameState } from '../lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { 
-  ChevronLeft, Settings, Users, ShieldCheck, Mail, 
-  Info, Palette, Loader2, BookOpen, Sword, Package,
-  ChevronRight, Sparkles, Database, Globe
+  ChevronLeft, Settings, Users, ShieldCheck, 
+  Info, Loader2, Package,
+  ChevronRight, Sparkles, Database, Sword
 } from 'lucide-react';
 import Link from 'next/link';
-import { Badge } from '@/components/ui/badge';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query } from 'firebase/firestore';
 import { useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { initializeLeagueWorld } from '@/app/actions/world-engine';
 import { useToast } from '@/hooks/use-toast';
+import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 
 export default function SystemPage() {
   const { language } = useGameState();
@@ -50,8 +51,9 @@ export default function SystemPage() {
     if (isInitializingWorld) return;
     setIsInitializingWorld(true);
     try {
-      await initializeLeagueWorld('ALPHA', 1);
-      toast({ title: "Мир успешно проинициализирован!" });
+      const info = getGlobalSeasonInfo();
+      await initializeLeagueWorld('ALPHA', info.activeSeasonNumber);
+      toast({ title: `Мир проинициализирован (S${info.activeSeasonNumber})` });
     } catch (e) {
       console.error(e);
       toast({ title: "Ошибка инициализации", variant: "destructive" });
@@ -76,15 +78,10 @@ export default function SystemPage() {
       itemsDesc: "Каталог артефактов и снаряжения",
       config: "Глобальная конфигурация",
       admin: "Инструменты администратора",
-      initWorld: "Инициализировать мир (S1)",
-      initWorldDesc: "Создать 511 групп и календари",
-      skins: "Визуальные скины",
-      skinsDesc: "Настройка акцентов интерфейса",
-      support: "Техническая поддержка",
-      supportDesc: "Создать запрос помощи",
+      initWorld: "Инициализировать мир",
+      initWorldDesc: "Создать 511 групп и календари для текущего сезона",
       loading: "Синхронизация...",
       hostId: "ID хоста",
-      end: "Конец передачи"
     },
     en: { 
       title: "SYSTEM", 
@@ -101,15 +98,10 @@ export default function SystemPage() {
       itemsDesc: "Artifact and equipment catalog",
       config: "Global Config",
       admin: "Administrator Tools",
-      initWorld: "Initialize World (S1)",
-      initWorldDesc: "Create 511 groups and calendars",
-      skins: "Visual Skins",
-      skinsDesc: "Customize UI accents",
-      support: "Technical Support",
-      supportDesc: "Submit help request",
+      initWorld: "Initialize World",
+      initWorldDesc: "Create 511 groups and calendars for active season",
       loading: "Syncing...",
       hostId: "Host ID",
-      end: "End of Transmission"
     }
   }[language === 'ru' ? 'ru' : 'en'];
 

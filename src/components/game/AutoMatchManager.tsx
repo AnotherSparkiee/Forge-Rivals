@@ -11,7 +11,7 @@ import { useFirestore, updateDocumentNonBlocking } from '@/firebase';
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 
 /**
- * ГЛОБАЛЬНЫЙ МЕНЕДЖЕР МАТЧЕЙ v13.0 (Cloud Sync Aware)
+ * ГЛОБАЛЬНЫЙ МЕНЕДЖЕР МАТЧЕЙ v13.1 (Cloud Sync Aware)
  * Синхронизирует расписание только после того, как профиль игрока подгружен из БД.
  */
 export function AutoMatchManager() {
@@ -25,10 +25,16 @@ export function AutoMatchManager() {
   const syncStartedRef = useRef<string | null>(null);
 
   useEffect(() => {
-    // Ждем полной инициализации стора и получения leagueId из профиля
-    if (!isLoaded || !selectedLeagueId || !db) return;
+    // Ждем полной инициализации стора
+    if (!isLoaded || !db) return;
     
-    // Предотвращаем повторную синхронизацию для того же лига-группа контекста
+    // Если лига еще не выбрана (новый пользователь), сразу ставим готовность
+    if (!selectedLeagueId) {
+      setWorldReady(true);
+      return;
+    }
+    
+    // Предотвращаем повторную синхронизацию
     const currentContext = `${selectedLeagueId}_L${leagueLevel}_G${groupId}`;
     if (syncStartedRef.current === currentContext) return;
     syncStartedRef.current = currentContext;
@@ -49,7 +55,10 @@ export function AutoMatchManager() {
         const officialMatches = matchesSnap.docs.map(d => ({ ...d.data(), id: d.id }));
         
         if (officialMatches.length > 0) {
-          saveToLocal({ allSeasonMatches: officialMatches.sort((a, b) => a.tour - b.tour) });
+          saveToLocal({ 
+            allSeasonMatches: officialMatches.sort((a, b) => a.tour - b.tour),
+            seasonNumber: currentSeason
+          });
         }
       } catch (e) {
         console.error("[AUTO MATCH] Sync failed:", e);
