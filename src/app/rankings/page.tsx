@@ -75,7 +75,7 @@ export default function RankingsPage() {
         if (p.clubLogo) map[p.id] = p.clubLogo;
       });
     }
-    return { map, logos };
+    return map;
   }, [groupPlayers]);
 
   // СОРТИРОВКА ДАННЫХ
@@ -200,7 +200,7 @@ export default function RankingsPage() {
                          {clubLogo ? (
                            <img src={clubLogo} alt="" className="w-6 h-6 object-contain shrink-0" />
                          ) : entry.isBot ? (
-                           <span className="text-lg leading-none shrink-0">🤖</span>
+                           <span className="text-2xl leading-none shrink-0">🤖</span>
                          ) : (
                            <Shield className="w-4 h-4 text-primary/30 shrink-0" />
                          )}
