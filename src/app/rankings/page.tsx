@@ -99,7 +99,7 @@ export default function RankingsPage() {
       promotion: "PROMOTION",
       relegation: "RELEGATION",
       menu: [
-        { id: 'my_league', label: 'League Standings', desc: `Division ${profile?.leagueLevel || '...'}.${profile?.groupId || '...'}`, icon: Shield, color: 'text-primary' },
+        { id: 'my_league', label: 'League Standings', desc: `Д ${profile?.leagueLevel || '...'}.${profile?.groupId || '...'}`, icon: Shield, color: 'text-primary' },
         { id: 'my_pyramid', label: 'League Pyramid', desc: `Explore ${profile?.selectedLeagueId || 'ALPHA'}`, icon: Layers, color: 'text-accent' },
         { id: 'all_pyramids', label: 'Global Map', desc: 'Browse all active leagues', icon: Globe, color: 'text-blue-400' },
         { id: 'cup', label: 'Pyramid Cup', desc: 'Elimination grid', icon: Trophy, color: 'text-yellow-500', href: '/tournaments/cup' },
@@ -114,7 +114,7 @@ export default function RankingsPage() {
       promotion: "ПОВЫШЕНИЕ",
       relegation: "ВЫЛЕТ",
       menu: [
-        { id: 'my_league', label: 'Таблица Лиги', desc: `Дивизион ${profile?.leagueLevel || '...'}.${profile?.groupId || '...'}`, icon: Shield, color: 'text-primary' },
+        { id: 'my_league', label: 'Таблица Лиги', desc: `Д ${profile?.leagueLevel || '...'}.${profile?.groupId || '...'}`, icon: Shield, color: 'text-primary' },
         { id: 'my_pyramid', label: 'Пирамида Лиги', desc: `Изучить лигу ${profile?.selectedLeagueId || 'ALPHA'}`, icon: Layers, color: 'text-accent' },
         { id: 'all_pyramids', label: 'Карта мира', desc: 'Все активные лиги мира', icon: Globe, color: 'text-blue-400' },
         { id: 'cup', label: 'Кубок Пирамиды', desc: 'Сетка турнира', icon: Trophy, color: 'text-yellow-500', href: '/tournaments/cup' },
@@ -147,7 +147,7 @@ export default function RankingsPage() {
             {activeTab === 'menu' ? t.title : contextLeagueId}
           </h1>
           <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-black opacity-50 mt-1.5">
-            {activeTab === 'menu' ? t.subtitle : `DIV ${contextLevel} • GROUP ${contextGroup}`}
+            {activeTab === 'menu' ? t.subtitle : `Д ${contextLevel} • ГРУППА ${contextGroup}`}
           </p>
         </div>
       </header>
@@ -182,7 +182,7 @@ export default function RankingsPage() {
            ) : standings.length > 0 ? (
              <>
                <div className="flex items-center justify-between px-1">
-                 <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase italic rounded-full px-4">DIV {contextLevel} • G {contextGroup}</Badge>
+                 <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase italic rounded-full px-4">Д {contextLevel} • ГРУППА {contextGroup}</Badge>
                  
                  <div className="flex items-center gap-3 text-[7px] font-black uppercase tracking-widest">
                     <div className="flex items-center gap-1 text-green-400">
@@ -279,9 +279,9 @@ export default function RankingsPage() {
           {Array.from({ length: MAX_LEVELS }, (_, i) => i + 1).map(lvl => (
             <Card key={lvl} className="glass-card border-white/5 hover:bg-white/5 transition-all cursor-pointer group" onClick={() => setNavLevel(lvl)}>
               <CardContent className="p-4 flex justify-between items-center">
-                <span className="text-sm font-bold uppercase group-hover:text-white transition-colors">Division {lvl}</span>
+                <span className="text-sm font-bold uppercase group-hover:text-white transition-colors">Д {lvl}</span>
                 <div className="flex items-center gap-2">
-                  <Badge variant="secondary" className="text-[8px] bg-white/5 font-black uppercase">{getGroupsCountInLevel(lvl)} GR</Badge>
+                  <Badge variant="secondary" className="text-[8px] bg-white/5 font-black uppercase">{getGroupsCountInLevel(lvl)} ГР</Badge>
                   <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-all" />
                 </div>
               </CardContent>
