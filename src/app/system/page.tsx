@@ -56,8 +56,8 @@ export default function SystemPage() {
       rolesDesc: "Специализации и позиции на карте",
       items: "Предметы",
       itemsDesc: "Каталог артефактов и снаряжения",
-      bonuses: "Список бонусов",
-      bonusesDesc: "Справочник усилений и модификаторов",
+      bonuses: "Список Подарков",
+      bonusesDesc: "Справочник дипломатических грузов S-Tier",
       loading: "Синхронизация...",
       hostId: "ID хоста",
     },
@@ -74,8 +74,8 @@ export default function SystemPage() {
       rolesDesc: "Specializations and roles",
       items: "Items",
       itemsDesc: "Artifact and equipment catalog",
-      bonuses: "Bonus List",
-      bonusesDesc: "Guide to buffs and modifiers",
+      bonuses: "Gifts List",
+      bonusesDesc: "Guide to S-Tier diplomatic cargo",
       loading: "Syncing...",
       hostId: "Host ID",
     }
@@ -183,6 +183,7 @@ export default function SystemPage() {
           <Info className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
           <p className="text-[8px] font-black uppercase tracking-widest">{t.hostId}: v11-GLOBAL-SYNC</p>
           <p className="text-[7px] uppercase font-bold text-muted-foreground mt-1">Версия реестра: 11.0.1</p>
+          <Badge variant="outline" className="text-[8px] border-green-500/30 text-green-400 font-black uppercase tracking-widest mt-2">AUTONOMOUS_CYCLE_ACTIVE</Badge>
         </div>
       </div>
     </div>

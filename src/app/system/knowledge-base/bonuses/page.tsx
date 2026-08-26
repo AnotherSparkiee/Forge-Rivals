@@ -6,133 +6,97 @@ import { Card, CardContent } from '@/components/ui/card';
 import { 
   ChevronLeft, Gift, Zap, Crown, Award, 
   ShieldCheck, TrendingUp, Users, Coins, 
-  Target, HeartPulse, GraduationCap, Package
+  Target, HeartPulse, GraduationCap, Package,
+  Hammer, Sparkles, Gem, Flame, Skull, Box
 } from 'lucide-react';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 
-interface BonusItem {
+interface GiftTypeItem {
   id: string;
   label: string;
   desc: string;
   impact: string;
   icon: any;
   color: string;
-  category: 'Premium' | 'License' | 'Staff' | 'Infra' | 'Diplomacy';
+  rarity: 'Common' | 'Rare' | 'Epic' | 'Legendary';
 }
 
 export default function BonusesKnowledgePage() {
   const { language } = useGameState();
 
-  const bonuses: BonusItem[] = [
+  const gifts: GiftTypeItem[] = [
     {
-      id: 'premium_xp',
-      label: language === 'ru' ? "Элитный опыт (Premium)" : "Elite Experience",
-      desc: language === 'ru' ? "Множитель 5x для всего получаемого опыта менеджера." : "5x multiplier for all manager experience gained.",
-      impact: "XP x5",
-      icon: Zap,
-      color: "text-yellow-500",
-      category: 'Premium'
-    },
-    {
-      id: 'premium_diamonds',
-      label: language === 'ru' ? "Кристальный грант (Premium)" : "Crystal Grant",
-      desc: language === 'ru' ? "Ежедневное начисление 50 алмазов на баланс клуба." : "Daily 50 diamonds added to club balance.",
-      impact: "+50 💎 / day",
-      icon: Gift,
-      color: "text-blue-400",
-      category: 'Premium'
-    },
-    {
-      id: 'license_s_tier',
-      label: language === 'ru' ? "Лицензия S-Tier" : "S-Tier License",
-      desc: language === 'ru' ? "Разблокирует создание ассоциаций и ежедневные подарки друзьям." : "Unlocks association creation and daily gifts to friends.",
-      impact: "Full Access",
-      icon: Award,
-      color: "text-primary",
-      category: 'License'
-    },
-    {
-      id: 'coach_strategy',
-      label: language === 'ru' ? "Стратегия тренера" : "Coach Strategy",
-      desc: language === 'ru' ? "Увеличивает общую мощь состава и эффективность тактики в матчах." : "Increases total squad power and tactical effectiveness.",
-      impact: "+Power %",
-      icon: GraduationCap,
-      color: "text-blue-400",
-      category: 'Staff'
-    },
-    {
-      id: 'analyst_tactics',
-      label: language === 'ru' ? "Аналитика боя" : "Tactical Data",
-      desc: language === 'ru' ? "Бонус к детерминированным событиям в матчах лиги." : "Bonus to deterministic events in league matches.",
-      impact: "+Event Luck",
-      icon: Target,
-      color: "text-red-400",
-      category: 'Staff'
-    },
-    {
-      id: 'bootcamp_speed',
-      label: language === 'ru' ? "Буткемп-режим" : "Bootcamp Drills",
-      desc: language === 'ru' ? "Ускоряет прокачку навыков героев после матчей до 40%." : "Speeds up hero skill progression after matches by up to 40%.",
-      impact: "+40% Training",
-      icon: Zap,
-      color: "text-accent",
-      category: 'Infra'
-    },
-    {
-      id: 'sponsor_bonus',
-      label: language === 'ru' ? "Спонсорский контракт" : "Sponsor Contract",
-      desc: language === 'ru' ? "Бонус к доходу от Лиги в зависимости от навыков менеджера." : "League income bonus based on manager skills.",
-      impact: "+10-50% Revenue",
-      icon: Coins,
-      color: "text-yellow-400",
-      category: 'Infra'
-    },
-    {
-      id: 'gift_architect',
+      id: 'architect',
       label: language === 'ru' ? "Архитектор Метавселенной" : "Metaverse Architect",
-      desc: language === 'ru' ? "Сокращает время строительства текущих объектов." : "Reduces construction time for active projects.",
+      desc: language === 'ru' ? "Сверхзвуковой логистический модуль. Сокращает время текущего строительства на 2, 6 или 12 часов." : "Supersonic logistics module. Reduces current construction time by 2, 6, or 12 hours.",
       impact: "Time Skip",
-      icon: Package,
+      icon: Hammer,
       color: "text-orange-400",
-      category: 'Diplomacy'
+      rarity: 'Epic'
     },
     {
-      id: 'gift_grant',
+      id: 'grant',
       label: language === 'ru' ? "Венчурный Грант" : "Venture Grant",
-      desc: language === 'ru' ? "Мгновенное пополнение бюджета клуба (от 1M €)." : "Instant club budget boost (from 1M €).",
-      impact: "+Cash Boost",
+      desc: language === 'ru' ? "Прямое финансирование от межгалактических инвесторов. Пополняет бюджет клуба на сумму от 1M до 5M €." : "Direct funding from intergalactic investors. Refills club budget by 1M to 5M €.",
+      impact: "+Credits",
       icon: TrendingUp,
       color: "text-green-400",
-      category: 'Diplomacy'
+      rarity: 'Rare'
+    },
+    {
+      id: 'shard',
+      label: language === 'ru' ? "Осколок Еремеевита" : "Jeremejevite Shard",
+      desc: language === 'ru' ? "Концентрированная энергия в кристаллической форме. Мгновенно добавляет от 50 до 250 алмазов." : "Concentrated energy in crystalline form. Instantly adds 50 to 250 diamonds.",
+      impact: "+Crystals",
+      icon: Gem,
+      color: "text-blue-400",
+      rarity: 'Rare'
+    },
+    {
+      id: 'teambuilding',
+      label: language === 'ru' ? "Тимбилдинг на Мальдивах" : "Maldives Teambuilding",
+      desc: language === 'ru' ? "Экстренный отпуск для команды. Мгновенно восстанавливает форму и дает бонусный опыт всем игрокам." : "Emergency vacation for the team. Instantly restores form and grants bonus XP to all players.",
+      impact: "Form & XP",
+      icon: HeartPulse,
+      color: "text-pink-400",
+      rarity: 'Epic'
+    },
+    {
+      id: 'secret',
+      label: language === 'ru' ? "Секретный Сундук" : "Secret Chest",
+      desc: language === 'ru' ? "Зашифрованный контейнер. Содержит случайный высокоуровневый актив или редкий расходник." : "Encrypted container. Contains a random high-level asset or a rare consumable.",
+      impact: "Random Loot",
+      icon: Box,
+      color: "text-yellow-500",
+      rarity: 'Legendary'
+    },
+    {
+      id: 'curse',
+      label: language === 'ru' ? "Проклятие Гения" : "Genius Curse",
+      desc: language === 'ru' ? "Экспериментальный нейромодулятор. Дает огромный бонус к одному навыку ценой временного падения выносливости." : "Experimental neuromodulator. Grants a massive bonus to one skill at the cost of temporary stamina decay.",
+      impact: "Stat Swap",
+      icon: Flame,
+      color: "text-red-500",
+      rarity: 'Common'
     }
   ];
 
   const t = {
     ru: {
-      title: "СПИСОК БОНУСОВ",
-      subtitle: "Справочник усилений и модификаторов",
+      title: "РЕЕСТР ПОДАРКОВ",
+      subtitle: "Дипломатические грузы S-Tier",
       impact: "Эффект",
-      category: {
-        Premium: "Премиум",
-        License: "Лицензии",
-        Staff: "Персонал",
-        Infra: "Инфраструктура",
-        Diplomacy: "Дипломатия"
-      }
+      rarityLabel: "Редкость",
+      desc: "Эти грузы могут быть сгенерированы игроками с лицензией S-Tier и отправлены друзьям как жест доброй воли или тактическая поддержка."
     },
     en: {
-      title: "BONUS LIST",
-      subtitle: "Guide to buffs and modifiers",
+      title: "GIFT REGISTRY",
+      subtitle: "S-Tier Diplomatic Cargo",
       impact: "Impact",
-      category: {
-        Premium: "Premium",
-        License: "Licenses",
-        Staff: "Staff",
-        Infra: "Infrastructure",
-        Diplomacy: "Diplomacy"
-      }
+      rarityLabel: "Rarity",
+      desc: "These packages can be generated by S-Tier managers and sent to friends as a gesture of goodwill or tactical support."
     }
   }[language === 'ru' ? 'ru' : 'en'];
 
@@ -150,45 +114,50 @@ export default function BonusesKnowledgePage() {
         </div>
       </header>
 
-      <div className="space-y-6">
-        {(['Premium', 'License', 'Staff', 'Infra', 'Diplomacy'] as const).map(cat => {
-          const catBonuses = bonuses.filter(b => b.category === cat);
-          if (catBonuses.length === 0) return null;
+      <Card className="bg-primary/5 border-primary/20 mb-8">
+        <CardContent className="p-4 flex gap-4">
+          <Info className="w-5 h-5 text-primary shrink-0" />
+          <p className="text-[10px] text-muted-foreground leading-relaxed italic">
+            "{t.desc}"
+          </p>
+        </CardContent>
+      </Card>
 
-          return (
-            <section key={cat} className="space-y-3">
-              <div className="flex items-center gap-2 px-1 border-l-2 border-primary/30 pl-3">
-                <h2 className="text-[10px] font-black uppercase tracking-widest text-accent">
-                  {(t.category as any)[cat]}
-                </h2>
+      <div className="space-y-3">
+        {gifts.map((gift) => (
+          <Card key={gift.id} className="glass-card border-white/5 bg-secondary/10 group hover:border-primary/30 transition-all active:scale-[0.98]">
+            <CardContent className="p-4">
+              <div className="flex items-start gap-4">
+                <div className={cn("p-2.5 rounded-xl bg-secondary/50 border border-white/5 shrink-0 shadow-inner group-hover:scale-110 transition-transform", gift.color)}>
+                  <gift.icon className="w-6 h-6" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex justify-between items-start mb-1">
+                    <h3 className="text-sm font-bold uppercase text-white truncate mr-2">{gift.label}</h3>
+                    <Badge variant="outline" className={cn(
+                      "text-[7px] font-black uppercase h-4 px-1.5",
+                      gift.rarity === 'Legendary' ? "border-yellow-500/50 text-yellow-500" :
+                      gift.rarity === 'Epic' ? "border-purple-500/50 text-purple-400" :
+                      gift.rarity === 'Rare' ? "border-blue-500/50 text-blue-400" :
+                      "border-white/20 text-muted-foreground"
+                    )}>
+                      {gift.rarity}
+                    </Badge>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground leading-relaxed italic mb-3">
+                    "{gift.desc}"
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[8px] font-black text-primary uppercase tracking-widest">{t.impact}:</span>
+                    <Badge className="bg-primary/20 text-primary text-[8px] font-bold uppercase border-primary/30">
+                      {gift.impact}
+                    </Badge>
+                  </div>
+                </div>
               </div>
-              <div className="space-y-2">
-                {catBonuses.map((bonus) => (
-                  <Card key={bonus.id} className="glass-card border-white/5 bg-secondary/10">
-                    <CardContent className="p-4">
-                      <div className="flex items-start gap-4">
-                        <div className={cn("p-2.5 rounded-xl bg-secondary/50 border border-white/5 shrink-0 shadow-inner", bonus.color)}>
-                          <bonus.icon className="w-5 h-5" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex justify-between items-start mb-1">
-                            <h3 className="text-xs font-bold uppercase text-white truncate mr-2">{bonus.label}</h3>
-                            <Badge className="bg-primary/20 text-primary text-[7px] font-black uppercase h-4 px-1.5 border-primary/30">
-                              {bonus.impact}
-                            </Badge>
-                          </div>
-                          <p className="text-[10px] text-muted-foreground leading-relaxed italic">
-                            "{bonus.desc}"
-                          </p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </section>
-          );
-        })}
+            </CardContent>
+          </Card>
+        ))}
       </div>
     </div>
   );
