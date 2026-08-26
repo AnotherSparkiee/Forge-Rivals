@@ -75,7 +75,7 @@ export default function RankingsPage() {
         if (p.clubLogo) map[p.id] = p.clubLogo;
       });
     }
-    return map;
+    return { map, logos };
   }, [groupPlayers]);
 
   // СОРТИРОВКА ДАННЫХ
@@ -197,15 +197,13 @@ export default function RankingsPage() {
                     )}>
                       <div className="text-[10px] font-black italic text-muted-foreground">{pos}</div>
                       <div className="truncate flex items-center gap-2 min-w-0">
-                        <div className="w-6 h-6 rounded-lg bg-secondary overflow-hidden shrink-0 flex items-center justify-center border border-white/5 shadow-inner">
-                           {clubLogo ? (
-                             <img src={clubLogo} alt="" className="w-full h-full object-contain p-0.5" />
-                           ) : entry.isBot ? (
-                             <span className="text-[10px]">🤖</span>
-                           ) : (
-                             <Shield className="w-3 h-3 text-primary opacity-30" />
-                           )}
-                        </div>
+                         {clubLogo ? (
+                           <img src={clubLogo} alt="" className="w-6 h-6 object-contain shrink-0" />
+                         ) : entry.isBot ? (
+                           <span className="text-lg leading-none shrink-0">🤖</span>
+                         ) : (
+                           <Shield className="w-4 h-4 text-primary/30 shrink-0" />
+                         )}
                         <span className={cn("text-[10px] font-bold uppercase truncate", isMe ? "text-primary font-black" : "text-white/90")}>
                           {entry.name}
                         </span>
