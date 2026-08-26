@@ -13,17 +13,15 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { 
   MAX_LEVELS, 
-  getStableGroupTeams, 
   getGroupsCountInLevel, 
-  getMatchResult,
-  generateSeasonCalendar,
-  LEAGUES
+  LEAGUES,
+  TEAMS_PER_GROUP,
+  getBotId
 } from '../lib/leagues-data';
-import { isMatchStarted } from '../lib/time-utils';
 import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
-import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where } from 'firebase/firestore';
+import { useFirestore, useDoc, useMemoFirebase } from '@/firebase';
+import { doc } from 'firebase/firestore';
 
 type RankingTab = 'menu' | 'my_league' | 'my_pyramid' | 'all_pyramids' | 'cup';
 
@@ -44,87 +42,20 @@ export default function RankingsPage() {
   const contextLevel = Number(navLevel || leagueLevel || 9);
   const contextGroup = Number(navGroup || groupId || 1);
 
-  // 1. Реальные игроки v11
-  const groupPlayersQuery = useMemoFirebase(() => {
-    if (!db) return null;
-    return query(
-      collection(db, 'players_v11'),
-      where('selectedLeagueId', '==', contextLeagueId),
-      where('leagueLevel', '==', contextLevel),
-      where('groupId', '==', contextGroup)
-    );
-  }, [db, contextLeagueId, contextLevel, contextGroup]);
+  const tableId = `table_S${seasonNumber}_L${contextLeagueId}_V${contextLevel}_G${contextGroup}`;
+  const tableRef = useMemoFirebase(() => db ? doc(db, 'league_tables_v1', tableId) : null, [db, tableId]);
+  const { data: tableData, isLoading: isTableLoading } = useDoc(tableRef);
 
-  const { data: groupRealPlayers, isLoading: isPlayersLoading } = useCollection(groupPlayersQuery);
-
-  // 2. Зафиксированные матчи v11
-  const groupMatchesQuery = useMemoFirebase(() => {
-    if (!db) return null;
-    return query(
-      collection(db, 'matches_v11'),
-      where('leagueId', '==', contextLeagueId),
-      where('level', '==', contextLevel),
-      where('groupId', '==', contextGroup),
-      where('season', '==', seasonNumber)
-    );
-  }, [db, contextLeagueId, contextLevel, contextGroup, seasonNumber]);
-
-  const { data: fixedMatches, isLoading: isMatchesLoading } = useCollection(groupMatchesQuery);
-
-  // 3. Таблица (Объединение матчей и имен)
   const standings = useMemo(() => {
-    // Ждем полной загрузки всех данных для исключения рассинхрона
-    if (!isLoaded || isPlayersLoading || isMatchesLoading) return [];
-
-    const realOnes = groupRealPlayers || [];
-    const teams = getStableGroupTeams(contextLevel, contextGroup, contextLeagueId, realOnes);
-    const baseCalendar = generateSeasonCalendar(teams, seasonNumber, contextLeagueId);
-
-    return teams.map((t) => {
-      let wins = 0, draws = 0, losses = 0, pts = 0, played = 0;
-      
-      const teamMatches = baseCalendar.filter(m => m.homeRank === t.rank || m.awayRank === t.rank);
-
-      teamMatches.forEach(m => {
-        const fixed = fixedMatches?.find(fm => 
-          (fm.homeRank === m.homeRank && fm.awayRank === m.awayRank && fm.tour === m.tour)
-        );
-
-        // Используем isMatchStarted для идентичного счетчика "И" во всех группах
-        const isStarted = isMatchStarted(m.startTime);
-
-        if (fixed && fixed.isFinished) {
-          played++;
-          const isHome = fixed.homeRank === t.rank;
-          const myScore = isHome ? fixed.scoreA : fixed.scoreB;
-          const oppScore = isHome ? fixed.scoreB : fixed.scoreA;
-
-          if (myScore > oppScore) { wins++; pts += 3; }
-          else if (myScore === oppScore) { draws++; pts += 1; }
-          else { losses++; }
-        } else if (isStarted) {
-          // Если матч начался, но еще не зафиксирован в БД - считаем его сыгранным через детерминированный расчет
-          played++;
-          const [sH, sA] = getMatchResult(m.homeRank, m.awayRank, contextLevel, contextGroup, seasonNumber, m.tour);
-          const isHome = m.homeRank === t.rank;
-          const myScore = isHome ? sH : sA;
-          const oppScore = isHome ? sA : sH;
-
-          if (myScore > oppScore) { wins++; pts += 3; }
-          else if (myScore === oppScore) { draws++; pts += 1; }
-          else { losses++; }
-        }
-      });
-
-      return {
-        ...t,
-        matchesPlayed: played,
-        wins, draws, losses,
-        points: pts,
-        diff: (wins * 2) - losses
-      };
-    }).sort((a, b) => b.points - a.points || b.wins - a.wins || b.diff - a.diff);
-  }, [isLoaded, contextLevel, contextGroup, contextLeagueId, seasonNumber, groupRealPlayers, fixedMatches, isPlayersLoading, isMatchesLoading]);
+    if (!tableData?.stats) return [];
+    
+    // Превращаем объект статов в массив и сортируем
+    return Object.values(tableData.stats).sort((a: any, b: any) => {
+      if (b.points !== a.points) return b.points - a.points;
+      if (b.wins !== a.wins) return b.wins - a.wins;
+      return b.diff - a.diff;
+    });
+  }, [tableData]);
 
   const t = {
     en: {
@@ -203,26 +134,15 @@ export default function RankingsPage() {
 
       {(activeTab === 'my_league' || navGroup) && (
         <div className="space-y-4 animate-in fade-in duration-500">
-           {(isPlayersLoading || isMatchesLoading) ? (
+           {isTableLoading ? (
              <div className="py-20 flex flex-col items-center justify-center space-y-4 opacity-50">
-                <div className="relative">
-                   <div className="absolute inset-0 bg-primary/20 blur-xl rounded-full animate-pulse" />
-                   <RefreshCw className="w-10 h-10 text-primary animate-spin" />
-                </div>
+                <RefreshCw className="w-10 h-10 text-primary animate-spin" />
                 <p className="text-[10px] font-black uppercase tracking-[0.3em] text-primary">{t.loading}</p>
              </div>
            ) : (
              <>
                <div className="flex items-center justify-between px-1">
                  <Badge className="bg-primary text-primary-foreground text-[10px] font-black uppercase italic">DIV {contextLevel} • G {contextGroup}</Badge>
-                 <div className="flex gap-2">
-                    <div className="flex items-center gap-1 text-[7px] font-black uppercase text-green-400">
-                      <ArrowUpCircle className="w-2.5 h-2.5" /> {language === 'ru' ? 'ПОВЫШЕНИЕ' : 'PROMOTION'}
-                    </div>
-                    <div className="flex items-center gap-1 text-[7px] font-black uppercase text-red-400">
-                      <ArrowDownCircle className="w-2.5 h-2.5" /> {language === 'ru' ? 'ВЫЛЕТ' : 'RELEGATION'}
-                    </div>
-                 </div>
                </div>
                
                <div className="space-y-1">
@@ -232,23 +152,15 @@ export default function RankingsPage() {
                  {standings.map((entry: any, i: number) => {
                    const pos = i + 1;
                    const isMe = entry.id === userId;
-                   const isPromoZone = pos === 1 && contextLevel > 1;
-                   const isRelegationZone = pos >= 7 && contextLevel < MAX_LEVELS;
-
                    return (
-                    <div key={entry.id + i} className={cn(
+                    <div key={entry.id} className={cn(
                       "grid grid-cols-[24px_1fr_25px_60px_35px] gap-1 items-center p-2.5 rounded-xl border mb-1 transition-all", 
-                      isMe ? "bg-primary/20 border-primary/40 ring-1 ring-primary/10 shadow-[0_0_10px_rgba(var(--primary),0.05)]" : "bg-secondary/20 border-white/5",
-                      isPromoZone && !isMe && "border-green-500/20 bg-green-500/5",
-                      isRelegationZone && !isMe && "border-red-500/20 bg-red-500/5"
+                      isMe ? "bg-primary/20 border-primary/40" : "bg-secondary/20 border-white/5"
                     )}>
-                      <div className={cn(
-                        "text-[10px] font-black italic",
-                        isPromoZone ? "text-green-400" : (isRelegationZone ? "text-red-400" : "text-muted-foreground")
-                      )}>{pos}</div>
+                      <div className="text-[10px] font-black italic text-muted-foreground">{pos}</div>
                       <div className="truncate flex items-center gap-1.5 min-w-0">
                         <div className="w-4 h-4 rounded-full bg-secondary overflow-hidden shrink-0">
-                           {entry.logo ? <img src={entry.logo} alt="" className="w-full h-full object-contain" /> : <Bot className="w-2.5 h-2.5 opacity-30 mx-auto mt-0.5" />}
+                           {entry.isBot ? <Bot className="w-2.5 h-2.5 opacity-30 mx-auto mt-0.5" /> : <Shield className="w-2.5 h-2.5 text-primary opacity-50 mx-auto mt-0.5" />}
                         </div>
                         <span className={cn("text-[10px] font-bold uppercase truncate", isMe ? "text-primary" : "text-white")}>
                           {entry.name}

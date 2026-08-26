@@ -9,12 +9,10 @@ import { COUNTRIES } from '@/app/lib/countries-data';
 import { Loader2, ChevronLeft, Edit3, Flag, Shield } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useGameState, LineupSlot } from '@/app/lib/store';
-import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 import { getRandomStartingSquad } from '@/app/lib/moba-data';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
-import { findStrategicPlacement } from '@/app/actions/season-init';
-import { useFirestore, useUser, setDocumentNonBlocking } from '@/firebase';
-import { doc, serverTimestamp } from 'firebase/firestore';
+import { findStrategicPlacement, initializeClubV11 } from '@/app/actions/season-init';
+import { useUser } from '@/firebase';
 import { cn } from '@/lib/utils';
 
 const CLUBS = [
@@ -32,7 +30,6 @@ type SetupStep = 'name' | 'country' | 'club';
 
 export default function SetupPage() {
   const router = useRouter();
-  const db = useFirestore();
   const { user, isUserLoading } = useUser();
   const { toast } = useToast();
   const { language, isLoaded, saveToLocal } = useGameState();
@@ -43,19 +40,14 @@ export default function SetupPage() {
   const [selectedClubId, setSelectedClubId] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
 
-  // Извлекаем дефолтное имя из email
   const loginName = useMemo(() => {
     if (!user?.email) return "";
     return user.email.split('@')[0];
   }, [user?.email]);
 
   useEffect(() => {
-    if (!isUserLoading && !user) {
-      router.push('/auth/login');
-    }
-    if (user && !teamName) {
-      setTeamName(loginName);
-    }
+    if (!isUserLoading && !user) router.push('/auth/login');
+    if (user && !teamName) setTeamName(loginName);
   }, [user, isUserLoading, router, loginName, teamName]);
 
   const handleCompleteSetup = async () => {
@@ -64,17 +56,9 @@ export default function SetupPage() {
     
     try {
       const targetLeagueId = "ALPHA";
-      let placement = { tier: 9, group: 1, rank: 1 };
-      try {
-        const result = await findStrategicPlacement(targetLeagueId);
-        if (result) placement = result;
-      } catch (e) {
-        console.warn("[SETUP] Placement fallback active");
-      }
-      
+      const placement = await findStrategicPlacement(targetLeagueId);
       const selectedCountry = COUNTRIES.find(c => c.code === selectedCountryCode);
       const selectedClub = CLUBS.find(c => c.id === selectedClubId);
-      const { activeSeasonNumber } = getGlobalSeasonInfo();
       
       const startingSquad = getRandomStartingSquad();
       const carryPlayers = startingSquad.filter(p => p.role === 'Carry');
@@ -99,6 +83,18 @@ export default function SetupPage() {
 
       const finalClubName = teamName.trim();
 
+      // Вызываем серверный экшен для атомарной инициализации в БД
+      await initializeClubV11(user.uid, {
+        tier: placement.tier,
+        group: placement.group,
+        rank: placement.rank,
+        clubName: finalClubName,
+        clubLogo: selectedClub?.logo,
+        country: selectedCountry?.name,
+        selectedLeagueId: targetLeagueId
+      });
+
+      // Сохраняем в локальный стор для мгновенного доступа
       saveToLocal({
         id: user.uid,
         selectedLeagueId: targetLeagueId,
@@ -112,27 +108,8 @@ export default function SetupPage() {
         ownedPlayers: startingSquad,
         lineup: initialLineup,
         isDataReady: true,
-        isTeamLoaded: true,
-        lastProcessedSeason: activeSeasonNumber
+        isTeamLoaded: true
       });
-
-      if (db) {
-        const playerRef = doc(db, 'players_v11', user.uid);
-        setDocumentNonBlocking(playerRef, {
-          id: user.uid,
-          displayName: finalClubName,
-          clubName: finalClubName,
-          clubLogo: selectedClub?.logo || null,
-          selectedLeagueId: String(targetLeagueId),
-          leagueLevel: Number(placement.tier),
-          groupId: Number(placement.group),
-          rank: Number(placement.rank),
-          country: selectedCountry?.name || 'International',
-          createdAt: serverTimestamp(),
-          lastLoginDate: new Date().toISOString(),
-          version: 11
-        }, { merge: true });
-      }
 
       toast({ title: language === 'ru' ? "Клуб инициализирован!" : "Club Initialized!" });
       router.replace('/');
@@ -209,7 +186,6 @@ export default function SetupPage() {
           {step === 'name' && (
             <div className="space-y-6">
               <div className="relative group">
-                <div className="absolute -inset-1 bg-gradient-to-r from-primary to-accent rounded-2xl blur opacity-20 group-focus-within:opacity-40 transition duration-500"></div>
                 <Card className="glass-card border-white/10 relative bg-secondary/20">
                   <CardContent className="p-6">
                     <div className="relative">
@@ -222,7 +198,6 @@ export default function SetupPage() {
                         maxLength={20}
                       />
                     </div>
-                    <p className="text-[8px] text-muted-foreground uppercase font-black mt-4 text-center tracking-[0.2em]">Minimum 3 characters required</p>
                   </CardContent>
                 </Card>
               </div>
