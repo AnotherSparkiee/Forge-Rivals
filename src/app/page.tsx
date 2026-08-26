@@ -71,12 +71,17 @@ export default function Home() {
     const isHome = Number(myNext.homeRank) === rank;
     const oppRank = isHome ? Number(myNext.awayRank) : Number(myNext.homeRank);
     
+    // Генерируем полное техническое имя бота для соответствия таблице
+    const leagueIdx = "01";
+    const groupPrefix = String(groupId).padStart(3, '0');
+    const botName = `BOT${leagueIdx}${leagueLevel}${groupPrefix}${oppRank}`;
+
     return {
       match: myNext,
-      opponentName: nameMap.names[oppRank] || `BOT_${oppRank}`,
+      opponentName: nameMap.names[oppRank] || botName,
       opponentLogo: nameMap.logos[oppRank] || null
     };
-  }, [allSeasonMatches, rank, nameMap]);
+  }, [allSeasonMatches, rank, nameMap, groupId, leagueLevel]);
 
   const getCountdown = (targetTimeIso: string | Date) => {
     const target = typeof targetTimeIso === 'string' ? new Date(targetTimeIso) : targetTimeIso;

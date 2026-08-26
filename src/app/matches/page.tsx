@@ -102,12 +102,19 @@ export default function MatchesPage() {
   }, [players]);
 
   const resolveMatchData = useCallback((m: any) => {
-    const homeName = nameMap.map[m.homeRank] || `BOT_${m.homeRank}`;
-    const awayName = nameMap.map[m.awayRank] || `BOT_${m.awayRank}`;
+    const leagueIdx = "01";
+    const groupPrefix = String(groupId).padStart(3, '0');
+    
+    // Генерируем технические имена ботов для соответствия таблице
+    const botHome = `BOT${leagueIdx}${leagueLevel}${groupPrefix}${m.homeRank}`;
+    const botAway = `BOT${leagueIdx}${leagueLevel}${groupPrefix}${m.awayRank}`;
+
+    const homeName = nameMap.map[m.homeRank] || botHome;
+    const awayName = nameMap.map[m.awayRank] || botAway;
     const homeLogo = nameMap.logos[m.homeRank] || null;
     const awayLogo = nameMap.logos[m.awayRank] || null;
     return { ...m, homeName, awayName, homeLogo, awayLogo };
-  }, [nameMap]);
+  }, [nameMap, leagueLevel, groupId]);
 
   const renderMatchCard = useCallback((raw: any, idx: number) => {
     const m = resolveMatchData(raw);
