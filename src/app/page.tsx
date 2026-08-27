@@ -111,7 +111,7 @@ export default function Home() {
 
   if (isUserLoading || !isLoaded || !isDataReady) return <LoadingScreen />;
 
-  const systemIconUrl = PlaceHolderImages.find(img => img.id === 'ui-system-icon')?.imageUrl || "https://i.postimg.cc/Xv0K0933/14snzgjd.png";
+  const systemIconUrl = PlaceHolderImages.find(img => img.id === 'ui-system-icon')?.imageUrl || "https://i.ibb.co/07QQCFT/1787830105436.png";
 
   const menuItems = [
     { label: language === 'ru' ? 'ОБЗОР МАТЧА' : 'MATCH OVERVIEW', href: '/reports', icon: Tv, color: 'text-primary', badge: totalUnreadCount > 0 ? totalUnreadCount : null },
