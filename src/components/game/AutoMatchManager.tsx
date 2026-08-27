@@ -3,14 +3,14 @@
 import { useEffect, useRef } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
-import { useFirestore } from '@/firebase';
+import { useFirestore, useUser } from '@/firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { resolveDailyMatches } from '@/app/actions/autonomous-cycle';
 
 /**
- * ГЛОБАЛЬНЫЙ СИНХРОНИЗАТОР v16.0 (Active Heartbeat)
- * Этот компонент служит триггером для серверного автономного цикла.
- * Он инициирует расчеты на сервере и синхронизирует локальное состояние.
+ * ГЛОБАЛЬНЫЙ СИНХРОНИЗАТОР v17.0 (Proactive World Builder)
+ * Теперь запускает автономный цикл (и постройку мира) сразу после авторизации,
+ * не дожидаясь завершения регистрации или выбора лиги.
  */
 export function AutoMatchManager() {
   const { 
@@ -19,13 +19,15 @@ export function AutoMatchManager() {
     saveToLocal
   } = useGameState();
   
+  const { user } = useUser();
   const db = useFirestore();
   const syncStartedRef = useRef<string | null>(null);
   const heartbeatStartedRef = useRef(false);
 
+  // 1. СИНХРОНИЗАЦИЯ КАЛЕНДАРЯ (только для зарегистрированных с лигой)
   useEffect(() => {
-    if (!isLoaded || !db || !selectedLeagueId) {
-      if (isLoaded) setWorldReady(true);
+    if (!isLoaded || !db || !selectedLeagueId || !user) {
+      if (isLoaded && !user) setWorldReady(true);
       return;
     }
     
@@ -33,7 +35,6 @@ export function AutoMatchManager() {
     const currentSeason = info.activeSeasonNumber;
     const currentContext = `${selectedLeagueId}_L${leagueLevel}_G${groupId}_S${currentSeason}`;
     
-    // 1. ПЕРВИЧНАЯ СИНХРОНИЗАЦИЯ КАЛЕНДАРЯ
     if (syncStartedRef.current !== currentContext) {
       syncStartedRef.current = currentContext;
 
@@ -64,28 +65,30 @@ export function AutoMatchManager() {
 
       syncMatches();
     }
+  }, [isLoaded, selectedLeagueId, leagueLevel, groupId, user, saveToLocal, setWorldReady, db]);
 
-    // 2. СЕРВЕРНОЕ СЕРДЦЕБИЕНИЕ (Автономный цикл)
-    // Мы вызываем это с клиента, чтобы имитировать Cron в среде разработки
-    if (!heartbeatStartedRef.current) {
-      heartbeatStartedRef.current = true;
-      
-      const triggerHeartbeat = async () => {
-        try {
-          console.log("[HEARTBEAT] Triggering autonomous league cycle...");
-          await resolveDailyMatches();
-        } catch (e) {
-          console.error("[HEARTBEAT] Cycle error:", e);
-        }
-      };
+  // 2. ГЛОБАЛЬНОЕ СЕРДЦЕБИЕНИЕ (Запуск постройки мира ботами)
+  // Работает для любого авторизованного пользователя, даже на экране Setup
+  useEffect(() => {
+    if (!isLoaded || !db || !user || heartbeatStartedRef.current) return;
 
-      triggerHeartbeat();
-      // Повторяем каждые 5 минут для поддержания жизни мира
-      const interval = setInterval(triggerHeartbeat, 300000);
-      return () => clearInterval(interval);
-    }
+    heartbeatStartedRef.current = true;
+    
+    const triggerHeartbeat = async () => {
+      try {
+        console.log("[HEARTBEAT] World build triggered by active session...");
+        // resolveDailyMatches внутри себя проверит целостность мира LALPHA S_current
+        await resolveDailyMatches();
+      } catch (e) {
+        console.error("[HEARTBEAT] Cycle error:", e);
+      }
+    };
 
-  }, [isLoaded, selectedLeagueId, leagueLevel, groupId, saveToLocal, setWorldReady, db]);
+    triggerHeartbeat();
+    // Повторяем каждые 3 минуты (ускорено) для активного заполнения пирамиды
+    const interval = setInterval(triggerHeartbeat, 180000);
+    return () => clearInterval(interval);
+  }, [isLoaded, db, user]);
 
   return null;
 }
