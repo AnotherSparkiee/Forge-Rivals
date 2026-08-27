@@ -34,9 +34,8 @@
   }
   body {
     @apply text-foreground font-body antialiased bg-[#0a0d14];
-    overflow: hidden;
     overscroll-behavior: none;
-    height: 100dvh;
+    min-height: 100dvh;
   }
 }
 
