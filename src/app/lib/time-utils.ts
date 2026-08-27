@@ -1,6 +1,7 @@
 /**
- * @fileOverview Ядро времени v116 (Universal Sync). 
+ * @fileOverview Ядро времени v117 (Universal Sync). 
  * Обеспечивает единство отсчета для всех групп лиги.
+ * Точка отсчета: 28 августа 2026 года, 00:00 MSK.
  */
 
 let syncPoint = {
@@ -11,7 +12,9 @@ let syncPoint = {
 const SIMULATION_OFFSET_MS = 0; 
 const MSK_OFFSET = 3 * 60 * 60 * 1000;
 
-export const GLOBAL_EPOCH_ISO = '2025-02-16T00:00:00Z'; 
+// Полночь 28 августа 2026 по МСК = 21:00 27 августа UTC
+export const GLOBAL_EPOCH_ISO = '2026-08-27T21:00:00Z'; 
+export const SEASON_CYCLE_DAYS = 15;
 
 export function setServerTime(serverMs: number) {
   if (typeof performance !== 'undefined') {
@@ -73,9 +76,8 @@ export function getGlobalSeasonInfo() {
   const epochUtc = new Date(GLOBAL_EPOCH_ISO);
   const diffMs = simNow.getTime() - epochUtc.getTime();
   
-  const cycleDuration = 15; 
   const dayMs = 24 * 60 * 60 * 1000;
-  const cycleMs = cycleDuration * dayMs;
+  const cycleMs = SEASON_CYCLE_DAYS * dayMs;
 
   if (diffMs < 0) {
     return {
@@ -94,7 +96,7 @@ export function getGlobalSeasonInfo() {
 
   const seasonNumber = Math.floor(diffMs / cycleMs) + 1;
   const dayOfCycle = Math.floor((diffMs % cycleMs) / dayMs) + 1;
-  const isOffseason = dayOfCycle === 15;
+  const isOffseason = dayOfCycle === SEASON_CYCLE_DAYS;
 
   const currentSeasonStart = new Date(epochUtc.getTime() + (seasonNumber - 1) * cycleMs);
   const generationTime = new Date(currentSeasonStart.getTime() + (14 * dayMs) + (16 * 3600000));
@@ -113,20 +115,12 @@ export function getGlobalSeasonInfo() {
   };
 }
 
-/**
- * Проверяет, начался ли матч (без учета времени симуляции).
- * Используется для синхронного отображения счетчика сыгранных игр.
- */
 export function isMatchStarted(startTimeIso: string): boolean {
   const simNow = getMoscowTime();
   const start = new Date(startTimeIso);
   return simNow.getTime() >= start.getTime();
 }
 
-/**
- * Проверяет, должен ли матч быть уже завершен (с учетом времени симуляции 45 мин).
- * Используется для фиксации официальных результатов в БД.
- */
 export function isMatchOverdue(startTimeIso: string): boolean {
   const simNow = getMoscowTime();
   const start = new Date(startTimeIso);
