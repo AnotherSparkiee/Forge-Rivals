@@ -1,8 +1,8 @@
+
 'use server';
 
 /**
- * @fileOverview Серверный модуль инициализации v66 (Resilient Initialization).
- * Добавлена JIT-инициализация групп, если они отсутствуют в базе.
+ * @fileOverview Серверный модуль инициализации v67 (Advanced Reseeding).
  */
 
 import { collection, getDocs, query, where, doc, getDoc, writeBatch, serverTimestamp } from 'firebase/firestore';
@@ -17,7 +17,7 @@ import { createGroupStructure } from './world-engine';
 
 /**
  * Находит свободное место в текущем сезоне.
- * Приоритет: Дивизион 1 -> 9, Группа 1 -> N.
+ * Учитывает только тех, кто уже в Season 1.
  */
 export async function findStrategicPlacement(leagueId: string) {
   const { firestore: db } = initializeFirebase();
@@ -35,8 +35,10 @@ export async function findStrategicPlacement(leagueId: string) {
     const occupiedSlots = new Set<string>();
     snap.forEach(d => {
       const data = d.data();
-      const key = `${data.leagueLevel}_${data.groupId}_${data.rank}`;
-      occupiedSlots.add(key);
+      if (data.leagueLevel && data.groupId && data.rank) {
+        const key = `${data.leagueLevel}_${data.groupId}_${data.rank}`;
+        occupiedSlots.add(key);
+      }
     });
 
     for (let tier = 1; tier <= 9; tier++) {
@@ -59,7 +61,6 @@ export async function findStrategicPlacement(leagueId: string) {
 
 /**
  * Атомарная инициализация клуба с захватом слота бота.
- * Включает самовосстановление группы, если она еще не создана.
  */
 export async function initializeClubV11(userId: string, data: any) {
   const { firestore: db } = initializeFirebase();
@@ -75,35 +76,30 @@ export async function initializeClubV11(userId: string, data: any) {
   
   let tableSnap = await getDoc(tableRef);
 
-  // JIT INITIALIZATION: Если сектора нет, создаем его на лету
+  // JIT: Создаем структуру группы, если её еще нет
   if (!tableSnap.exists()) {
     console.warn(`[JIT] Table ${tableId} missing. Creating group structure...`);
     await createGroupStructure(db, leagueId, tier, group, seasonNum);
     tableSnap = await getDoc(tableRef);
-    
-    if (!tableSnap.exists()) {
-      throw new Error(`LEAGUE_SECTOR_FAILED: Failed to initialize table ${tableId}`);
-    }
   } 
 
   const batch = writeBatch(db);
   const tableData = tableSnap.data();
   const stats = { ...tableData!.stats };
 
-  if (stats[botId]) {
-    const botStats = stats[botId];
+  // Заменяем бота на реального игрока
+  if (stats[botId] || !stats[userId]) {
+    const botStats = stats[botId] || { matchesPlayed: 0, wins: 0, draws: 0, losses: 0, points: 0, diff: 0 };
     stats[userId] = {
       ...botStats,
       id: userId,
       name: clubName || data.displayName || "Manager",
       clubLogo: clubLogo || data.clubLogo || null,
+      rank: rank,
       isBot: false
     };
-    delete stats[botId];
+    if (stats[botId]) delete stats[botId];
     batch.update(tableRef, { stats, updatedAt: serverTimestamp() });
-  } else {
-    // Если бот уже заменен кем-то другим, нам нужно найти новое место
-    console.log(`[INIT] Slot ${botId} already occupied. This should not happen during re-seeding.`);
   }
 
   // ОБНОВЛЕНИЕ КАЛЕНДАРЯ
@@ -123,7 +119,7 @@ export async function initializeClubV11(userId: string, data: any) {
     if (Object.keys(updates).length > 0) batch.update(mDoc.ref, updates);
   });
 
-  // СОХРАНЕНИЕ ПРОФИЛЯ
+  // ОБНОВЛЕНИЕ ПРОФИЛЯ
   const playerRef = doc(db, 'players_v11', userId);
   batch.set(playerRef, {
     ...data,

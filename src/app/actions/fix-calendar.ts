@@ -1,7 +1,8 @@
+
 'use server';
 
 /**
- * @fileOverview Скрипт-синхронизатор v53 (Global Reseeder).
+ * @fileOverview Скрипт-синхронизатор v54 (Global Reseeder).
  * Реализует полную пересадку всех команд в актуальный Season 1 по дате регистрации.
  */
 
@@ -14,8 +15,10 @@ import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 import { initializeLeagueWorld } from './world-engine';
 import { findStrategicPlacement, initializeClubV11 } from './season-init';
 
+const PLAYERS_PER_CHUNK = 25;
+
 /**
- * ГЛОБАЛЬНЫЙ РЕМОНТ МИРА v53.
+ * ГЛОБАЛЬНЫЙ РЕМОНТ МИРА v54.
  * Фаза 1: Постройка структуры 511 групп.
  * Фаза 2: Переселение ВСЕХ реальных игроков в Season 1 по приоритету createdAt.
  */
@@ -42,13 +45,12 @@ export async function runGlobalEmergencyRepair() {
     return { status: 'PROCESSING_WORLD', progress: `Tier ${worldRes.lastTier}, Group ${worldRes.lastGroup}` };
   }
 
-  // ФАЗА 2: Переселение игроков (по 5 игроков за вызов)
+  // ФАЗА 2: Переселение игроков (по 25 игроков за вызов)
   if (repairData.phase === 'RESEED_PLAYERS') {
-    // Выбираем тех, кто еще не в текущем сезоне, начиная с самых ранних регистраций
     let playersQ = query(
       collection(db, 'players_v11'), 
       orderBy('createdAt', 'asc'), 
-      limit(5)
+      limit(PLAYERS_PER_CHUNK)
     );
 
     if (repairData.lastCreatedAt) {
@@ -56,7 +58,7 @@ export async function runGlobalEmergencyRepair() {
         collection(db, 'players_v11'), 
         orderBy('createdAt', 'asc'), 
         startAfter(repairData.lastCreatedAt), 
-        limit(5)
+        limit(PLAYERS_PER_CHUNK)
       );
     }
     
@@ -71,11 +73,16 @@ export async function runGlobalEmergencyRepair() {
 
     for (const pDoc of pSnap.docs) {
       const p = pDoc.data();
+      lastCreatedAt = p.createdAt;
       
-      // Пропускаем, если игрок уже в правильной структуре
-      if (p.lastProcessedSeason === seasonNum && p.selectedLeagueId === leagueId) {
-        lastCreatedAt = p.createdAt;
-        continue;
+      // Пропускаем, если игрок уже в правильной структуре Сезона 1
+      if (p.lastProcessedSeason === seasonNum && p.selectedLeagueId === leagueId && p.leagueLevel && p.groupId) {
+        // Дополнительная проверка: действительно ли он есть в таблице
+        const tableId = `table_S${seasonNum}_L${leagueId}_V${p.leagueLevel}_G${p.groupId}`;
+        const tSnap = await getDoc(doc(db, 'league_tables_v1', tableId));
+        if (tSnap.exists() && tSnap.data().stats?.[pDoc.id]) {
+          continue;
+        }
       }
 
       try {
@@ -97,8 +104,6 @@ export async function runGlobalEmergencyRepair() {
       } catch (e: any) {
         console.error(`[RESEED ERROR] ${pDoc.id}:`, e.message);
       }
-
-      lastCreatedAt = p.createdAt;
     }
 
     await setDoc(repairStatusRef, { lastCreatedAt }, { merge: true });

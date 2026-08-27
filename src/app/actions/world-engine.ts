@@ -2,7 +2,7 @@
 'use server';
 
 /**
- * @fileOverview Глобальный двигатель инициализации мира v1.6 (JIT & Chunked).
+ * @fileOverview Глобальный двигатель инициализации мира v1.7 (High-Throughput).
  */
 
 import { 
@@ -18,11 +18,10 @@ import {
 } from '@/app/lib/leagues-data';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 
-const GROUPS_PER_CHUNK = 8; 
+const GROUPS_PER_CHUNK = 50; 
 
 /**
  * Создает структуру конкретной группы (таблица + календарь).
- * Используется как в пошаговой инициализации, так и для JIT (Just-In-Time) запросов.
  */
 export async function createGroupStructure(db: Firestore, leagueId: string, tier: number, group: number, seasonNum: number) {
   const batch = writeBatch(db);
@@ -82,12 +81,13 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
 
   if (statusSnap.exists()) {
     const data = statusSnap.data();
-    if (data.status === 'completed') return { success: true, alreadyDone: true };
+    if (data.status === 'completed') return { success: true, isComplete: true };
     status = data.status;
     currentTier = data.lastTier || 1;
-    currentGroup = data.lastGroup || 1;
+    currentGroup = data.lastGroup || 0;
     
-    if (status === 'processing' && data.lastGroup > 0) {
+    // Переход к следующей группе
+    if (status === 'processing') {
       currentGroup++;
       if (currentGroup > getGroupsCountInLevel(currentTier)) {
         currentGroup = 1;
@@ -98,16 +98,16 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
 
   if (currentTier > 9) {
     await updateDoc(statusRef, { status: 'completed', finishedAt: serverTimestamp() });
-    return { success: true, finished: true };
+    return { success: true, isComplete: true };
   }
 
   if (status === 'idle') {
     await setDoc(statusRef, { 
       status: 'processing', 
       startedAt: serverTimestamp(),
-      lastTier: currentTier,
+      lastTier: 1,
       lastGroup: 0
-    }, { merge: true });
+    });
   }
 
   let groupsProcessed = 0;
@@ -133,7 +133,7 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
     if (tier > 9 || groupsProcessed >= GROUPS_PER_CHUNK) break;
   }
   
-  const isFullyComplete = tier > 9 || (tier === 9 && group === getGroupsCountInLevel(9));
+  const isFullyComplete = tier > 9;
   
   await updateDoc(statusRef, { 
     lastTier: tier > 9 ? 9 : tier,
