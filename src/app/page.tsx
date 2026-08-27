@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useGameState } from './lib/store';
@@ -140,6 +139,8 @@ export default function Home() {
   const seasonInfo = getGlobalSeasonInfo();
   const isNextMatchLive = currentNextMatch ? isMatchLive(currentNextMatch.startTime) : false;
 
+  const systemLabel = language === 'ru' ? 'СИСТЕМА' : 'SYSTEM';
+
   return (
     <div className="relative h-[calc(100dvh-3.5rem-5rem)] flex flex-col overflow-hidden bg-[#0a0d14]">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,_hsl(var(--primary)/0.1),_transparent_70%)] -z-10" />
@@ -232,11 +233,11 @@ export default function Home() {
             {menuItems.map((item) => (
               <Link key={item.label} href={item.href}>
                 <Card className="glass-card hover:bg-white/5 transition-all active:scale-95 duration-75 border-white/5 group aspect-square flex flex-col items-center justify-center p-1 relative overflow-visible">
-                  <div className={cn("p-2 rounded-lg bg-secondary/50 group-hover:bg-primary/10 transition-colors border border-white/5 mb-1.5", item.color)}>
+                  <div className={cn("transition-colors mb-1.5 flex items-center justify-center", item.color)}>
                     {item.icon ? (
-                      <item.icon className="w-5 h-5" />
+                      <item.icon className="w-6 h-6" />
                     ) : (
-                      <img src={item.imageUrl} className="w-5 h-5 object-contain" alt="" />
+                      <img src={item.imageUrl} className="w-6 h-6 object-contain" alt="" />
                     )}
                   </div>
                   {item.badge && (
@@ -249,7 +250,11 @@ export default function Home() {
                       </div>
                     </div>
                   )}
-                  <span className="text-[7px] font-black uppercase text-center text-muted-foreground group-hover:text-white transition-colors leading-tight px-0.5">{item.label}</span>
+                  {item.label !== systemLabel && (
+                    <span className="text-[7px] font-black uppercase text-center text-muted-foreground group-hover:text-white transition-colors leading-tight px-0.5">
+                      {item.label}
+                    </span>
+                  )}
                 </Card>
               </Link>
             ))}
