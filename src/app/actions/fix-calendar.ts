@@ -2,13 +2,13 @@
 'use server';
 
 /**
- * @fileOverview Скрипт-миграция v46 (Chunked Repair).
- * Разделяет процесс восстановления на безопасные этапы.
+ * @fileOverview Скрипт-миграция v47 (Chunked Repair & Sync).
+ * Исправлены импорты и логика переноса игроков.
  */
 
 import { 
   collection, getDocs, writeBatch, doc, getDoc,
-  serverTimestamp, query, where, Firestore, setDoc, limit, startAfter, updateDoc
+  serverTimestamp, query, where, Firestore, setDoc, limit, startAfter, updateDoc, orderBy
 } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
@@ -18,7 +18,7 @@ import {
 import { initializeLeagueWorld } from './world-engine';
 
 /**
- * ГЛОБАЛЬНЫЙ РЕМОНТ МИРА v46.
+ * ГЛОБАЛЬНЫЙ РЕМОНТ МИРА v47.
  * Вызывает пошаговую инициализацию мира, а затем переносит игроков.
  */
 export async function runGlobalEmergencyRepair() {
@@ -31,16 +31,20 @@ export async function runGlobalEmergencyRepair() {
   const repairSnap = await getDoc(repairStatusRef);
   const repairData = repairSnap.exists() ? repairSnap.data() : { phase: 'INIT_WORLD' };
 
-  console.log(`[REPAIR v46] Current Phase: ${repairData.phase}`);
+  console.log(`[REPAIR v47] Current Phase: ${repairData.phase}`);
 
-  // ФАЗА 1: Создание структуры мира через world-engine (порционно)
+  // ФАЗА 1: Создание структуры мира через world-engine (порционно по 8 групп)
   if (repairData.phase === 'INIT_WORLD') {
     const worldRes = await initializeLeagueWorld(leagueId, seasonNum);
     if (worldRes.isComplete) {
       await setDoc(repairStatusRef, { phase: 'MIGRATE_PLAYERS', lastPlayerId: null }, { merge: true });
-      return { status: 'PHASE_COMPLETE', nextPhase: 'MIGRATE_PLAYERS' };
+      return { status: 'PHASE_COMPLETE', nextPhase: 'MIGRATE_PLAYERS', details: 'World Structure Created' };
     }
-    return { status: 'PROCESSING_WORLD', ...worldRes };
+    return { 
+      status: 'PROCESSING_WORLD', 
+      progress: `Tier ${worldRes.lastTier}, Group ${worldRes.lastGroup}`,
+      details: 'Creating League Groups...' 
+    };
   }
 
   // ФАЗА 2: Перенос реальных игроков в новую структуру (порционно по 20 игроков)
@@ -52,7 +56,7 @@ export async function runGlobalEmergencyRepair() {
     const pSnap = await getDocs(playersQ);
     if (pSnap.empty) {
       await updateDoc(repairStatusRef, { phase: 'COMPLETED', finishedAt: serverTimestamp() });
-      return { status: 'ALL_COMPLETE' };
+      return { status: 'ALL_COMPLETE', details: 'All players migrated successfully' };
     }
 
     const batch = writeBatch(db);
@@ -71,27 +75,23 @@ export async function runGlobalEmergencyRepair() {
       const tableId = `table_S${seasonNum}_L${leagueId}_V${tier}_G${group}`;
       const tableRef = doc(db, 'league_tables_v1', tableId);
       
-      // Обновляем таблицу (атомарно через dot-notation для безопасности)
-      const statsPath = `stats.${botId}`;
-      const newStatsPath = `stats.${userId}`;
-      
-      // Получаем текущие данные для переноса накопленной ботом статистики
       const tableSnap = await getDoc(tableRef);
       if (tableSnap.exists()) {
-        const stats = tableSnap.data().stats;
+        const tableData = tableSnap.data();
+        const stats = { ...tableData.stats };
+        
         if (stats[botId]) {
           const botStats = stats[botId];
-          const updatedStats = { ...stats };
-          updatedStats[userId] = {
+          stats[userId] = {
             ...botStats,
             id: userId, name: clubName, clubLogo: clubLogo, isBot: false
           };
-          delete updatedStats[botId];
-          batch.update(tableRef, { stats: updatedStats, updatedAt: serverTimestamp() });
+          delete stats[botId];
+          batch.update(tableRef, { stats, updatedAt: serverTimestamp() });
         }
       }
 
-      // Обновляем матчи игрока
+      // Обновляем матчи игрока в новой структуре
       const matchesQ = query(collection(db, 'matches_v1'), 
         where('leagueId', '==', leagueId),
         where('level', '==', tier),
@@ -114,8 +114,8 @@ export async function runGlobalEmergencyRepair() {
 
     await batch.commit();
     await updateDoc(repairStatusRef, { lastPlayerId: lastId });
-    return { status: 'MIGRATING', processed: pSnap.size, lastId };
+    return { status: 'MIGRATING', details: `Migrating users... Last ID: ${lastId.slice(0,5)}`, processed: pSnap.size };
   }
 
-  return { status: 'ALREADY_DONE' };
+  return { status: 'ALREADY_DONE', details: 'System is fully synchronized' };
 }
