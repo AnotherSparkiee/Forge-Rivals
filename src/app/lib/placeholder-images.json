@@ -66,6 +66,12 @@
       "description": "High resolution starter arena visual v3",
       "imageUrl": "https://i.postimg.cc/75TSz68F/compressed-image-(2).jpg",
       "imageHint": "stadium arena"
+    },
+    {
+      "id": "ui-system-icon",
+      "description": "Custom system gear icon for main menu",
+      "imageUrl": "https://i.postimg.cc/Xv0K0933/14snzgjd.png",
+      "imageHint": "system gear"
     }
   ]
 }

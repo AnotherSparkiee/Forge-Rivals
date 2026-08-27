@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useGameState } from './lib/store';
@@ -17,6 +18,7 @@ import { Badge } from '@/components/ui/badge';
 import { useState, useEffect, useMemo } from 'react';
 import { getMoscowTime, getGlobalSeasonInfo, isMatchLive } from './lib/time-utils';
 import { collection, query, where } from 'firebase/firestore';
+import { PlaceHolderImages } from './lib/placeholder-images';
 
 export default function Home() {
   const { user, isUserLoading } = useUser();
@@ -34,7 +36,6 @@ export default function Home() {
     return () => clearInterval(timer);
   }, []);
 
-  // 1. Загрузка участников группы для разрешения имен (как в MatchesPage)
   const groupPlayersQuery = useMemoFirebase(() => {
     if (!db || !selectedLeagueId) return null;
     return query(collection(db, 'players_v11'), 
@@ -58,7 +59,6 @@ export default function Home() {
     return { names, logos };
   }, [groupPlayers]);
 
-  // 2. Поиск следующего матча по рангу (самый надежный способ)
   const resolvedNextMatch = useMemo(() => {
     if (!allSeasonMatches || !rank) return null;
     
@@ -71,7 +71,6 @@ export default function Home() {
     const isHome = Number(myNext.homeRank) === rank;
     const oppRank = isHome ? Number(myNext.awayRank) : Number(myNext.homeRank);
     
-    // Генерируем полное техническое имя бота для соответствия таблице
     const leagueIdx = "01";
     const groupPrefix = String(groupId).padStart(3, '0');
     const botName = `BOT${leagueIdx}${leagueLevel}${groupPrefix}${oppRank}`;
@@ -112,6 +111,8 @@ export default function Home() {
 
   if (isUserLoading || !isLoaded || !isDataReady) return <LoadingScreen />;
 
+  const systemIconUrl = PlaceHolderImages.find(img => img.id === 'ui-system-icon')?.imageUrl || "https://i.postimg.cc/Xv0K0933/14snzgjd.png";
+
   const menuItems = [
     { label: language === 'ru' ? 'ОБЗОР МАТЧА' : 'MATCH OVERVIEW', href: '/reports', icon: Tv, color: 'text-primary', badge: totalUnreadCount > 0 ? totalUnreadCount : null },
     { label: language === 'ru' ? 'СОСТАВ КОМАНДЫ' : 'SQUAD', href: '/roster', icon: Users, color: 'text-accent' },
@@ -131,7 +132,7 @@ export default function Home() {
     { label: language === 'ru' ? 'АССОЦИАЦИИ' : 'ALLIANCE', href: '/associations', icon: Shield, color: 'text-sky-400' },
     { label: language === 'ru' ? 'МАГАЗИН' : 'SHOP', href: '/shop', icon: ShoppingCart, color: 'text-lime-400' },
     { label: language === 'ru' ? 'НОВОСТИ' : 'NEWS', href: '/news', icon: Newspaper, color: 'text-slate-400' },
-    { label: language === 'ru' ? 'СИСТЕМА' : 'SYSTEM', href: '/system', icon: Settings, color: 'text-zinc-400' },
+    { label: language === 'ru' ? 'СИСТЕМА' : 'SYSTEM', href: '/system', icon: null, imageUrl: systemIconUrl, color: 'text-zinc-400' },
     { label: language === 'ru' ? 'ПОИСК' : 'SEARCH', href: '/search', icon: Search, color: 'text-blue-500' },
   ];
 
@@ -144,7 +145,6 @@ export default function Home() {
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,_hsl(var(--primary)/0.1),_transparent_70%)] -z-10" />
       <div className="flex-1 w-full max-w-md mx-auto px-4 flex flex-col justify-center overflow-hidden">
         
-        {/* NEXT MATCH / LIVE MATCH WIDGET */}
         {currentNextMatch ? (
           <Card className={cn(
             "glass-card mb-6 border-primary/30 bg-primary/5 overflow-hidden animate-in fade-in slide-in-from-top-4 duration-700 shrink-0",
@@ -205,7 +205,7 @@ export default function Home() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-[8px] font-black text-accent uppercase tracking-[0.2em] leading-none mb-1.5">
-                      {language === 'ru' ? 'ПОДГОТОВКА СЕЗОНА' : 'SEASON PREPARATION'}
+                      {language === 'ru' ? 'ПОДГОРТОВКА СЕЗОНА' : 'SEASON PREPARATION'}
                     </p>
                     <h3 className="text-base font-bold uppercase text-white leading-tight truncate">
                       {language === 'ru' ? 'СТАРТ ЗАВТРА' : 'STARTS TOMORROW'}
@@ -227,14 +227,17 @@ export default function Home() {
           </Card>
         )}
 
-        {/* ICON GRID */}
         <div className="w-full">
           <div className="grid grid-cols-4 gap-2 w-full py-2">
             {menuItems.map((item) => (
               <Link key={item.label} href={item.href}>
                 <Card className="glass-card hover:bg-white/5 transition-all active:scale-95 duration-75 border-white/5 group aspect-square flex flex-col items-center justify-center p-1 relative overflow-visible">
                   <div className={cn("p-2 rounded-lg bg-secondary/50 group-hover:bg-primary/10 transition-colors border border-white/5 mb-1.5", item.color)}>
-                    <item.icon className="w-5 h-5" />
+                    {item.icon ? (
+                      <item.icon className="w-5 h-5" />
+                    ) : (
+                      <img src={item.imageUrl} className="w-5 h-5 object-contain" alt="" />
+                    )}
                   </div>
                   {item.badge && (
                     <div className="absolute top-1 right-1">
