@@ -1,5 +1,6 @@
+
 /**
- * @fileOverview Ядро лиг v66: Детерминированные ID ботов и вспомогательные функции.
+ * @fileOverview Ядро лиг v67: Детерминированные ID ботов и расчеты перемещений.
  */
 
 import { GLOBAL_EPOCH_ISO } from './time-utils';
@@ -97,6 +98,10 @@ export function generateSeasonCalendar(teams: any[], seasonNumber: number, leagu
   return matches.sort((a, b) => a.tour - b.tour);
 }
 
+/**
+ * ДЕТЕРМИНИРОВАННЫЙ РАСЧЕТ РЕЗУЛЬТАТА.
+ * На основе рангов, сезона и тура. Одинаков для всех, кто вызывает.
+ */
 export function getMatchResult(
   rankA: number, 
   rankB: number, 
@@ -112,8 +117,13 @@ export function getMatchResult(
     hash |= 0;
   }
   const absHash = Math.abs(hash);
+  
+  // Базовая вероятность: более высокий ранг (меньшее число) имеет преимущество
+  const rankDiff = rankB - rankA; // Положительно, если A сильнее (ранг 1 против ранга 8)
+  const baseChance = 35 + (rankDiff * 2); // 21% до 49% на победу [2,0]
+  
   const roll = absHash % 100;
-  if (roll < 35) return [2, 0];
-  if (roll < 70) return [0, 2];
+  if (roll < baseChance) return [2, 0];
+  if (roll > (100 - baseChance)) return [0, 2];
   return [1, 1];
 }
