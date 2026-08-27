@@ -45,7 +45,7 @@ function GameInterface({ children }: { children: React.ReactNode }) {
           )}
           
           <Suspense fallback={<LoadingScreen />}>
-            <main className={cn(!isAuthOrSetup && isDataReady ? "pt-14 pb-20" : "")}>
+            <main className={cn(!isAuthOrSetup && isDataReady ? "pt-16 pb-14" : "")}>
               {children}
             </main>
           </Suspense>

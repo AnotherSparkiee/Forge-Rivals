@@ -33,26 +33,26 @@ export function BottomNav() {
   const current = formatDate(now);
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-[#0a0d14]/80 backdrop-blur-xl border-t border-white/5 h-16 flex items-center shadow-[0_-15px_40px_rgba(0,0,0,0.8)]">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-[#0a0d14]/80 backdrop-blur-xl border-t border-white/5 h-14 flex items-center shadow-[0_-15px_40px_rgba(0,0,0,0.8)]">
       <div className="w-full max-w-md mx-auto px-6 flex items-center justify-between">
         
         {/* LEFT: ACCEPT */}
         <Button 
           variant="ghost" 
-          className="flex flex-col items-center gap-1 h-auto p-0 hover:bg-transparent group"
+          className="flex flex-col items-center gap-0.5 h-auto p-0 hover:bg-transparent group"
         >
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-primary/10 border border-primary/20 group-hover:bg-primary/20 transition-all">
-            <CheckCircle2 className="w-4 h-4 text-primary" />
+          <div className="w-7 h-7 rounded-lg flex items-center justify-center bg-primary/10 border border-primary/20 group-hover:bg-primary/20 transition-all">
+            <CheckCircle2 className="w-3.5 h-3.5 text-primary" />
           </div>
-          <span className="text-[7px] font-black text-muted-foreground uppercase tracking-widest">
+          <span className="text-[6px] font-black text-muted-foreground uppercase tracking-widest">
             {language === 'ru' ? 'ПРИНЯТЬ' : 'ACCEPT'}
           </span>
         </Button>
 
         {/* CENTER: TIME */}
         <div className="flex flex-col items-center">
-          <p className="text-lg font-headline font-black text-primary italic tracking-widest text-glow-blue tabular-nums">
-            <span className="opacity-70 text-xs mr-1.5">{current.date}</span>
+          <p className="text-base font-headline font-black text-primary italic tracking-widest text-glow-blue tabular-nums leading-none">
+            <span className="opacity-70 text-[10px] mr-1">{current.date}</span>
             {current.time}
           </p>
         </div>
@@ -61,12 +61,12 @@ export function BottomNav() {
         <Button 
           variant="ghost" 
           onClick={() => router.back()}
-          className="flex flex-col items-center gap-1 h-auto p-0 hover:bg-transparent group"
+          className="flex flex-col items-center gap-0.5 h-auto p-0 hover:bg-transparent group"
         >
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-secondary/40 border border-white/10 group-hover:bg-white/10 transition-all">
-            <ChevronLeft className="w-4 h-4 text-muted-foreground group-hover:-translate-x-0.5 transition-transform" />
+          <div className="w-7 h-7 rounded-lg flex items-center justify-center bg-secondary/40 border border-white/10 group-hover:bg-white/10 transition-all">
+            <ChevronLeft className="w-3.5 h-3.5 text-muted-foreground group-hover:-translate-x-0.5 transition-transform" />
           </div>
-          <span className="text-[7px] font-black text-muted-foreground uppercase tracking-widest">
+          <span className="text-[6px] font-black text-muted-foreground uppercase tracking-widest">
             {language === 'ru' ? 'НАЗАД' : 'BACK'}
           </span>
         </Button>
