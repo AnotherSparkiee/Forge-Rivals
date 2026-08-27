@@ -8,9 +8,8 @@ import { collection, query, where, getDocs } from 'firebase/firestore';
 import { resolveDailyMatches } from '@/app/actions/autonomous-cycle';
 
 /**
- * ГЛОБАЛЬНЫЙ СИНХРОНИЗАТОР v17.0 (Proactive World Builder)
- * Теперь запускает автономный цикл (и постройку мира) сразу после авторизации,
- * не дожидаясь завершения регистрации или выбора лиги.
+ * ГЛОБАЛЬНЫЙ СИНХРОНИЗАТОР v18.0 (Unconditional World Engine)
+ * Запускает автономный цикл постройки мира сразу после авторизации пользователя.
  */
 export function AutoMatchManager() {
   const { 
@@ -68,7 +67,7 @@ export function AutoMatchManager() {
   }, [isLoaded, selectedLeagueId, leagueLevel, groupId, user, saveToLocal, setWorldReady, db]);
 
   // 2. ГЛОБАЛЬНОЕ СЕРДЦЕБИЕНИЕ (Запуск постройки мира ботами)
-  // Работает для любого авторизованного пользователя, даже на экране Setup
+  // Работает для любого авторизованного пользователя
   useEffect(() => {
     if (!isLoaded || !db || !user || heartbeatStartedRef.current) return;
 
@@ -76,8 +75,8 @@ export function AutoMatchManager() {
     
     const triggerHeartbeat = async () => {
       try {
-        console.log("[HEARTBEAT] World build triggered by active session...");
-        // resolveDailyMatches внутри себя проверит целостность мира LALPHA S_current
+        console.log("[HEARTBEAT] Unconditional world build sync triggered...");
+        // Серверный экшен теперь сам разберется с лигой и сезоном
         await resolveDailyMatches();
       } catch (e) {
         console.error("[HEARTBEAT] Cycle error:", e);

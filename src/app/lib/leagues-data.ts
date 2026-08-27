@@ -1,7 +1,5 @@
-
 /**
- * @fileOverview Ядро лиг v69: Детерминированные ID ботов и расчеты перемещений.
- * Исправлена формула расчета времени старта матчей и возвращен формат имен Bot01.
+ * @fileOverview Ядро лиг v70: Детерминированные ID ботов и формат имен Bot01.
  */
 
 import { GLOBAL_EPOCH_ISO } from './time-utils';
@@ -21,19 +19,20 @@ export const LEAGUES: LeagueOption[] = [
 ];
 
 /**
- * Генерирует детерминированный ID бота для слота.
+ * Генерирует детерминированный ID бота для слота (скрытый технический ID).
  */
 export function getBotId(leagueId: string, level: number, group: number, rank: number): string {
   return `BOT_${leagueId}_L${level}_G${group}_R${rank}`;
 }
 
 /**
- * Генерирует техническое имя для бота (классический формат).
- * Пример: Bot0110017
+ * Генерирует публичное имя для бота.
+ * Формат: Bot01{Level}{Rank} (согласно запросу пользователя)
+ * Пример: Bot0117
  */
 export function getBotName(level: number, group: number, rank: number): string {
   const leagueIdx = "01";
-  return `Bot${leagueIdx}${level}${group.toString().padStart(3, '0')}${rank}`;
+  return `Bot${leagueIdx}${level}${rank}`;
 }
 
 export function getGroupsCountInLevel(level: number): number {
