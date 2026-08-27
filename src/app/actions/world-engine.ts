@@ -2,8 +2,7 @@
 'use server';
 
 /**
- * @fileOverview Глобальный двигатель инициализации мира v1.5 (Chunked Processing).
- * Теперь создает структуру лиги порциями по 8 групп за вызов, чтобы избежать таймаутов.
+ * @fileOverview Глобальный двигатель инициализации мира v1.6 (JIT & Chunked).
  */
 
 import { 
@@ -19,11 +18,55 @@ import {
 } from '@/app/lib/leagues-data';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 
-const GROUPS_PER_CHUNK = 8; // ~450 операций в батче (1 таблица + 56 матчей) * 8 = 456
+const GROUPS_PER_CHUNK = 8; 
+
+/**
+ * Создает структуру конкретной группы (таблица + календарь).
+ * Используется как в пошаговой инициализации, так и для JIT (Just-In-Time) запросов.
+ */
+export async function createGroupStructure(db: Firestore, leagueId: string, tier: number, group: number, seasonNum: number) {
+  const batch = writeBatch(db);
+  const tableId = `table_S${seasonNum}_L${leagueId}_V${tier}_G${group}`;
+  const tableRef = doc(db, 'league_tables_v1', tableId);
+  
+  const initialStats: any = {};
+  const teamsForCalendar = [];
+
+  for (let r = 1; r <= TEAMS_PER_GROUP; r++) {
+    const bId = getBotId(leagueId, tier, group, r);
+    initialStats[bId] = {
+      id: bId, name: bId, rank: r,
+      matchesPlayed: 0, wins: 0, draws: 0, losses: 0, points: 0, diff: 0,
+      isBot: true
+    };
+    teamsForCalendar.push({ id: bId, name: bId, rank: r });
+  }
+
+  batch.set(tableRef, {
+    id: tableId, leagueId, level: tier, group, season: seasonNum,
+    stats: initialStats,
+    createdAt: serverTimestamp(),
+    version: 11
+  });
+
+  const calendar = generateSeasonCalendar(teamsForCalendar, seasonNum, leagueId);
+  for (const m of calendar) {
+    const mId = `match_S${seasonNum}_L${leagueId}_V${tier}_G${group}_T${m.tour}_R${m.homeRank}_vs_R${m.awayRank}`;
+    batch.set(doc(db, 'matches_v1', mId), {
+      ...m,
+      id: mId,
+      leagueId, level: tier, groupId: group, season: seasonNum,
+      isFinished: false, scoreA: 0, scoreB: 0,
+      version: 11
+    });
+  }
+
+  await batch.commit();
+  return { tableId };
+}
 
 /**
  * Инициализирует мир лиги порциями. 
- * Возвращает статус прогресса.
  */
 export async function initializeLeagueWorld(leagueId: string, targetSeason?: number) {
   const { firestore: db } = initializeFirebase();
@@ -44,7 +87,6 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
     currentTier = data.lastTier || 1;
     currentGroup = data.lastGroup || 1;
     
-    // Если мы уже начинали, то следующая группа - это +1 к последней обработанной
     if (status === 'processing' && data.lastGroup > 0) {
       currentGroup++;
       if (currentGroup > getGroupsCountInLevel(currentTier)) {
@@ -54,13 +96,10 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
     }
   }
 
-  // Если все дивизионы пройдены
   if (currentTier > 9) {
     await updateDoc(statusRef, { status: 'completed', finishedAt: serverTimestamp() });
     return { success: true, finished: true };
   }
-
-  console.log(`[WORLD ENGINE v1.5] Chunk: T${currentTier} G${currentGroup} for Season ${seasonNum}`);
 
   if (status === 'idle') {
     await setDoc(statusRef, { 
@@ -75,47 +114,12 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
   let tier = currentTier;
   let group = currentGroup;
 
-  const batch = writeBatch(db);
-
   while (groupsProcessed < GROUPS_PER_CHUNK && tier <= 9) {
     const maxGroupsInTier = getGroupsCountInLevel(tier);
     
     while (group <= maxGroupsInTier && groupsProcessed < GROUPS_PER_CHUNK) {
-      const tableId = `table_S${seasonNum}_L${leagueId}_V${tier}_G${group}`;
-      const tableRef = doc(db, 'league_tables_v1', tableId);
+      await createGroupStructure(db, leagueId, tier, group, seasonNum);
       
-      const initialStats: any = {};
-      const teamsForCalendar = [];
-
-      for (let r = 1; r <= TEAMS_PER_GROUP; r++) {
-        const bId = getBotId(leagueId, tier, group, r);
-        initialStats[bId] = {
-          id: bId, name: bId, rank: r,
-          matchesPlayed: 0, wins: 0, draws: 0, losses: 0, points: 0, diff: 0,
-          isBot: true
-        };
-        teamsForCalendar.push({ id: bId, name: bId, rank: r });
-      }
-
-      batch.set(tableRef, {
-        id: tableId, leagueId, level: tier, group, season: seasonNum,
-        stats: initialStats,
-        createdAt: serverTimestamp(),
-        version: 11
-      });
-
-      const calendar = generateSeasonCalendar(teamsForCalendar, seasonNum, leagueId);
-      for (const m of calendar) {
-        const mId = `match_S${seasonNum}_L${leagueId}_V${tier}_G${group}_T${m.tour}_R${m.homeRank}_vs_R${m.awayRank}`;
-        batch.set(doc(db, 'matches_v1', mId), {
-          ...m,
-          id: mId,
-          leagueId, level: tier, groupId: group, season: seasonNum,
-          isFinished: false, scoreA: 0, scoreB: 0,
-          version: 11
-        });
-      }
-
       groupsProcessed++;
       if (groupsProcessed < GROUPS_PER_CHUNK) {
         group++;
@@ -128,8 +132,6 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
     }
     if (tier > 9 || groupsProcessed >= GROUPS_PER_CHUNK) break;
   }
-
-  await batch.commit();
   
   const isFullyComplete = tier > 9 || (tier === 9 && group === getGroupsCountInLevel(9));
   
