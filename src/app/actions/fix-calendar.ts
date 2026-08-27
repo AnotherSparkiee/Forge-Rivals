@@ -1,22 +1,23 @@
 'use server';
 
 /**
- * @fileOverview Скрипт-миграция v49 (Final Synchronizer).
- * Исправлены импорты и логика объединения всех игроков в общий мир Сезона 1.
+ * @fileOverview Скрипт-синхронизатор v50 (Global Reseeder).
+ * Реализует полную пересадку всех команд в актуальный Season 1 по дате регистрации.
  */
 
 import { 
-  collection, getDocs, writeBatch, doc, getDoc,
-  serverTimestamp, query, where, Firestore, setDoc, limit, startAfter, updateDoc, orderBy
+  collection, getDocs, doc, getDoc,
+  serverTimestamp, query, where, limit, startAfter, updateDoc, orderBy 
 } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
-import { getBotId } from '@/app/lib/leagues-data';
 import { initializeLeagueWorld } from './world-engine';
+import { findStrategicPlacement, initializeClubV11 } from './season-init';
 
 /**
- * ГЛОБАЛЬНЫЙ РЕМОНТ МИРА v49.
- * Выполняется пошагово: сначала строится структура 511 групп, затем мигрируют игроки.
+ * ГЛОБАЛЬНЫЙ РЕМОНТ МИРА v50.
+ * Фаза 1: Постройка структуры 511 групп.
+ * Фаза 2: Переселение ВСЕХ реальных игроков в Season 1 по приоритету createdAt.
  */
 export async function runGlobalEmergencyRepair() {
   const { firestore: db } = initializeFirebase();
@@ -30,21 +31,32 @@ export async function runGlobalEmergencyRepair() {
 
   console.log(`[AUTONOMOUS REPAIR] Season ${seasonNum}, Phase: ${repairData.phase}`);
 
-  // ФАЗА 1: Пошаговое создание структуры мира (все дивизионы)
+  // ФАЗА 1: Создание структуры мира (511 групп)
   if (repairData.phase === 'INIT_WORLD') {
     const worldRes = await initializeLeagueWorld(leagueId, seasonNum);
     if (worldRes.isComplete) {
-      await setDoc(repairStatusRef, { phase: 'MIGRATE_PLAYERS', lastPlayerId: null }, { merge: true });
-      return { status: 'PHASE_COMPLETE', nextPhase: 'MIGRATE_PLAYERS' };
+      // Переходим к фазе пересадки игроков
+      await updateDoc(repairStatusRef, { phase: 'RESEED_PLAYERS', lastCreatedAt: null });
+      return { status: 'PHASE_COMPLETE', nextPhase: 'RESEED_PLAYERS' };
     }
     return { status: 'PROCESSING_WORLD', progress: `Tier ${worldRes.lastTier}, Group ${worldRes.lastGroup}` };
   }
 
-  // ФАЗА 2: Перенос зарегистрированных игроков в новую структуру (по 20 игроков за вызов)
-  if (repairData.phase === 'MIGRATE_PLAYERS') {
-    const playersQ = repairData.lastPlayerId 
-      ? query(collection(db, 'players_v11'), orderBy('id'), startAfter(repairData.lastPlayerId), limit(20))
-      : query(collection(db, 'players_v11'), orderBy('id'), limit(20));
+  // ФАЗА 2: Переселение игроков (по 5 игроков за вызов)
+  if (repairData.phase === 'RESEED_PLAYERS') {
+    // Выбираем тех, кто еще не в текущем сезоне, начиная с самых ранних регистраций
+    const playersQ = repairData.lastCreatedAt 
+      ? query(
+          collection(db, 'players_v11'), 
+          orderBy('createdAt', 'asc'), 
+          startAfter(repairData.lastCreatedAt), 
+          limit(5)
+        )
+      : query(
+          collection(db, 'players_v11'), 
+          orderBy('createdAt', 'asc'), 
+          limit(5)
+        );
     
     const pSnap = await getDocs(playersQ);
     if (pSnap.empty) {
@@ -52,63 +64,47 @@ export async function runGlobalEmergencyRepair() {
       return { status: 'ALL_COMPLETE' };
     }
 
-    const batch = writeBatch(db);
-    let lastId = repairData.lastPlayerId;
+    let lastCreatedAt = repairData.lastCreatedAt;
+    let processed = 0;
 
     for (const pDoc of pSnap.docs) {
       const p = pDoc.data();
-      const tier = Number(p.leagueLevel || 9);
-      const group = Number(p.groupId || 1);
-      const rank = Number(p.rank || 1);
-      const userId = p.id;
-      const clubName = p.clubName || p.displayName;
-      const clubLogo = p.clubLogo || null;
-
-      const botId = getBotId(leagueId, tier, group, rank);
-      const tableId = `table_S${seasonNum}_L${leagueId}_V${tier}_G${group}`;
-      const tableRef = doc(db, 'league_tables_v1', tableId);
       
-      const tableSnap = await getDoc(tableRef);
-      if (tableSnap.exists()) {
-        const tableData = tableSnap.data();
-        const stats = { ...tableData.stats };
+      // Пропускаем, если игрок уже в правильной структуре
+      if (p.lastProcessedSeason === seasonNum && p.selectedLeagueId === leagueId) {
+        lastCreatedAt = p.createdAt;
+        continue;
+      }
+
+      try {
+        console.log(`[RESEEDING] Moving veteran player ${p.clubName || p.displayName} (created: ${p.createdAt})`);
         
-        // Если бот еще в таблице - заменяем его на игрока
-        if (stats[botId]) {
-          const botStats = stats[botId];
-          stats[userId] = {
-            ...botStats,
-            id: userId, name: clubName, clubLogo: clubLogo, isBot: false
-          };
-          delete stats[botId];
-          batch.update(tableRef, { stats, updatedAt: serverTimestamp() });
+        // 1. Ищем новое место в Season 1 (начиная с верхних дивизионов)
+        const placement = await findStrategicPlacement(leagueId);
+        
+        // 2. Выполняем захват слота и обновление профиля
+        await initializeClubV11(pDoc.id, {
+          ...p,
+          tier: placement.tier,
+          group: placement.group,
+          rank: placement.rank,
+          selectedLeagueId: leagueId
+        });
+
+        processed++;
+      } catch (e: any) {
+        console.error(`[RESEED ERROR] ${pDoc.id}:`, e.message);
+        // Если мир еще не достроен до нужной группы — останавливаемся
+        if (e.message?.includes('LEAGUE_SECTOR_NOT_READY')) {
+           return { status: 'AWAITING_REINIT' };
         }
       }
 
-      // Обновляем матчи игрока в новой структуре (заменяем Bot ID на User ID)
-      const matchesQ = query(collection(db, 'matches_v1'), 
-        where('leagueId', '==', leagueId),
-        where('level', '==', tier),
-        where('groupId', '==', group),
-        where('season', '==', seasonNum)
-      );
-      const mSnap = await getDocs(matchesQ);
-      mSnap.forEach(mDoc => {
-        const mData = mDoc.data();
-        const updates: any = {};
-        if (mData.homeId === botId) { updates.homeId = userId; updates.homeName = clubName; updates.homeLogo = clubLogo; }
-        if (mData.awayId === botId) { updates.awayId = userId; updates.awayName = clubName; updates.awayLogo = clubLogo; }
-        if (Object.keys(updates).length > 0) {
-          batch.update(mDoc.ref, updates);
-        }
-      });
-
-      lastId = pDoc.id;
+      lastCreatedAt = p.createdAt;
     }
 
-    await batch.commit();
-    await updateDoc(repairStatusRef, { lastPlayerId: lastId });
-    return { status: 'MIGRATING', processed: pSnap.size };
+    await updateDoc(repairStatusRef, { lastCreatedAt });
+    return { status: 'RESEEDING', processed };
   }
 
   return { status: 'ALREADY_DONE' };
