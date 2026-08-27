@@ -27,12 +27,14 @@ export async function runGlobalEmergencyRepair() {
 
   const repairStatusRef = doc(db, 'system_v1', `repair_S${seasonNum}_L${leagueId}`);
   const repairSnap = await getDoc(repairStatusRef);
+  
+  // Если документа нет или фаза начальная, передаем управление initializeLeagueWorld
   const repairData = repairSnap.exists() ? repairSnap.data() : { phase: 'INIT_WORLD' };
 
   console.log(`[AUTONOMOUS REPAIR] Season ${seasonNum}, Phase: ${repairData.phase}`);
 
-  // ФАЗА 1: Создание структуры мира (511 групп с ботами)
-  if (repairData.phase === 'INIT_WORLD') {
+  // ФАЗА 1: Создание структуры мира (WIPING -> INIT_WORLD)
+  if (repairData.phase === 'INIT_WORLD' || repairData.phase === 'WIPING') {
     const worldRes = await initializeLeagueWorld(leagueId, seasonNum);
     if (worldRes.isComplete) {
       await setDoc(repairStatusRef, { phase: 'RESEED_PLAYERS', lastCreatedAt: null }, { merge: true });

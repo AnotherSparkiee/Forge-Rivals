@@ -143,14 +143,23 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
   const statusRef = doc(db, 'system_v1', `init_S${seasonNum}_L${leagueId}`);
   const statusSnap = await getDoc(statusRef);
   
-  let phase = 'INIT_WORLD';
+  let phase = 'WIPING'; // По умолчанию начинаем с очистки, если документа нет
   let currentIndex = 0;
 
   if (statusSnap.exists()) {
     const data = statusSnap.data();
     if (data.status === 'completed') return { success: true, isComplete: true };
-    phase = data.phase || 'INIT_WORLD';
+    phase = data.phase || 'WIPING';
     currentIndex = data.currentIndex || 0;
+  } else {
+    // Если документа нет, создаем его в фазе очистки (Авто-сброс один раз)
+    await setDoc(statusRef, {
+      status: 'wiping',
+      phase: 'WIPING',
+      currentIndex: 0,
+      updatedAt: serverTimestamp(),
+      version: 12
+    });
   }
 
   const batch = writeBatch(db);

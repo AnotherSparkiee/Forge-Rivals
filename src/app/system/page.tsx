@@ -8,21 +8,17 @@ import {
   ChevronLeft, Settings, Users, ShieldCheck, 
   Info, Loader2, Package, Gift,
   ChevronRight, Sparkles, Database, Sword,
-  RefreshCw, Globe, ShieldAlert, AlertTriangle, Trash2
+  RefreshCw, Globe, ShieldAlert, AlertTriangle
 } from 'lucide-react';
 import Link from 'next/link';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query } from 'firebase/firestore';
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { cn } from '@/lib/utils';
-import { nuclearResetWorld } from '../actions/world-engine';
-import { useToast } from '@/hooks/use-toast';
 
 export default function SystemPage() {
   const { language } = useGameState();
   const db = useFirestore();
-  const { toast } = useToast();
-  const [isResetting, setIsResetting] = useState(false);
 
   // Запрос всех игроков v11 для подсчета статистики
   const playersQuery = useMemoFirebase(() => {
@@ -47,23 +43,6 @@ export default function SystemPage() {
     return { total: Math.max(total, 0), online: Math.max(onlineCount, 0) };
   }, [players]);
 
-  const handleNuclearReset = async () => {
-    if (isResetting) return;
-    setIsResetting(true);
-    try {
-      await nuclearResetWorld();
-      toast({
-        variant: "destructive",
-        title: "PROTOCOL: NUCLEAR RESET",
-        description: "World wipe initiated. Rebuilding 511 groups...",
-      });
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setIsResetting(false);
-    }
-  };
-
   const t = {
     ru: { 
       title: "СИСТЕМА", 
@@ -81,9 +60,7 @@ export default function SystemPage() {
       bonuses: "Реестр Подарков",
       bonusesDesc: "Справочник дипломатических грузов S-Tier",
       loading: "Синхронизация...",
-      hostId: "ID хоста",
-      nuclear: "СБРОСИТЬ МИР",
-      nuclearDesc: "Удалить 511 групп и создать заново"
+      hostId: "ID хоста"
     },
     en: { 
       title: "SYSTEM", 
@@ -101,9 +78,7 @@ export default function SystemPage() {
       bonuses: "Gifts Registry",
       bonusesDesc: "Guide to S-Tier diplomatic cargo",
       loading: "Syncing...",
-      hostId: "Host ID",
-      nuclear: "NUCLEAR RESET",
-      nuclearDesc: "Wipe all 511 groups and rebuild"
+      hostId: "Host ID"
     }
   }[language === 'ru' ? 'ru' : 'en'];
 
@@ -203,31 +178,6 @@ export default function SystemPage() {
               </CardContent>
             </Card>
           </Link>
-        </section>
-
-        {/* NUCLEAR RESET SECTION */}
-        <section className="space-y-3">
-          <h2 className="text-[10px] font-black uppercase tracking-widest text-red-500 px-1">{language === 'ru' ? 'ЗОНА ОПАСНОСТИ' : 'DANGER ZONE'}</h2>
-          <Card className="glass-card border-red-500/20 bg-red-500/5">
-            <CardContent className="p-4 flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="p-2 rounded-lg bg-red-500/20"><Trash2 className="w-5 h-5 text-red-500" /></div>
-                <div>
-                  <h3 className="text-xs font-bold uppercase text-red-400">{t.nuclear}</h3>
-                  <p className="text-[8px] text-muted-foreground uppercase font-black">{t.nuclearDesc}</p>
-                </div>
-              </div>
-              <Button 
-                variant="destructive" 
-                size="sm" 
-                className="h-9 px-4 text-[9px] font-black uppercase tracking-widest"
-                onClick={handleNuclearReset}
-                disabled={isResetting}
-              >
-                {isResetting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'RESET'}
-              </Button>
-            </CardContent>
-          </Card>
         </section>
 
         <div className="p-6 bg-primary/5 rounded-2xl border border-dashed border-white/10 text-center opacity-30">
