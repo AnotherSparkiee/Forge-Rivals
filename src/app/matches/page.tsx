@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -90,15 +89,15 @@ export default function MatchesPage() {
   }[language === 'ru' ? 'ru' : 'en'];
 
   const nameMap = useMemo(() => {
-    const map: Record<number, string> = {};
+    const names: Record<number, string> = {};
     const logos: Record<number, string> = {};
     if (players) {
       players.forEach(p => {
-        map[p.rank] = p.clubName || p.displayName;
+        names[p.rank] = p.clubName || p.displayName;
         logos[p.rank] = p.clubLogo;
       });
     }
-    return { map, logos };
+    return { names, logos };
   }, [players]);
 
   const resolveMatchData = useCallback((m: any) => {
@@ -107,8 +106,8 @@ export default function MatchesPage() {
     const botHome = `BOT_ALPHA_L${leagueLevel}_G${groupId}_R${hRank}`;
     const botAway = `BOT_ALPHA_L${leagueLevel}_G${groupId}_R${aRank}`;
 
-    const homeName = nameMap.map[hRank] || m.homeName || botHome;
-    const awayName = nameMap.map[aRank] || m.awayName || botAway;
+    const homeName = nameMap.names[hRank] || m.homeName || botHome;
+    const awayName = nameMap.names[aRank] || m.awayName || botAway;
     const homeLogo = nameMap.logos[hRank] || null;
     const awayLogo = nameMap.logos[aRank] || null;
     return { ...m, homeName, awayName, homeLogo, awayLogo };
