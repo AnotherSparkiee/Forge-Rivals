@@ -19,6 +19,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { getMoscowTime, isMatchLive } from './lib/time-utils';
 import { collection, query, where } from 'firebase/firestore';
 import { getBotName, LEAGUES } from './lib/leagues-data';
+import { PlaceHolderImages } from './lib/placeholder-images';
 
 export default function Home() {
   const { user, isUserLoading } = useUser();
@@ -91,6 +92,9 @@ export default function Home() {
   );
   const totalUnreadCount = unreadMatches.length + (matchHistory || []).filter(m => m.seen === false).length;
 
+  const mapCardBg = PlaceHolderImages.find(img => img.id === 'tactical-map-card')?.imageUrl;
+  const systemIconUrl = PlaceHolderImages.find(img => img.id === 'ui-system-icon')?.imageUrl;
+
   if (isUserLoading || !isLoaded || !isDataReady) return <LoadingScreen />;
 
   const menuItems = [
@@ -125,13 +129,15 @@ export default function Home() {
         {/* NEXT MATCH TACTICAL CARD */}
         <Card className="relative overflow-hidden mb-4 border-white/20 bg-[#1a2b45] rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.5)] shrink-0 min-h-[110px]">
           {/* Background Map Image */}
-          <div className="absolute inset-0 z-0 opacity-60">
-             <img 
-                src="https://i.ibb.cc/Qj1q1TZV/IMG-20260827-161555.png" 
-                alt="" 
-                className="w-full h-full object-cover object-center"
-             />
-          </div>
+          {mapCardBg && (
+            <div className="absolute inset-0 z-0 opacity-60">
+               <img 
+                  src={mapCardBg} 
+                  alt="" 
+                  className="w-full h-full object-cover object-center"
+               />
+            </div>
+          )}
           
           {/* Dark Gradient Overlay for readability */}
           <div className="absolute inset-0 bg-gradient-to-r from-[#1a2b45]/90 via-transparent to-transparent z-[1]" />
@@ -180,7 +186,7 @@ export default function Home() {
                 {item.isSystem ? (
                   <div className="relative w-12 h-12 transition-transform duration-300 group-hover:scale-110">
                      <img 
-                        src="https://i.ibb.cc/07QQCFT/1787830105436.png" 
+                        src={systemIconUrl || "https://i.ibb.cc/07QQCFT/1787830105436.png"} 
                         alt="System" 
                         className="w-full h-full object-contain"
                      />

@@ -84,6 +84,12 @@
       "description": "Custom system gear icon for main menu",
       "imageUrl": "https://i.ibb.co/07QQCFT/1787830105436.png",
       "imageHint": "system gear"
+    },
+    {
+        "id": "hq-starter",
+        "description": "Base HQ starter office visual",
+        "imageUrl": "https://i.postimg.cc/8cpvcNZ9/logo-lote.png",
+        "imageHint": "command center"
     }
   ]
 }
