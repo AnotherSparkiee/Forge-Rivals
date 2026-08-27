@@ -1,9 +1,8 @@
-
 'use client';
 
 /**
- * @fileOverview ОФИЦИАЛЬНЫЙ ПЛЕЕР МАТЧЕЙ v6.5 (Import & Style Fix).
- * Исправлена работа с базой данных: теперь система ищет матчи в 'matches_v1'.
+ * @fileOverview ОФИЦИАЛЬНЫЙ ПЛЕЕР МАТЧЕЙ v6.6.
+ * Исправлены ошибки импортов и стилей.
  */
 
 import { useState, useEffect, useMemo, Suspense, useRef } from 'react';
@@ -251,7 +250,7 @@ function MatchContent() {
             <p className="text-[12px] font-black uppercase truncate text-white leading-none mb-1">{p.name}</p>
             <div className={cn("flex items-center gap-2", side === 'right' && "justify-end")}>
                <Badge variant="outline" className="text-[7px] h-4 px-1.5 border-white/10 opacity-70 uppercase font-black">{p.role}</Badge>
-               <span className="text-[10px] font-mono font-bold text-primary">{p.kills}/{p.deaths}/{p.assists}</span>
+               <span className="text-10px] font-mono font-bold text-primary">{p.kills}/{p.deaths}/{p.assists}</span>
             </div>
           </div>
         </div>

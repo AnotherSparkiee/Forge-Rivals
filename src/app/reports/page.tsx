@@ -1,9 +1,8 @@
-
 'use client';
 
 /**
- * @fileOverview ЦЕНТР ОТЧЕТОВ МАТЧЕЙ v1.4.
- * Исправлено: переход на коллекцию 'matches_v1' для синхронизации с миром.
+ * @fileOverview ЦЕНТР ОТЧЕТОВ МАТЧЕЙ v1.5.
+ * Стабилизация импортов для предотвращения ошибок сборки чанков.
  */
 
 import { useGameState } from '@/app/lib/store';
@@ -32,7 +31,7 @@ export default function ReportsPage() {
   const { 
     language, isLoaded, isDataReady, matchHistory, 
     allSeasonMatches, lastSeenMatchDay, deleteMatchHistoryEntry, clearMatchHistory,
-    clubLogo: myClubLogo, rank, selectedLeagueId, leagueLevel, groupId, clubName, displayName
+    clubLogo: myClubLogo, rank, selectedLeagueId, leagueLevel, groupId
   } = useGameState();
 
   useEffect(() => {
@@ -248,7 +247,7 @@ export default function ReportsPage() {
                     </div>
 
                     <div className="flex justify-center shrink-0">
-                      <span className="text-xl font-headline font-black italic text-white shadow-primary/20">
+                      <span className="text-xl font-headline font-black italic text-white">
                         {report.scoreA}:{report.scoreB}
                       </span>
                     </div>
