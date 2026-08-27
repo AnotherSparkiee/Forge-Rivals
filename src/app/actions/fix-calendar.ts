@@ -1,8 +1,7 @@
-
 'use server';
 
 /**
- * @fileOverview Скрипт-синхронизатор v54 (Global Reseeder).
+ * @fileOverview Скрипт-синхронизатор v55 (Autonomous Global Reseeder).
  * Реализует полную пересадку всех команд в актуальный Season 1 по дате регистрации.
  */
 
@@ -18,7 +17,7 @@ import { findStrategicPlacement, initializeClubV11 } from './season-init';
 const PLAYERS_PER_CHUNK = 25;
 
 /**
- * ГЛОБАЛЬНЫЙ РЕМОНТ МИРА v54.
+ * ГЛОБАЛЬНЫЙ РЕМОНТ МИРА v55.
  * Фаза 1: Постройка структуры 511 групп.
  * Фаза 2: Переселение ВСЕХ реальных игроков в Season 1 по приоритету createdAt.
  */
@@ -75,18 +74,13 @@ export async function runGlobalEmergencyRepair() {
       const p = pDoc.data();
       lastCreatedAt = p.createdAt;
       
-      // Пропускаем, если игрок уже в правильной структуре Сезона 1
+      // Если игрок уже был обработан в этом сезоне и имеет корректные данные - пропускаем
       if (p.lastProcessedSeason === seasonNum && p.selectedLeagueId === leagueId && p.leagueLevel && p.groupId) {
-        // Дополнительная проверка: действительно ли он есть в таблице
-        const tableId = `table_S${seasonNum}_L${leagueId}_V${p.leagueLevel}_G${p.groupId}`;
-        const tSnap = await getDoc(doc(db, 'league_tables_v1', tableId));
-        if (tSnap.exists() && tSnap.data().stats?.[pDoc.id]) {
-          continue;
-        }
+        continue;
       }
 
       try {
-        console.log(`[RESEEDING] Moving veteran player ${p.clubName || p.displayName} (created: ${p.createdAt})`);
+        console.log(`[RESEEDING] Moving manager ${p.clubName || p.displayName} (Registered: ${p.createdAt})`);
         
         // 1. Ищем новое место в Season 1 (начиная с верхних дивизионов)
         const placement = await findStrategicPlacement(leagueId);
@@ -97,7 +91,8 @@ export async function runGlobalEmergencyRepair() {
           tier: placement.tier,
           group: placement.group,
           rank: placement.rank,
-          selectedLeagueId: leagueId
+          selectedLeagueId: leagueId,
+          lastProcessedSeason: seasonNum // Важно для идемпотентности
         });
 
         processed++;
