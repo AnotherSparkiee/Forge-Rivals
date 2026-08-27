@@ -1,23 +1,24 @@
+
 'use server';
 
 /**
- * @fileOverview Скрипт-синхронизатор v57 (Autonomous Global Reseeder).
- * Оптимизирован для работы в условиях сетевых задержек.
+ * Скрипт-синхронизатор v58 (Autonomous Global Reseeder).
+ * Синхронизирует статусы Init и Repair для завершения постройки мира.
  */
 
 import { 
   collection, getDocs, doc, getDoc,
-  serverTimestamp, query, where, limit, startAfter, updateDoc, orderBy, setDoc 
+  serverTimestamp, query, where, limit, startAfter, orderBy, setDoc 
 } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 import { initializeLeagueWorld } from './world-engine';
 import { findStrategicPlacement, initializeClubV11 } from './season-init';
 
-const PLAYERS_PER_CHUNK = 20; // Уменьшено для предотвращения таймаутов записи
+const PLAYERS_PER_CHUNK = 20;
 
 /**
- * ГЛОБАЛЬНЫЙ РЕМОНТ МИРА v57.
+ * ГЛОБАЛЬНЫЙ РЕМОНТ МИРА v58.
  */
 export async function runGlobalEmergencyRepair() {
   const { firestore: db } = initializeFirebase();
@@ -27,23 +28,29 @@ export async function runGlobalEmergencyRepair() {
 
   const repairStatusRef = doc(db, 'system_v1', `repair_S${seasonNum}_L${leagueId}`);
   const repairSnap = await getDoc(repairStatusRef);
-  
-  // Если документа нет или фаза начальная, передаем управление initializeLeagueWorld
   const repairData = repairSnap.exists() ? repairSnap.data() : { phase: 'INIT_WORLD' };
 
-  console.log(`[AUTONOMOUS REPAIR] Season ${seasonNum}, Phase: ${repairData.phase}`);
+  console.log(`[REPAIR v58] Season ${seasonNum}, Current Phase: ${repairData.phase}`);
 
-  // ФАЗА 1: Создание структуры мира (WIPING -> INIT_WORLD)
+  // ФАЗА 1: Постройка мира (Боты заполняют все 511 групп)
   if (repairData.phase === 'INIT_WORLD' || repairData.phase === 'WIPING') {
     const worldRes = await initializeLeagueWorld(leagueId, seasonNum);
+    
+    // Если world-engine сообщил о завершении всех 511 групп
     if (worldRes.isComplete) {
-      await setDoc(repairStatusRef, { phase: 'RESEED_PLAYERS', lastCreatedAt: null }, { merge: true });
+      console.log(`[REPAIR v58] World build complete. Moving to RESEED_PLAYERS.`);
+      await setDoc(repairStatusRef, { 
+        phase: 'RESEED_PLAYERS', 
+        lastCreatedAt: null,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
       return { status: 'PHASE_COMPLETE', nextPhase: 'RESEED_PLAYERS' };
     }
-    return { status: 'PROCESSING_WORLD', progress: `Tier ${worldRes.lastTier}, Group ${worldRes.lastGroup}` };
+    
+    return { status: 'PROCESSING_WORLD', progress: worldRes.currentIndex };
   }
 
-  // ФАЗА 2: Переселение реальных игроков (замена ботов)
+  // ФАЗА 2: Переселение реальных игроков (замена ботов на их законных местах)
   if (repairData.phase === 'RESEED_PLAYERS') {
     let playersQ = query(
       collection(db, 'players_v11'), 
@@ -62,7 +69,11 @@ export async function runGlobalEmergencyRepair() {
     
     const pSnap = await getDocs(playersQ);
     if (pSnap.empty) {
-      await setDoc(repairStatusRef, { phase: 'COMPLETED', finishedAt: serverTimestamp() }, { merge: true });
+      await setDoc(repairStatusRef, { 
+        phase: 'COMPLETED', 
+        status: 'completed',
+        finishedAt: serverTimestamp() 
+      }, { merge: true });
       return { status: 'ALL_COMPLETE' };
     }
 
@@ -78,7 +89,6 @@ export async function runGlobalEmergencyRepair() {
       }
 
       try {
-        console.log(`[RESEEDING] Moving manager ${p.clubName || p.displayName} (Registered: ${p.createdAt})`);
         const placement = await findStrategicPlacement(leagueId);
         await initializeClubV11(pDoc.id, {
           ...p,
@@ -94,7 +104,7 @@ export async function runGlobalEmergencyRepair() {
       }
     }
 
-    await setDoc(repairStatusRef, { lastCreatedAt }, { merge: true });
+    await setDoc(repairStatusRef, { lastCreatedAt, updatedAt: serverTimestamp() }, { merge: true });
     return { status: 'RESEEDING', processed };
   }
 
