@@ -1,33 +1,48 @@
 'use server';
 
 /**
- * @fileOverview Глобальный двигатель инициализации мира v2.9 (Aggressive Gap Filling).
+ * Глобальный двигатель перезагрузки мира v12 (Nuclear Rebuild).
  * Особенности:
- * 1. Deep Scan: Пропускает существующие группы и активно ищет пустые сектора.
- * 2. High Throughput: Теперь сканирует до 150 секторов за один вызов, чтобы быстрее найти пустые.
- * 3. Атомарность: Группа создается целиком (57 документов), прогресс фиксируется мгновенно.
+ * 1. Двухфазная очистка: сначала WIPING (удаление всех 511 групп), затем INIT (создание).
+ * 2. Детерминированная итерация: расчет координат Tier/Group по индексу 1..511.
+ * 3. Атомарность: Группа создается целиком (57 документов) в одном батче.
  */
 
 import { 
   doc, getDoc, writeBatch, 
-  Firestore, serverTimestamp, setDoc 
+  Firestore, serverTimestamp, setDoc, deleteDoc
 } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import { 
-  getGroupsCountInLevel, 
   getBotId, 
   TEAMS_PER_GROUP, 
   generateSeasonCalendar 
 } from '@/app/lib/leagues-data';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 
-// Количество РЕАЛЬНО СОЗДАННЫХ групп за один вызов (лимит транзакции 500 операций)
-const GROUPS_TO_CREATE_PER_CALL = 7; 
-// Максимальное количество групп для сканирования (увеличено для быстрого поиска дыр)
-const MAX_SCAN_PER_CALL = 150;
+const TOTAL_GROUPS = 511; // 1 + 2 + 4 + 8 + 16 + 32 + 64 + 128 + 256
+const GROUPS_PER_CALL = 7; // ~400 операций (лимит 500)
 
 /**
- * Внутреннее ядро подготовки данных группы (Таблица + Календарь).
+ * Рассчитывает координаты группы (Tier, Group) по сквозному индексу 1..511.
+ */
+function getGroupCoordinates(index: number) {
+  if (index < 1) return { tier: 1, group: 1 };
+  let tier = 1;
+  let runningTotal = 0;
+  while (tier <= 9) {
+    const groupsInTier = Math.pow(2, tier - 1);
+    if (index <= runningTotal + groupsInTier) {
+      return { tier, group: index - runningTotal };
+    }
+    runningTotal += groupsInTier;
+    tier++;
+  }
+  return { tier: 10, group: 1 }; // End of pyramid
+}
+
+/**
+ * Подготовка данных группы (Таблица + Календарь).
  */
 function prepareGroupData(
   batch: any, 
@@ -53,12 +68,12 @@ function prepareGroupData(
     teamsForCalendar.push({ id: bId, name: bId, rank: r });
   }
 
-  // 1. Создаем таблицу
+  // 1. Создаем таблицу (overwrite)
   batch.set(tableRef, {
     id: tableId, leagueId, level: tier, group, season: seasonNum,
     stats: initialStats,
     createdAt: serverTimestamp(),
-    version: 11
+    version: 12
   });
 
   // 2. Создаем календарь (56 матчей)
@@ -70,13 +85,132 @@ function prepareGroupData(
       id: mId,
       leagueId, level: tier, groupId: group, season: seasonNum,
       isFinished: false, scoreA: 0, scoreB: 0,
-      version: 11
+      version: 12
     });
   }
 }
 
 /**
- * Публичная функция JIT-создания (используется при регистрации игрока).
+ * Удаление данных группы (Таблица + Календарь).
+ */
+function wipeGroupData(
+  batch: any, 
+  db: Firestore, 
+  leagueId: string, 
+  tier: number, 
+  group: number, 
+  seasonNum: number
+) {
+  const tableId = `table_S${seasonNum}_L${leagueId}_V${tier}_G${group}`;
+  batch.delete(doc(db, 'league_tables_v1', tableId));
+
+  const teams = Array.from({ length: 8 }, (_, i) => ({ rank: i + 1 }));
+  const calendar = generateSeasonCalendar(teams, seasonNum, leagueId);
+  for (const m of calendar) {
+    const mId = `match_S${seasonNum}_L${leagueId}_V${tier}_G${group}_T${m.tour}_R${m.homeRank}_vs_R${m.awayRank}`;
+    batch.delete(doc(db, 'matches_v1', mId));
+  }
+}
+
+/**
+ * Запуск полной очистки.
+ */
+export async function nuclearResetWorld(leagueId: string = "ALPHA") {
+  const { firestore: db } = initializeFirebase();
+  const info = getGlobalSeasonInfo();
+  const seasonNum = info.activeSeasonNumber;
+  const statusRef = doc(db, 'system_v1', `init_S${seasonNum}_L${leagueId}`);
+
+  await setDoc(statusRef, {
+    status: 'wiping',
+    phase: 'WIPING',
+    currentIndex: 0,
+    updatedAt: serverTimestamp(),
+    version: 12
+  });
+
+  return { success: true, message: "Nuclear wipe initiated." };
+}
+
+/**
+ * Главный цикл инициализации / перестройки.
+ */
+export async function initializeLeagueWorld(leagueId: string, targetSeason?: number) {
+  const { firestore: db } = initializeFirebase();
+  const info = getGlobalSeasonInfo();
+  const seasonNum = targetSeason || info.activeSeasonNumber;
+
+  const statusRef = doc(db, 'system_v1', `init_S${seasonNum}_L${leagueId}`);
+  const statusSnap = await getDoc(statusRef);
+  
+  let phase = 'INIT_WORLD';
+  let currentIndex = 0;
+
+  if (statusSnap.exists()) {
+    const data = statusSnap.data();
+    if (data.status === 'completed') return { success: true, isComplete: true };
+    phase = data.phase || 'INIT_WORLD';
+    currentIndex = data.currentIndex || 0;
+  }
+
+  const batch = writeBatch(db);
+  let processed = 0;
+
+  console.log(`[WORLD ENGINE v12] Phase: ${phase}, Index: ${currentIndex}`);
+
+  while (processed < GROUPS_PER_CALL && currentIndex < TOTAL_GROUPS) {
+    currentIndex++;
+    const { tier, group } = getGroupCoordinates(currentIndex);
+
+    if (phase === 'WIPING') {
+      wipeGroupData(batch, db, leagueId, tier, group, seasonNum);
+    } else {
+      prepareGroupData(batch, db, leagueId, tier, group, seasonNum);
+    }
+
+    processed++;
+  }
+
+  // Обновление статуса
+  const isPhaseEnd = currentIndex >= TOTAL_GROUPS;
+  let nextStatus = 'processing';
+  let nextPhase = phase;
+  let nextIndex = currentIndex;
+
+  if (isPhaseEnd) {
+    if (phase === 'WIPING') {
+      nextPhase = 'INIT_WORLD';
+      nextIndex = 0;
+      console.log(`[WORLD ENGINE v12] Wipe complete. Starting Initialization.`);
+    } else {
+      nextStatus = 'completed';
+      console.log(`[WORLD ENGINE v12] Initialization complete.`);
+    }
+  }
+
+  batch.set(statusRef, {
+    status: nextStatus,
+    phase: nextPhase,
+    currentIndex: nextIndex,
+    lastTier: getGroupCoordinates(nextIndex).tier,
+    lastGroup: getGroupCoordinates(nextIndex).group,
+    updatedAt: serverTimestamp(),
+    version: 12
+  }, { merge: true });
+
+  await batch.commit();
+
+  return { 
+    success: true, 
+    phase, 
+    processed, 
+    currentIndex: nextIndex, 
+    isComplete: nextStatus === 'completed' 
+  };
+}
+
+/**
+ * JIT-создание структуры группы (безопасное).
  */
 export async function createGroupStructure(
   db: Firestore, 
@@ -88,98 +222,4 @@ export async function createGroupStructure(
   const batch = writeBatch(db);
   prepareGroupData(batch, db, leagueId, tier, group, seasonNum);
   await batch.commit();
-}
-
-/**
- * Инициализирует мир лиги. 
- * Сканирует пирамиду и заполняет пустые группы ботами автоматически.
- */
-export async function initializeLeagueWorld(leagueId: string, targetSeason?: number) {
-  const { firestore: db } = initializeFirebase();
-  const info = getGlobalSeasonInfo();
-  const seasonNum = targetSeason || info.activeSeasonNumber;
-
-  const statusRef = doc(db, 'system_v1', `init_S${seasonNum}_L${leagueId}`);
-  const statusSnap = await getDoc(statusRef);
-  
-  let currentTier = 1;
-  let currentGroup = 0; 
-
-  if (statusSnap.exists()) {
-    const data = statusSnap.data();
-    if (data.status === 'completed') return { success: true, isComplete: true };
-    currentTier = data.lastTier || 1;
-    currentGroup = data.lastGroup || 0; 
-  }
-
-  let groupsCreatedInThisCall = 0;
-  let scanCount = 0;
-  let tier = currentTier;
-  let group = currentGroup;
-
-  console.log(`[WORLD BUILDER] Scanning from V${tier} G${group}...`);
-
-  while (groupsCreatedInThisCall < GROUPS_TO_CREATE_PER_CALL && scanCount < MAX_SCAN_PER_CALL && tier <= 9) {
-    scanCount++;
-    
-    // 1. КООРДИНАТЫ СЛЕДУЮЩЕЙ ГРУППЫ
-    group++;
-    const maxInCurrentTier = Math.pow(2, tier - 1);
-    if (group > maxInCurrentTier) {
-      tier++;
-      group = 1;
-    }
-
-    if (tier > 9) {
-      await setDoc(statusRef, { 
-        status: 'completed', 
-        lastTier: 9, 
-        lastGroup: 256, 
-        finishedAt: serverTimestamp() 
-      }, { merge: true });
-      return { success: true, isComplete: true };
-    }
-
-    // 2. ПРОВЕРКА СУЩЕСТВОВАНИЯ (Защита данных игроков)
-    const tableId = `table_S${seasonNum}_L${leagueId}_V${tier}_G${group}`;
-    const tableRef = doc(db, 'league_tables_v1', tableId);
-    const checkSnap = await getDoc(tableRef);
-    
-    // Группа считается живой, если документ есть и в нем есть статистика
-    const hasData = checkSnap.exists() && Object.keys(checkSnap.data()?.stats || {}).length > 0;
-    
-    if (!hasData) {
-      const batch = writeBatch(db);
-      console.log(`[WORLD BUILDER] Initializing bot-group: V${tier} G${group}`);
-      
-      prepareGroupData(batch, db, leagueId, tier, group, seasonNum);
-      
-      // АТОМАРНЫЙ ЧЕКПОЙНТ ПРОГРЕССА
-      batch.set(statusRef, { 
-        lastTier: tier,
-        lastGroup: group,
-        status: 'processing',
-        updatedAt: serverTimestamp()
-      }, { merge: true });
-
-      await batch.commit();
-      groupsCreatedInThisCall++;
-    } else {
-      // ГРУППА УЖЕ ЕСТЬ - просто обновляем статусную отметку (без батча)
-      await setDoc(statusRef, { 
-        lastTier: tier,
-        lastGroup: group,
-        updatedAt: serverTimestamp()
-      }, { merge: true });
-    }
-  }
-  
-  return { 
-    success: true, 
-    created: groupsCreatedInThisCall, 
-    scanned: scanCount,
-    lastTier: tier, 
-    lastGroup: group,
-    isComplete: tier > 9
-  };
 }
