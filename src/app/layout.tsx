@@ -30,6 +30,17 @@ function GameInterface({ children }: { children: React.ReactNode }) {
 
   return (
     <>
+      {/* Global Background Layer */}
+      <div 
+        className="fixed inset-0 z-[-1] pointer-events-none bg-[#0a0d14]"
+        style={{
+          backgroundImage: `linear-gradient(to bottom, rgba(10, 13, 20, 0.4), rgba(10, 13, 20, 0.8)), url('https://i.ibb.co/GQ39Zhc9/1787834437641.png')`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat'
+        }}
+      />
+
       {needsWorldSync && <AutoMatchManager />}
       
       {showPreloader ? (
@@ -70,7 +81,7 @@ export default function RootLayout({
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
         <Script src="https://telegram.org/js/telegram-web-app.js" strategy="beforeInteractive" />
       </head>
-      <body className="font-body antialiased min-h-screen bg-background text-foreground" suppressHydrationWarning>
+      <body className="font-body antialiased min-h-screen text-foreground relative" suppressHydrationWarning>
         <FirebaseClientProvider>
           <GameStateProvider>
             <AuthGuard>
