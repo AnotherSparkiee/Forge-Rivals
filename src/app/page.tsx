@@ -6,7 +6,8 @@ import {
   CalendarDays, Medal, ArrowRightLeft, 
   Shield, Construction, Briefcase, 
   LineChart, Heart, Newspaper, Settings, Search, Tv, User as UserIcon, UserCheck,
-  Radar, LayoutList, Swords, Timer, ShieldAlert, CalendarClock, Clock, Activity
+  Radar, LayoutList, Swords, Timer, Activity,
+  Gears
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import Link from 'next/link';
@@ -15,9 +16,8 @@ import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebas
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { Badge } from '@/components/ui/badge';
 import { useState, useEffect, useMemo } from 'react';
-import { getMoscowTime, getGlobalSeasonInfo, isMatchLive } from './lib/time-utils';
+import { getMoscowTime, isMatchLive } from './lib/time-utils';
 import { collection, query, where } from 'firebase/firestore';
-import { PlaceHolderImages } from './lib/placeholder-images';
 
 export default function Home() {
   const { user, isUserLoading } = useUser();
@@ -25,7 +25,7 @@ export default function Home() {
   const { 
     language, isLoaded, isDataReady, matchHistory, 
     allSeasonMatches, lastSeenMatchDay, rank, selectedLeagueId,
-    leagueLevel, groupId, seasonNumber, clubLogo: myClubLogo
+    leagueLevel, groupId, clubLogo: myClubLogo
   } = useGameState();
 
   const [now, setNow] = useState(getMoscowTime());
@@ -60,40 +60,25 @@ export default function Home() {
 
   const resolvedNextMatch = useMemo(() => {
     if (!allSeasonMatches || !rank) return null;
-    
     const myNext = allSeasonMatches
       .filter(m => (Number(m.homeRank) === rank || Number(m.awayRank) === rank) && !m.isFinished)
       .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())[0];
-
     if (!myNext) return null;
-
     const isHome = Number(myNext.homeRank) === rank;
     const oppRank = isHome ? Number(myNext.awayRank) : Number(myNext.homeRank);
-    
-    const leagueIdx = "01";
-    const groupPrefix = String(groupId).padStart(3, '0');
-    const botName = `BOT${leagueIdx}${leagueLevel}${groupPrefix}${oppRank}`;
-
     return {
       match: myNext,
-      opponentName: nameMap.names[oppRank] || botName,
+      opponentName: nameMap.names[oppRank] || `BOT01100${oppRank}`,
       opponentLogo: nameMap.logos[oppRank] || null
     };
-  }, [allSeasonMatches, rank, nameMap, groupId, leagueLevel]);
+  }, [allSeasonMatches, rank, nameMap]);
 
-  const getCountdown = (targetTimeIso: string | Date) => {
-    const target = typeof targetTimeIso === 'string' ? new Date(targetTimeIso) : targetTimeIso;
-    const diff = target.getTime() - now.getTime();
-    
+  const getCountdown = (targetTimeIso: string) => {
+    const diff = new Date(targetTimeIso).getTime() - now.getTime();
     if (diff > 0) {
-      const days = Math.floor(diff / (24 * 3600000));
-      const hh = Math.floor((diff % (24 * 3600000)) / 3600000);
+      const hh = Math.floor(diff / 3600000);
       const mm = Math.floor((diff % 3600000) / 60000);
       const ss = Math.floor((diff % 60000) / 1000);
-      
-      if (days > 0) {
-        return `${days}d ${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
-      }
       return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
     }
     return '00:00:00';
@@ -101,23 +86,18 @@ export default function Home() {
 
   const unreadMatches = (allSeasonMatches || []).filter(m => 
     user && (Number(m.homeRank) === rank || Number(m.awayRank) === rank) && 
-    m.isFinished && 
-    Number(m.day) > (lastSeenMatchDay || 0)
+    m.isFinished && Number(m.day) > (lastSeenMatchDay || 0)
   );
-
-  const historyUnread = (matchHistory || []).filter(m => m.seen === false);
-  const totalUnreadCount = unreadMatches.length + historyUnread.length;
+  const totalUnreadCount = unreadMatches.length + (matchHistory || []).filter(m => m.seen === false).length;
 
   if (isUserLoading || !isLoaded || !isDataReady) return <LoadingScreen />;
 
-  const systemIconUrl = "https://i.ibb.co/07QQCFT/1787830105436.png";
-
   const menuItems = [
-    { label: language === 'ru' ? 'ОБЗОР МАТЧА' : 'MATCH OVERVIEW', href: '/reports', icon: Tv, color: 'text-primary', badge: totalUnreadCount > 0 ? totalUnreadCount : null },
-    { label: language === 'ru' ? 'СОСТАВ КОМАНДЫ' : 'SQUAD', href: '/roster', icon: Users, color: 'text-accent' },
+    { label: language === 'ru' ? 'ОБЗОР МАТЧА' : 'MATCH REVIEW', href: '/reports', icon: Tv, color: 'text-primary', badge: totalUnreadCount > 0 ? totalUnreadCount : null },
+    { label: language === 'ru' ? 'СОСТАВ КОМАНДЫ' : 'SQUAD', href: '/roster/squad', icon: Users, color: 'text-blue-400' },
     { label: language === 'ru' ? 'ТРАНСФЕРЫ' : 'TRANSFERS', href: '/transfers', icon: ArrowRightLeft, color: 'text-yellow-500' },
-    { label: language === 'ru' ? 'РАЗВИТИЕ' : 'INFRA', href: '/training', icon: Construction, color: 'text-blue-400' },
-    { label: language === 'ru' ? 'ПЕРСОНАЛ' : 'STAFF', href: '/staff', icon: Briefcase, color: 'text-orange-400' },
+    { label: language === 'ru' ? 'РАЗВИТИЕ' : 'INFRA', href: '/training', icon: Construction, color: 'text-orange-400' },
+    { label: language === 'ru' ? 'ПЕРСОНАЛ' : 'STAFF', href: '/staff', icon: Briefcase, color: 'text-amber-500' },
     { label: language === 'ru' ? 'ПОИСК ТАЛАНТОВ' : 'SCOUTING', href: '/youth-academy/scouting', icon: Radar, color: 'text-purple-400' },
     { label: language === 'ru' ? 'ТАБЛИЦЫ' : 'RANKINGS', href: '/rankings', icon: LayoutList, color: 'text-green-400' },
     { label: language === 'ru' ? 'РАСПИСАНИЕ' : 'SCHEDULE', href: '/matches', icon: CalendarDays, color: 'text-red-400' },
@@ -131,135 +111,71 @@ export default function Home() {
     { label: language === 'ru' ? 'АССОЦИАЦИИ' : 'ALLIANCE', href: '/associations', icon: Shield, color: 'text-sky-400' },
     { label: language === 'ru' ? 'МАГАЗИН' : 'SHOP', href: '/shop', icon: ShoppingCart, color: 'text-lime-400' },
     { label: language === 'ru' ? 'НОВОСТИ' : 'NEWS', href: '/news', icon: Newspaper, color: 'text-slate-400' },
-    { label: 'SYSTEM', href: '/system', icon: null, imageUrl: systemIconUrl, color: 'text-zinc-400' },
+    { label: language === 'ru' ? 'НАСТРОЙКИ' : 'SYSTEM', href: '/system', icon: Settings, color: 'text-primary' },
     { label: language === 'ru' ? 'ПОИСК' : 'SEARCH', href: '/search', icon: Search, color: 'text-blue-500' },
   ];
 
   const currentNextMatch = resolvedNextMatch?.match;
-  const seasonInfo = getGlobalSeasonInfo();
   const isNextMatchLive = currentNextMatch ? isMatchLive(currentNextMatch.startTime) : false;
 
-  const systemLabel = 'SYSTEM';
-
   return (
-    <div className="relative h-[calc(100dvh-3.5rem-5rem)] flex flex-col overflow-hidden bg-[#0a0d14]">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,_hsl(var(--primary)/0.1),_transparent_70%)] -z-10" />
-      <div className="flex-1 w-full max-w-md mx-auto px-4 flex flex-col justify-center overflow-hidden">
+    <div className="relative min-h-screen flex flex-col bg-[#0a0d14] overflow-x-hidden">
+      {/* BACKGROUND MAP EFFECT */}
+      <div className="absolute inset-0 bg-[url('https://i.postimg.cc/7Z9Xp0mP/map-overlay.png')] bg-cover bg-center opacity-10 pointer-events-none" />
+      
+      <div className="flex-1 w-full max-w-md mx-auto px-4 pt-4 pb-32 z-10">
         
-        {currentNextMatch ? (
-          <Card className={cn(
-            "glass-card mb-6 border-primary/30 bg-primary/5 overflow-hidden animate-in fade-in slide-in-from-top-4 duration-700 shrink-0",
-            isNextMatchLive && "border-red-500/40 bg-red-500/5 shadow-[0_0_20px_rgba(239,68,68,0.1)]"
-          )}>
-            <CardContent className="p-4 flex items-center justify-between min-h-[110px]">
-              <div className="flex items-center gap-4 min-w-0 flex-1">
-                <div className="w-14 h-14 rounded-xl bg-secondary/50 border border-primary/20 flex items-center justify-center p-2 shrink-0 shadow-lg">
-                  {resolvedNextMatch.opponentLogo ? (
-                    <img src={resolvedNextMatch.opponentLogo} className="w-full h-full object-contain" alt="" />
-                  ) : (
-                    <Swords className={cn("w-7 h-7", isNextMatchLive ? "text-red-400 animate-pulse" : "text-accent")} />
-                  )}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className={cn(
-                    "text-[8px] font-black uppercase tracking-[0.2em] leading-none mb-1.5",
-                    isNextMatchLive ? "text-red-400" : "text-primary"
-                  )}>
-                    {isNextMatchLive ? (language === 'ru' ? 'ИДЕТ МАТЧ' : 'MATCH LIVE') : (language === 'ru' ? 'СЛЕДУЮЩИЙ СОПЕРНИК' : 'NEXT OPPONENT')}
-                  </p>
-                  <h3 className="text-base font-bold uppercase truncate text-white leading-tight">
-                    {resolvedNextMatch.opponentName}
-                  </h3>
-                  <p className="text-[7px] font-black text-muted-foreground uppercase tracking-widest mt-1">
-                    {language === 'ru' ? 'ТУР' : 'TOUR'} {currentNextMatch.tour}
-                  </p>
-                </div>
+        {/* NEXT MATCH TACTICAL CARD */}
+        <Card className="relative overflow-hidden mb-6 border-white/10 bg-gradient-to-br from-[#121c2e] to-[#0a0d14] rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.5)]">
+          <div className="absolute inset-0 bg-[url('https://i.postimg.cc/7L4vKjS3/tactical-map.jpg')] bg-cover bg-center opacity-40 mix-blend-overlay" />
+          <CardContent className="p-5 flex items-center justify-between relative z-10">
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 rounded-xl bg-secondary/60 border border-primary/30 flex items-center justify-center shadow-[0_0_20px_rgba(56,189,248,0.2)]">
+                <Swords className="w-8 h-8 text-primary" />
               </div>
-              <div className="text-right border-l border-white/5 pl-4 shrink-0 flex flex-col justify-center">
-                {isNextMatchLive ? (
-                   <div className="flex flex-col items-center">
-                     <Activity className="w-6 h-6 text-red-500 animate-pulse mb-1" />
-                     <span className="text-[10px] font-black text-red-500 uppercase tracking-widest">{language === 'ru' ? 'В ЭФИРЕ' : 'LIVE'}</span>
-                   </div>
-                ) : (
-                  <>
-                    <div className="flex items-center justify-end gap-1.5 mb-1.5 text-muted-foreground">
-                      <Timer className="w-3.5 h-3.5" />
-                      <span className="text-[8px] font-black uppercase tracking-tighter">
-                        {language === 'ru' ? 'ДО МАТЧА:' : 'UNTIL MATCH:'}
-                      </span>
-                    </div>
-                    <p className="text-xl font-headline font-black text-primary italic tabular-nums leading-none">
-                      {getCountdown(currentNextMatch.startTime)}
-                    </p>
-                  </>
-                )}
+              <div>
+                <p className="text-[10px] font-black text-primary/80 uppercase tracking-widest mb-1">{language === 'ru' ? 'СЛЕДУЮЩИЙ СОПЕРНИК' : 'NEXT OPPONENT'}</p>
+                <h2 className="text-xl font-headline font-bold text-white uppercase tracking-tight">{resolvedNextMatch?.opponentName || 'BOT0110017'}</h2>
+                <p className="text-[10px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'ТУР' : 'TOUR'} {currentNextMatch?.tour || 2}</p>
               </div>
-            </CardContent>
-          </Card>
-        ) : (
-          <Card className="glass-card mb-6 border-accent/30 bg-accent/5 overflow-hidden animate-in fade-in slide-in-from-top-4 duration-700 shrink-0">
-            <CardContent className="p-4 flex items-center justify-between min-h-[110px]">
-               <div className="flex items-center gap-4 min-w-0 flex-1">
-                  <div className="w-14 h-14 rounded-xl bg-secondary/50 border border-accent/20 flex items-center justify-center shrink-0 shadow-lg">
-                    <CalendarClock className="w-8 h-8 text-accent" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[8px] font-black text-accent uppercase tracking-[0.2em] leading-none mb-1.5">
-                      {language === 'ru' ? 'ПОДГОРТОВКА СЕЗОНА' : 'SEASON PREPARATION'}
-                    </p>
-                    <h3 className="text-base font-bold uppercase text-white leading-tight truncate">
-                      {language === 'ru' ? 'СТАРТ ЗАВТРА' : 'STARTS TOMORROW'}
-                    </h3>
-                  </div>
-               </div>
-               <div className="text-right border-l border-white/5 pl-4 shrink-0 flex flex-col justify-center">
-                 <div className="flex items-center justify-end gap-1.5 mb-1.5 text-muted-foreground">
-                    <Clock className="w-3.5 h-3.5" />
-                    <span className="text-[8px] font-black uppercase tracking-tighter">
-                      {language === 'ru' ? 'ДО ПЕРВОГО ТУРА:' : 'UNTIL TOUR 1:'}
-                    </span>
-                 </div>
-                 <p className="text-xl font-headline font-black text-accent italic tabular-nums leading-none">
-                   {getCountdown(seasonInfo.currentSeasonStart)}
-                 </p>
-               </div>
-            </CardContent>
-          </Card>
-        )}
-
-        <div className="w-full">
-          <div className="grid grid-cols-4 gap-2 w-full py-2">
-            {menuItems.map((item) => (
-              <Link key={item.label} href={item.href}>
-                <div className="group aspect-square flex flex-col items-center justify-center p-1 relative overflow-visible transition-all active:scale-95 duration-75 glass-card bg-secondary/10 border-white/5 rounded-2xl hover:bg-white/5">
-                  <div className={cn("transition-all duration-300 flex items-center justify-center", item.color)}>
-                    {item.icon ? (
-                      <item.icon className="w-7 h-7 group-hover:scale-110" />
-                    ) : (
-                      <img src={item.imageUrl} className="w-10 h-10 object-contain group-hover:scale-110" alt="" />
-                    )}
-                  </div>
-                  {item.badge && (
-                    <div className="absolute top-1 right-1">
-                      <div className="relative">
-                        <div className="absolute inset-0 bg-red-500 rounded-full animate-ping opacity-20" />
-                        <Badge className="bg-red-500 text-white text-[9px] font-black h-5 min-w-[20px] flex items-center justify-center border-2 border-[#0a0d14] rounded-full px-1 shadow-lg relative z-10">
-                          {item.badge}
-                        </Badge>
-                      </div>
-                    </div>
-                  )}
-                  {item.label !== systemLabel && (
-                    <span className="text-[7px] font-black uppercase text-center text-muted-foreground group-hover:text-white transition-colors leading-tight px-0.5 mt-1.5">
-                      {item.label}
-                    </span>
-                  )}
-                </div>
-              </Link>
-            ))}
+            </div>
+            <div className="text-right">
+              <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest mb-1">{language === 'ru' ? 'ДО МАТЧА' : 'UNTIL MATCH'}</p>
+              <p className="text-2xl font-headline font-black text-primary italic text-glow-blue">
+                {currentNextMatch ? getCountdown(currentNextMatch.startTime) : '23:35:54'}
+              </p>
+            </div>
+          </CardContent>
+          {/* DECORATIVE DESK ICON */}
+          <div className="absolute bottom-[-15px] left-1/2 -translate-x-1/2 w-32 opacity-80 pointer-events-none">
+            <img src="https://i.postimg.cc/VvPz5xM7/desk-ui.png" alt="" className="w-full h-auto" />
           </div>
+        </Card>
+
+        {/* MAIN MENU GRID */}
+        <div className="grid grid-cols-4 gap-2.5">
+          {menuItems.map((item) => (
+            <Link key={item.label} href={item.href}>
+              <Card className="aspect-square glass-card border-white/5 hover:border-primary/40 hover:bg-primary/5 transition-all group flex flex-col items-center justify-center p-1.5 relative rounded-[1.5rem]">
+                <div className={cn("transition-transform duration-300 group-hover:scale-110", item.color)}>
+                  <item.icon className="w-8 h-8" />
+                </div>
+                {item.badge && (
+                  <div className="absolute top-2 right-2">
+                    <Badge className="bg-red-500 text-white text-[8px] h-4 min-w-[16px] px-1 font-black animate-pulse border-none shadow-lg">
+                      {item.badge}
+                    </Badge>
+                  </div>
+                )}
+                {/* LABELS ONLY FOR NON-SYSTEM OR AS PER DESIGN */}
+                <span className="text-[7px] font-black uppercase text-center text-muted-foreground group-hover:text-white mt-2 leading-none tracking-tighter">
+                  {item.label}
+                </span>
+              </Card>
+            </Link>
+          ))}
         </div>
+
       </div>
     </div>
   );
