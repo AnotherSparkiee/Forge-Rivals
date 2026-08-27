@@ -118,7 +118,7 @@ export default function Home() {
   const currentNextMatch = resolvedNextMatch?.match;
 
   return (
-    <div className="relative min-h-[calc(100dvh-4rem-6rem)] h-[calc(100dvh-4rem-6rem)] flex flex-col bg-[#0a0d14] overflow-hidden">
+    <div className="relative min-h-[calc(100dvh-4rem-4rem)] h-[calc(100dvh-4rem-4rem)] flex flex-col bg-[#0a0d14] overflow-hidden">
       {/* BACKGROUND MAP EFFECT */}
       <div className="absolute inset-0 z-0 opacity-10 pointer-events-none">
         <Image 

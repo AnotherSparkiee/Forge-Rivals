@@ -8,7 +8,7 @@ import Link from 'next/link';
 
 export function TopBar() {
   const pathname = usePathname();
-  const { credits, crystals, language, isPremium, clubName, displayName } = useGameState();
+  const { credits, crystals, language, isPremium, clubName, displayName, clubLogo } = useGameState();
 
   const navBtnClass = "w-9 h-9 rounded-full flex items-center justify-center bg-secondary/40 border border-white/5 hover:bg-white/10 transition-all shadow-lg";
 
@@ -18,8 +18,14 @@ export function TopBar() {
         
         {/* LEFT: COMMANDER BOX */}
         <div className="flex items-center gap-2">
-          <div className="h-10 px-3 flex items-center gap-2 rounded-lg bg-secondary/30 border border-primary/20 shadow-[inset_0_0_10px_rgba(56,189,248,0.1)]">
-            <Rocket className="w-4 h-4 text-primary" />
+          <div className="h-10 px-2.5 flex items-center gap-2 rounded-lg bg-secondary/30 border border-primary/20 shadow-[inset_0_0_10px_rgba(56,189,248,0.1)]">
+            {clubLogo ? (
+              <div className="w-6 h-6 rounded bg-black/20 p-0.5 border border-white/5 flex items-center justify-center overflow-hidden">
+                <img src={clubLogo} alt="" className="w-full h-full object-contain" />
+              </div>
+            ) : (
+              <Rocket className="w-4 h-4 text-primary" />
+            )}
             <span className="text-[10px] font-black uppercase tracking-widest text-white/90 truncate max-w-[80px]">
               {clubName || displayName || 'COMMANDER'}
             </span>
