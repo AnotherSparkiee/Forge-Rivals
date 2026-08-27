@@ -1,6 +1,7 @@
 
 /**
- * @fileOverview Ядро лиг v67: Детерминированные ID ботов и расчеты перемещений.
+ * @fileOverview Ядро лиг v68: Детерминированные ID ботов и расчеты перемещений.
+ * Исправлена формула расчета времени старта матчей.
  */
 
 import { GLOBAL_EPOCH_ISO } from './time-utils';
@@ -73,7 +74,9 @@ export function generateSeasonCalendar(teams: any[], seasonNumber: number, leagu
       const away = teams[aIdx];
 
       const createMatch = (day: number, h: any, a: any, tour: number) => {
-        const startTime = new Date(seasonStartMs + (day - 1) * dayMs + (hh - 3) * 60 * 60 * 1000 + mm * 60 * 1000);
+        // Рассчитываем старт относительно полуночи МСК текущего сезона
+        // hh (18:00 МСК) преобразуется в 18 часов от полуночи МСК эпохи
+        const startTime = new Date(seasonStartMs + (day - 1) * dayMs + hh * 3600000 + mm * 60000);
         return {
           day,
           tour,
@@ -100,7 +103,6 @@ export function generateSeasonCalendar(teams: any[], seasonNumber: number, leagu
 
 /**
  * ДЕТЕРМИНИРОВАННЫЙ РАСЧЕТ РЕЗУЛЬТАТА.
- * На основе рангов, сезона и тура. Одинаков для всех, кто вызывает.
  */
 export function getMatchResult(
   rankA: number, 
@@ -117,11 +119,8 @@ export function getMatchResult(
     hash |= 0;
   }
   const absHash = Math.abs(hash);
-  
-  // Базовая вероятность: более высокий ранг (меньшее число) имеет преимущество
-  const rankDiff = rankB - rankA; // Положительно, если A сильнее (ранг 1 против ранга 8)
-  const baseChance = 35 + (rankDiff * 2); // 21% до 49% на победу [2,0]
-  
+  const rankDiff = rankB - rankA;
+  const baseChance = 35 + (rankDiff * 2);
   const roll = absHash % 100;
   if (roll < baseChance) return [2, 0];
   if (roll > (100 - baseChance)) return [0, 2];

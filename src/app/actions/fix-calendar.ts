@@ -1,7 +1,8 @@
+
 'use server';
 
 /**
- * @fileOverview Скрипт-синхронизатор v55 (Autonomous Global Reseeder).
+ * @fileOverview Скрипт-синхронизатор v56 (Autonomous Global Reseeder).
  * Реализует полную пересадку всех команд в актуальный Season 1 по дате регистрации.
  */
 
@@ -17,7 +18,7 @@ import { findStrategicPlacement, initializeClubV11 } from './season-init';
 const PLAYERS_PER_CHUNK = 25;
 
 /**
- * ГЛОБАЛЬНЫЙ РЕМОНТ МИРА v55.
+ * ГЛОБАЛЬНЫЙ РЕМОНТ МИРА v56.
  * Фаза 1: Постройка структуры 511 групп.
  * Фаза 2: Переселение ВСЕХ реальных игроков в Season 1 по приоритету createdAt.
  */
@@ -33,7 +34,7 @@ export async function runGlobalEmergencyRepair() {
 
   console.log(`[AUTONOMOUS REPAIR] Season ${seasonNum}, Phase: ${repairData.phase}`);
 
-  // ФАЗА 1: Создание структуры мира (511 групп)
+  // ФАЗА 1: Создание структуры мира (511 групп с ботами)
   if (repairData.phase === 'INIT_WORLD') {
     const worldRes = await initializeLeagueWorld(leagueId, seasonNum);
     if (worldRes.isComplete) {
@@ -44,7 +45,7 @@ export async function runGlobalEmergencyRepair() {
     return { status: 'PROCESSING_WORLD', progress: `Tier ${worldRes.lastTier}, Group ${worldRes.lastGroup}` };
   }
 
-  // ФАЗА 2: Переселение игроков (по 25 игроков за вызов)
+  // ФАЗА 2: Переселение реальных игроков (замена ботов)
   if (repairData.phase === 'RESEED_PLAYERS') {
     let playersQ = query(
       collection(db, 'players_v11'), 
@@ -74,7 +75,7 @@ export async function runGlobalEmergencyRepair() {
       const p = pDoc.data();
       lastCreatedAt = p.createdAt;
       
-      // Если игрок уже был обработан в этом сезоне и имеет корректные данные - пропускаем
+      // Идемпотентность: если игрок уже в Season 1 и его координаты актуальны - пропускаем
       if (p.lastProcessedSeason === seasonNum && p.selectedLeagueId === leagueId && p.leagueLevel && p.groupId) {
         continue;
       }
@@ -92,7 +93,7 @@ export async function runGlobalEmergencyRepair() {
           group: placement.group,
           rank: placement.rank,
           selectedLeagueId: leagueId,
-          lastProcessedSeason: seasonNum // Важно для идемпотентности
+          lastProcessedSeason: seasonNum
         });
 
         processed++;

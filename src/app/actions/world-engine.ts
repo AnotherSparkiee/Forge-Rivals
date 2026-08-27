@@ -2,8 +2,8 @@
 'use server';
 
 /**
- * @fileOverview Глобальный двигатель инициализации мира v1.8 (Fixed Multi-Group Logic).
- * Исправлена ошибка, из-за которой создавалась только одна группа на дивизион.
+ * @fileOverview Глобальный двигатель инициализации мира v1.9 (Atomic Batch Logic).
+ * Создает полную пирамиду из 511 групп с ботами и расписанием.
  */
 
 import { 
@@ -87,12 +87,7 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
     
     status = data.status;
     currentTier = data.lastTier || 1;
-    currentGroup = (data.lastGroup || 0) + 1; // Начинаем со следующей после сохраненной
-    
-    if (currentGroup > getGroupsCountInLevel(currentTier)) {
-      currentGroup = 1;
-      currentTier++;
-    }
+    currentGroup = (data.lastGroup || 0) + 1; 
   }
 
   if (currentTier > 9) {
@@ -114,14 +109,13 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
   let group = currentGroup;
 
   while (groupsProcessed < GROUPS_PER_CHUNK && tier <= 9) {
-    const maxGroupsInTier = getGroupsCountInLevel(tier);
+    const maxGroupsInTier = Math.pow(2, tier - 1);
     
     while (group <= maxGroupsInTier && groupsProcessed < GROUPS_PER_CHUNK) {
       await createGroupStructure(db, leagueId, tier, group, seasonNum);
       groupsProcessed++;
       
       if (groupsProcessed >= GROUPS_PER_CHUNK) {
-        // Мы достигли лимита чанка. Сохраняем текущие координаты.
         await updateDoc(statusRef, { 
           lastTier: tier,
           lastGroup: group,
@@ -133,16 +127,18 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
       group++;
     }
     
-    // Если внутренний цикл закончился (прошли все группы в тире)
-    tier++;
-    group = 1;
+    // Переход к следующему дивизиону
+    if (group > Math.pow(2, tier - 1)) {
+      tier++;
+      group = 1;
+    }
   }
   
   const isFullyComplete = tier > 9;
   
   await updateDoc(statusRef, { 
-    lastTier: isFullyComplete ? 9 : (tier - 1),
-    lastGroup: isFullyComplete ? getGroupsCountInLevel(9) : group,
+    lastTier: isFullyComplete ? 9 : tier,
+    lastGroup: isFullyComplete ? 256 : group,
     status: isFullyComplete ? 'completed' : 'processing',
     finishedAt: isFullyComplete ? serverTimestamp() : null
   });
@@ -150,7 +146,7 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
   return { 
     success: true, 
     processed: groupsProcessed, 
-    lastTier: tier > 9 ? 9 : tier, 
+    lastTier: tier, 
     lastGroup: group,
     isComplete: isFullyComplete 
   };

@@ -2,7 +2,7 @@
 'use server';
 
 /**
- * @fileOverview Серверный модуль инициализации v67 (Advanced Reseeding).
+ * @fileOverview Серверный модуль инициализации v68 (Advanced Reseeding).
  */
 
 import { collection, getDocs, query, where, doc, getDoc, writeBatch, serverTimestamp } from 'firebase/firestore';
@@ -17,7 +17,7 @@ import { createGroupStructure } from './world-engine';
 
 /**
  * Находит свободное место в текущем сезоне.
- * Учитывает только тех, кто уже в Season 1.
+ * Сканирует занятые слоты реальных игроков.
  */
 export async function findStrategicPlacement(leagueId: string) {
   const { firestore: db } = initializeFirebase();
@@ -67,7 +67,7 @@ export async function initializeClubV11(userId: string, data: any) {
   const seasonInfo = getGlobalSeasonInfo();
   const seasonNum = seasonInfo.activeSeasonNumber;
 
-  const { tier, group, rank, clubName, clubLogo, country } = data;
+  const { tier, group, rank, clubName, clubLogo } = data;
   const leagueId = data.selectedLeagueId || "ALPHA";
   
   const botId = getBotId(leagueId, tier, group, rank);
@@ -76,7 +76,7 @@ export async function initializeClubV11(userId: string, data: any) {
   
   let tableSnap = await getDoc(tableRef);
 
-  // JIT: Создаем структуру группы, если её еще нет
+  // JIT: Создаем структуру группы, если её еще нет (аварийная ветка)
   if (!tableSnap.exists()) {
     console.warn(`[JIT] Table ${tableId} missing. Creating group structure...`);
     await createGroupStructure(db, leagueId, tier, group, seasonNum);
@@ -87,7 +87,7 @@ export async function initializeClubV11(userId: string, data: any) {
   const tableData = tableSnap.data();
   const stats = { ...tableData!.stats };
 
-  // Заменяем бота на реального игрока
+  // Заменяем бота на реального игрока в статистике таблицы
   if (stats[botId] || !stats[userId]) {
     const botStats = stats[botId] || { matchesPlayed: 0, wins: 0, draws: 0, losses: 0, points: 0, diff: 0 };
     stats[userId] = {
@@ -102,7 +102,7 @@ export async function initializeClubV11(userId: string, data: any) {
     batch.update(tableRef, { stats, updatedAt: serverTimestamp() });
   }
 
-  // ОБНОВЛЕНИЕ КАЛЕНДАРЯ
+  // ОБНОВЛЕНИЕ КАЛЕНДАРЯ МАТЧЕЙ (присвоение ID игрока матчам бота)
   const matchesQ = query(collection(db, 'matches_v1'), 
     where('leagueId', '==', leagueId),
     where('level', '==', tier),
