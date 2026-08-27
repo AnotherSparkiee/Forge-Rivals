@@ -1,7 +1,7 @@
 /**
- * @fileOverview Ядро времени v117 (Universal Sync). 
+ * @fileOverview Ядро времени v118 (Universal Sync). 
  * Обеспечивает единство отсчета для всех групп лиги.
- * Точка отсчета: 28 августа 2026 года, 00:00 MSK.
+ * Точка отсчета: 27 августа 2026 года, 00:00 MSK (День 1 Сезона 1).
  */
 
 let syncPoint = {
@@ -12,8 +12,8 @@ let syncPoint = {
 const SIMULATION_OFFSET_MS = 0; 
 const MSK_OFFSET = 3 * 60 * 60 * 1000;
 
-// Полночь 28 августа 2026 по МСК = 21:00 27 августа UTC
-export const GLOBAL_EPOCH_ISO = '2026-08-27T21:00:00Z'; 
+// Полночь 27 августа 2026 по МСК = 21:00 26 августа UTC
+export const GLOBAL_EPOCH_ISO = '2026-08-26T21:00:00Z'; 
 export const SEASON_CYCLE_DAYS = 15;
 
 export function setServerTime(serverMs: number) {
