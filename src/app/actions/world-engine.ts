@@ -1,9 +1,11 @@
 'use server';
 
 /**
- * @fileOverview Глобальный двигатель инициализации мира v2.4 (Batch-Safe & Atomic).
- * Исправлена критическая ошибка отсутствующего экспорта createGroupStructure.
- * Каждая группа (1 табл + 56 матчей) обрабатывается как отдельный атомарный блок.
+ * @fileOverview Глобальный двигатель инициализации мира v2.6 (Atomic & Protected).
+ * Особенности:
+ * 1. Проверка существования (Idempotency): Никогда не перезаписывает существующие группы.
+ * 2. Пошаговый чекпойнт: Сохраняет прогресс в том же батче, что и данные группы.
+ * 3. Безопасность лимитов: Каждая группа обрабатывается как отдельная транзакция.
  */
 
 import { 
@@ -19,12 +21,11 @@ import {
 } from '@/app/lib/leagues-data';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 
-// Каждая группа — это 57 записей. 8 групп * 57 = 456 операций (Лимит Firestore: 500)
+// Количество групп за один вызов функции (для предотвращения таймаутов)
 const GROUPS_PER_CHUNK = 8; 
 
 /**
- * Внутренняя функция для подготовки данных группы в батч.
- * Используется как для циклической инициализации, так и для JIT (Just-In-Time).
+ * Внутреннее ядро подготовки данных группы.
  */
 function prepareGroupData(
   batch: any, 
@@ -70,13 +71,10 @@ function prepareGroupData(
       version: 11
     });
   }
-  
-  return tableId;
 }
 
 /**
- * Создает структуру конкретной группы (таблица + календарь).
- * Используется в season-init.ts для JIT-инициализации отсутствующих групп.
+ * Публичная функция JIT-создания (используется при регистрации игрока).
  */
 export async function createGroupStructure(
   db: Firestore, 
@@ -91,34 +89,8 @@ export async function createGroupStructure(
 }
 
 /**
- * Создает структуру группы и обновляет глобальный статус прогресса в одном батче.
- */
-export async function createGroupStructureWithStatus(
-  db: Firestore, 
-  leagueId: string, 
-  tier: number, 
-  group: number, 
-  seasonNum: number,
-  statusRef: any
-) {
-  const batch = writeBatch(db);
-  
-  prepareGroupData(batch, db, leagueId, tier, group, seasonNum);
-
-  // 3. Обновляем статус (Чекпойнт) В ТОМ ЖЕ БАТЧЕ
-  batch.set(statusRef, { 
-    lastTier: tier,
-    lastGroup: group,
-    status: 'processing',
-    updatedAt: serverTimestamp()
-  }, { merge: true });
-
-  await batch.commit();
-}
-
-/**
  * Инициализирует мир лиги порциями. 
- * Генерирует пирамиду из 511 групп.
+ * Гарантированно доводит количество групп до 511.
  */
 export async function initializeLeagueWorld(leagueId: string, targetSeason?: number) {
   const { firestore: db } = initializeFirebase();
@@ -129,7 +101,7 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
   const statusSnap = await getDoc(statusRef);
   
   let currentTier = 1;
-  let currentGroup = 1;
+  let currentGroup = 0; // Начинаем с нуля, чтобы первая группа была 1
   let status = 'idle';
 
   if (statusSnap.exists()) {
@@ -138,22 +110,9 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
     
     status = data.status;
     currentTier = data.lastTier || 1;
-    currentGroup = (data.lastGroup || 0) + 1; 
-  }
-
-  // Логика перехода между дивизионами при инкременте
-  if (currentGroup > Math.pow(2, currentTier - 1)) {
-    currentTier++;
-    currentGroup = 1;
-  }
-
-  // Финальная проверка завершения
-  if (currentTier > 9) {
-    await setDoc(statusRef, { status: 'completed', finishedAt: serverTimestamp() }, { merge: true });
-    return { success: true, isComplete: true };
-  }
-
-  if (status === 'idle') {
+    currentGroup = data.lastGroup || 0; 
+  } else {
+    // Создаем начальный документ статуса
     await setDoc(statusRef, { 
       status: 'processing', 
       startedAt: serverTimestamp(),
@@ -162,58 +121,58 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
     });
   }
 
-  let groupsProcessed = 0;
+  let groupsProcessedInThisCall = 0;
   let tier = currentTier;
   let group = currentGroup;
 
-  // Цикл по порциям
-  while (groupsProcessed < GROUPS_PER_CHUNK && tier <= 9) {
+  while (groupsProcessedInThisCall < GROUPS_PER_CHUNK && tier <= 9) {
+    // 1. Рассчитываем следующую группу
+    group++;
     const maxGroupsInTier = Math.pow(2, tier - 1);
     
-    while (group <= maxGroupsInTier && groupsProcessed < GROUPS_PER_CHUNK) {
-      const tableId = `table_S${seasonNum}_L${leagueId}_V${tier}_G${group}`;
-      const tableRef = doc(db, 'league_tables_v1', tableId);
-      
-      const checkSnap = await getDoc(tableRef);
-      
-      if (!checkSnap.exists()) {
-        console.log(`[WORLD ENGINE] Creating group S${seasonNum} V${tier} G${group}`);
-        await createGroupStructureWithStatus(db, leagueId, tier, group, seasonNum, statusRef);
-      } else {
-        // Если группа уже есть, просто обновляем статус до текущей группы
-        await setDoc(statusRef, { 
-          lastTier: tier,
-          lastGroup: group,
-          status: 'processing',
-          updatedAt: serverTimestamp()
-        }, { merge: true });
-      }
-
-      groupsProcessed++;
-      group++;
-    }
-    
-    // Переход к следующему дивизиону если закончили текущий
     if (group > maxGroupsInTier) {
       tier++;
       group = 1;
+      if (tier > 9) break; // Все 511 групп проверены/созданы
     }
+
+    const tableId = `table_S${seasonNum}_L${leagueId}_V${tier}_G${group}`;
+    const tableRef = doc(db, 'league_tables_v1', tableId);
+    
+    // 2. КРИТИЧЕСКАЯ ПРОВЕРКА: Существует ли группа?
+    const checkSnap = await getDoc(tableRef);
+    
+    const batch = writeBatch(db);
+    
+    if (!checkSnap.exists()) {
+      console.log(`[WORLD ENGINE] Creating missing group S${seasonNum} V${tier} G${group}`);
+      prepareGroupData(batch, db, leagueId, tier, group, seasonNum);
+    } else {
+      console.log(`[WORLD ENGINE] Skipping existing group S${seasonNum} V${tier} G${group}`);
+      // Если группа есть, мы ничего не пишем в её таблицу, но должны обновить статус прогресса
+    }
+
+    // 3. Обновляем статус прогресса (Чекпойнт) ВСЕГДА (и при пропуске, и при создании)
+    // Это гарантирует, что мы не застрянем на существующих группах
+    batch.set(statusRef, { 
+      lastTier: tier,
+      lastGroup: group,
+      status: tier > 9 ? 'completed' : 'processing',
+      updatedAt: serverTimestamp(),
+      finishedAt: tier > 9 ? serverTimestamp() : null
+    }, { merge: true });
+
+    await batch.commit();
+    groupsProcessedInThisCall++;
   }
   
   const isFullyComplete = tier > 9;
   
-  if (isFullyComplete) {
-    await setDoc(statusRef, { 
-      status: 'completed',
-      finishedAt: serverTimestamp()
-    }, { merge: true });
-  }
-
   return { 
     success: true, 
-    processed: groupsProcessed, 
-    lastTier: isFullyComplete ? 9 : (group === 1 ? tier - 1 : tier), 
-    lastGroup: isFullyComplete ? 256 : (group === 1 ? Math.pow(2, tier - 2) : group - 1),
+    processed: groupsProcessedInThisCall, 
+    lastTier: tier > 9 ? 9 : tier, 
+    lastGroup: tier > 9 ? 256 : group,
     isComplete: isFullyComplete 
   };
 }
