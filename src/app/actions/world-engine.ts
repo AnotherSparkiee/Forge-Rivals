@@ -1,9 +1,9 @@
 'use server';
 
 /**
- * @fileOverview Глобальный двигатель инициализации мира v2.2 (Self-Healing & Atomic).
- * Исправлены ошибки сохранения прогресса (чекпойнты после каждой группы) 
- * и внедрена защита от перезаписи существующих данных игроков.
+ * @fileOverview Глобальный двигатель инициализации мира v2.4 (Batch-Safe & Atomic).
+ * Исправлена критическая ошибка отсутствующего экспорта createGroupStructure.
+ * Каждая группа (1 табл + 56 матчей) обрабатывается как отдельный атомарный блок.
  */
 
 import { 
@@ -19,13 +19,21 @@ import {
 } from '@/app/lib/leagues-data';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 
-const GROUPS_PER_CHUNK = 30; // Лимит групп за один вызов для стабильности в облаке
+// Каждая группа — это 57 записей. 8 групп * 57 = 456 операций (Лимит Firestore: 500)
+const GROUPS_PER_CHUNK = 8; 
 
 /**
- * Создает структуру конкретной группы (таблица + календарь).
+ * Внутренняя функция для подготовки данных группы в батч.
+ * Используется как для циклической инициализации, так и для JIT (Just-In-Time).
  */
-export async function createGroupStructure(db: Firestore, leagueId: string, tier: number, group: number, seasonNum: number) {
-  const batch = writeBatch(db);
+function prepareGroupData(
+  batch: any, 
+  db: Firestore, 
+  leagueId: string, 
+  tier: number, 
+  group: number, 
+  seasonNum: number
+) {
   const tableId = `table_S${seasonNum}_L${leagueId}_V${tier}_G${group}`;
   const tableRef = doc(db, 'league_tables_v1', tableId);
   
@@ -42,6 +50,7 @@ export async function createGroupStructure(db: Firestore, leagueId: string, tier
     teamsForCalendar.push({ id: bId, name: bId, rank: r });
   }
 
+  // 1. Создаем таблицу
   batch.set(tableRef, {
     id: tableId, leagueId, level: tier, group, season: seasonNum,
     stats: initialStats,
@@ -49,6 +58,7 @@ export async function createGroupStructure(db: Firestore, leagueId: string, tier
     version: 11
   });
 
+  // 2. Создаем календарь (56 матчей)
   const calendar = generateSeasonCalendar(teamsForCalendar, seasonNum, leagueId);
   for (const m of calendar) {
     const mId = `match_S${seasonNum}_L${leagueId}_V${tier}_G${group}_T${m.tour}_R${m.homeRank}_vs_R${m.awayRank}`;
@@ -60,9 +70,50 @@ export async function createGroupStructure(db: Firestore, leagueId: string, tier
       version: 11
     });
   }
+  
+  return tableId;
+}
+
+/**
+ * Создает структуру конкретной группы (таблица + календарь).
+ * Используется в season-init.ts для JIT-инициализации отсутствующих групп.
+ */
+export async function createGroupStructure(
+  db: Firestore, 
+  leagueId: string, 
+  tier: number, 
+  group: number, 
+  seasonNum: number
+) {
+  const batch = writeBatch(db);
+  prepareGroupData(batch, db, leagueId, tier, group, seasonNum);
+  await batch.commit();
+}
+
+/**
+ * Создает структуру группы и обновляет глобальный статус прогресса в одном батче.
+ */
+export async function createGroupStructureWithStatus(
+  db: Firestore, 
+  leagueId: string, 
+  tier: number, 
+  group: number, 
+  seasonNum: number,
+  statusRef: any
+) {
+  const batch = writeBatch(db);
+  
+  prepareGroupData(batch, db, leagueId, tier, group, seasonNum);
+
+  // 3. Обновляем статус (Чекпойнт) В ТОМ ЖЕ БАТЧЕ
+  batch.set(statusRef, { 
+    lastTier: tier,
+    lastGroup: group,
+    status: 'processing',
+    updatedAt: serverTimestamp()
+  }, { merge: true });
 
   await batch.commit();
-  return { tableId };
 }
 
 /**
@@ -87,16 +138,16 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
     
     status = data.status;
     currentTier = data.lastTier || 1;
-    // Начинаем со следующей группы после последней успешно записанной
     currentGroup = (data.lastGroup || 0) + 1; 
   }
 
-  // Если группа вышла за пределы тира при инкременте — переходим на следующий тир
+  // Логика перехода между дивизионами при инкременте
   if (currentGroup > Math.pow(2, currentTier - 1)) {
     currentTier++;
     currentGroup = 1;
   }
 
+  // Финальная проверка завершения
   if (currentTier > 9) {
     await setDoc(statusRef, { status: 'completed', finishedAt: serverTimestamp() }, { merge: true });
     return { success: true, isComplete: true };
@@ -115,6 +166,7 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
   let tier = currentTier;
   let group = currentGroup;
 
+  // Цикл по порциям
   while (groupsProcessed < GROUPS_PER_CHUNK && tier <= 9) {
     const maxGroupsInTier = Math.pow(2, tier - 1);
     
@@ -122,35 +174,27 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
       const tableId = `table_S${seasonNum}_L${leagueId}_V${tier}_G${group}`;
       const tableRef = doc(db, 'league_tables_v1', tableId);
       
-      // ПРОВЕРКА: Если группа уже создана (например, там реальный игрок), пропускаем создание
       const checkSnap = await getDoc(tableRef);
+      
       if (!checkSnap.exists()) {
         console.log(`[WORLD ENGINE] Creating group S${seasonNum} V${tier} G${group}`);
-        await createGroupStructure(db, leagueId, tier, group, seasonNum);
+        await createGroupStructureWithStatus(db, leagueId, tier, group, seasonNum, statusRef);
       } else {
-        console.log(`[WORLD ENGINE] Group S${seasonNum} V${tier} G${group} already exists. Skipping.`);
+        // Если группа уже есть, просто обновляем статус до текущей группы
+        await setDoc(statusRef, { 
+          lastTier: tier,
+          lastGroup: group,
+          status: 'processing',
+          updatedAt: serverTimestamp()
+        }, { merge: true });
       }
 
       groupsProcessed++;
-      
-      // ЧЕКПОЙНТ: Сохраняем прогресс СРАЗУ после каждой группы
-      // Это предотвращает откат к началу порции при таймауте
-      await setDoc(statusRef, { 
-        lastTier: tier,
-        lastGroup: group,
-        status: 'processing',
-        updatedAt: serverTimestamp()
-      }, { merge: true });
-
-      if (groupsProcessed >= GROUPS_PER_CHUNK) {
-        return { success: true, processed: groupsProcessed, lastTier: tier, lastGroup: group, isComplete: false };
-      }
-
       group++;
     }
     
-    // Переход к следующему дивизиону
-    if (group > Math.pow(2, tier - 1)) {
+    // Переход к следующему дивизиону если закончили текущий
+    if (group > maxGroupsInTier) {
       tier++;
       group = 1;
     }
@@ -168,8 +212,8 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
   return { 
     success: true, 
     processed: groupsProcessed, 
-    lastTier: isFullyComplete ? 9 : tier, 
-    lastGroup: isFullyComplete ? 256 : group,
+    lastTier: isFullyComplete ? 9 : (group === 1 ? tier - 1 : tier), 
+    lastGroup: isFullyComplete ? 256 : (group === 1 ? Math.pow(2, tier - 2) : group - 1),
     isComplete: isFullyComplete 
   };
 }
