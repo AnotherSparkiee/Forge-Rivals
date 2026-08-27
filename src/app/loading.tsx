@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 
 /**
- * ОФИЦИАЛЬНЫЙ СИСТЕМНЫЙ ЗАГРУЗЧИК v2.1.
+ * ОФИЦИАЛЬНЫЙ СИСТЕМНЫЙ ЗАГРУЗЧИК v2.2.
  * Полностью синхронизирован с LoadingScreen.tsx для предотвращения ошибок гидратации.
  */
 export default function Loading() {
@@ -13,9 +13,16 @@ export default function Loading() {
     setMounted(true);
   }, []);
 
+  const bgStyle = {
+    backgroundImage: `linear-gradient(to bottom, rgba(10, 13, 20, 0.02), rgba(10, 13, 20, 0.15)), url('https://i.ibb.co/GQ39Zhc9/1787834437641.png')`,
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+    backgroundRepeat: 'no-repeat'
+  };
+
   if (!mounted) {
     return (
-      <div className="fixed inset-0 z-[9999] bg-[#0a0d14] flex flex-col items-center justify-center p-6 overflow-hidden">
+      <div className="fixed inset-0 z-[9999] bg-[#0a0d14] flex flex-col items-center justify-center p-6 overflow-hidden" style={bgStyle}>
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,_hsl(var(--primary)/0.15),_transparent_70%)]"></div>
       </div>
     );
@@ -23,8 +30,14 @@ export default function Loading() {
 
   return (
     <div className="fixed inset-0 z-[9999] bg-[#0a0d14] flex flex-col items-center justify-center p-6 overflow-hidden">
+      {/* Global Background Layer */}
+      <div 
+        className="absolute inset-0 z-0 pointer-events-none"
+        style={bgStyle}
+      />
+
       {/* Фоновое свечение */}
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,_hsl(var(--primary)/0.15),_transparent_70%)]"></div>
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,_hsl(var(--primary)/0.15),_transparent_70%)] z-0"></div>
 
       <div className="relative flex flex-col items-center gap-8 z-10">
         {/* Логотип */}
@@ -49,9 +62,9 @@ export default function Loading() {
       </div>
 
       {/* Футер */}
-      <div className="absolute bottom-12 text-center opacity-30">
+      <div className="absolute bottom-12 text-center opacity-30 z-10">
         <p className="text-[8px] font-black uppercase tracking-[0.2em] text-muted-foreground">
-          ENMITY LEAGUE OPERATIONS © 2025
+          ENMITY LEAGUE OPERATIONS © 2026
         </p>
       </div>
     </div>
