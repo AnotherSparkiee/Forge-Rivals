@@ -6,8 +6,7 @@ import {
   CalendarDays, Medal, ArrowRightLeft, 
   Shield, Construction, Briefcase, 
   LineChart, Heart, Newspaper, Settings, Search, Tv, User as UserIcon, UserCheck,
-  Radar, LayoutList, Swords, Timer, Activity,
-  Gears
+  Radar, LayoutList, Swords, Timer, Activity
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import Link from 'next/link';
@@ -18,6 +17,7 @@ import { Badge } from '@/components/ui/badge';
 import { useState, useEffect, useMemo } from 'react';
 import { getMoscowTime, isMatchLive } from './lib/time-utils';
 import { collection, query, where } from 'firebase/firestore';
+import Image from 'next/image';
 
 export default function Home() {
   const { user, isUserLoading } = useUser();
@@ -93,84 +93,113 @@ export default function Home() {
   if (isUserLoading || !isLoaded || !isDataReady) return <LoadingScreen />;
 
   const menuItems = [
-    { label: language === 'ru' ? 'ОБЗОР МАТЧА' : 'MATCH REVIEW', href: '/reports', icon: Tv, color: 'text-primary', badge: totalUnreadCount > 0 ? totalUnreadCount : null },
-    { label: language === 'ru' ? 'СОСТАВ КОМАНДЫ' : 'SQUAD', href: '/roster/squad', icon: Users, color: 'text-blue-400' },
-    { label: language === 'ru' ? 'ТРАНСФЕРЫ' : 'TRANSFERS', href: '/transfers', icon: ArrowRightLeft, color: 'text-yellow-500' },
-    { label: language === 'ru' ? 'РАЗВИТИЕ' : 'INFRA', href: '/training', icon: Construction, color: 'text-orange-400' },
-    { label: language === 'ru' ? 'ПЕРСОНАЛ' : 'STAFF', href: '/staff', icon: Briefcase, color: 'text-amber-500' },
-    { label: language === 'ru' ? 'ПОИСК ТАЛАНТОВ' : 'SCOUTING', href: '/youth-academy/scouting', icon: Radar, color: 'text-purple-400' },
-    { label: language === 'ru' ? 'ТАБЛИЦЫ' : 'RANKINGS', href: '/rankings', icon: LayoutList, color: 'text-green-400' },
-    { label: language === 'ru' ? 'РАСПИСАНИЕ' : 'SCHEDULE', href: '/matches', icon: CalendarDays, color: 'text-red-400' },
-    { label: language === 'ru' ? 'ФИНАНСЫ' : 'FINANCES', href: '/finances', icon: LineChart, color: 'text-emerald-400' },
-    { label: language === 'ru' ? 'ТУРНИРЫ' : 'TOURNAMENTS', href: '/tournaments', icon: Swords, color: 'text-yellow-400' },
-    { label: language === 'ru' ? 'ФАН БАЗА' : 'FANBASE', href: '/fanclub', icon: Heart, color: 'text-pink-400' },
-    { label: language === 'ru' ? 'ТОП СЕЗОНА' : 'SEASON TOP', href: '/rankings', icon: Medal, color: 'text-amber-500' },
-    { label: language === 'ru' ? 'ЧАТЫ' : 'CHATS', href: '/chats', icon: MessageSquare, color: 'text-cyan-400' },
-    { label: language === 'ru' ? 'ДРУЗЬЯ' : 'FRIENDS', href: '/managers', icon: UserCheck, color: 'text-indigo-400' },
-    { label: language === 'ru' ? 'О СЕБЕ' : 'PROFILE', href: '/profile', icon: UserIcon, color: 'text-rose-400' },
-    { label: language === 'ru' ? 'АССОЦИАЦИИ' : 'ALLIANCE', href: '/associations', icon: Shield, color: 'text-sky-400' },
-    { label: language === 'ru' ? 'МАГАЗИН' : 'SHOP', href: '/shop', icon: ShoppingCart, color: 'text-lime-400' },
-    { label: language === 'ru' ? 'НОВОСТИ' : 'NEWS', href: '/news', icon: Newspaper, color: 'text-slate-400' },
-    { label: language === 'ru' ? 'НАСТРОЙКИ' : 'SYSTEM', href: '/system', icon: Settings, color: 'text-primary' },
-    { label: language === 'ru' ? 'ПОИСК' : 'SEARCH', href: '/search', icon: Search, color: 'text-blue-500' },
+    { id: 'reports', label: language === 'ru' ? 'ОБЗОР МАТЧА' : 'MATCH REVIEW', href: '/reports', icon: Tv, color: 'text-primary', badge: totalUnreadCount > 0 ? totalUnreadCount : null },
+    { id: 'squad', label: language === 'ru' ? 'СОСТАВ КОМАНДЫ' : 'SQUAD', href: '/roster/squad', icon: Users, color: 'text-blue-400' },
+    { id: 'transfers', label: language === 'ru' ? 'ТРАНСФЕРЫ' : 'TRANSFERS', href: '/transfers', icon: ArrowRightLeft, color: 'text-yellow-500' },
+    { id: 'training', label: language === 'ru' ? 'РАЗВИТИЕ' : 'INFRA', href: '/training', icon: Construction, color: 'text-orange-400' },
+    { id: 'staff', label: language === 'ru' ? 'ПЕРСОНАЛ' : 'STAFF', href: '/staff', icon: Briefcase, color: 'text-amber-500' },
+    { id: 'scouting', label: language === 'ru' ? 'ПОИСК ТАЛАНТОВ' : 'SCOUTING', href: '/youth-academy/scouting', icon: Radar, color: 'text-purple-400' },
+    { id: 'rankings', label: language === 'ru' ? 'ТАБЛИЦЫ' : 'RANKINGS', href: '/rankings', icon: LayoutList, color: 'text-green-400' },
+    { id: 'matches', label: language === 'ru' ? 'РАСПИСАНИЕ' : 'SCHEDULE', href: '/matches', icon: CalendarDays, color: 'text-red-400' },
+    { id: 'finances', label: language === 'ru' ? 'ФИНАНСЫ' : 'FINANCES', href: '/finances', icon: LineChart, color: 'text-emerald-400' },
+    { id: 'tournaments', label: language === 'ru' ? 'ТУРНИРЫ' : 'TOURNAMENTS', href: '/tournaments', icon: Swords, color: 'text-yellow-400' },
+    { id: 'fanclub', label: language === 'ru' ? 'ФАН БАЗА' : 'FANBASE', href: '/fanclub', icon: Heart, color: 'text-pink-400' },
+    { id: 'top', label: language === 'ru' ? 'ТОП СЕЗОНА' : 'SEASON TOP', href: '/rankings', icon: Medal, color: 'text-amber-500' },
+    { id: 'chats', label: language === 'ru' ? 'ЧАТЫ' : 'CHATS', href: '/chats', icon: MessageSquare, color: 'text-cyan-400' },
+    { id: 'friends', label: language === 'ru' ? 'ДРУЗЬЯ' : 'FRIENDS', href: '/managers', icon: UserCheck, color: 'text-indigo-400' },
+    { id: 'profile', label: language === 'ru' ? 'О СЕБЕ' : 'PROFILE', href: '/profile', icon: UserIcon, color: 'text-rose-400' },
+    { id: 'associations', label: language === 'ru' ? 'АССОЦИАЦИИ' : 'ALLIANCE', href: '/associations', icon: Shield, color: 'text-sky-400' },
+    { id: 'shop', label: language === 'ru' ? 'МАГАЗИН' : 'SHOP', href: '/shop', icon: ShoppingCart, color: 'text-lime-400' },
+    { id: 'news', label: language === 'ru' ? 'НОВОСТИ' : 'NEWS', href: '/news', icon: Newspaper, color: 'text-slate-400' },
+    { id: 'system', label: language === 'ru' ? 'НАСТРОЙКИ' : 'SYSTEM', href: '/system', icon: Settings, color: 'text-primary', isSystem: true },
+    { id: 'search', label: language === 'ru' ? 'ПОИСК' : 'SEARCH', href: '/search', icon: Search, color: 'text-blue-500' },
   ];
 
   const currentNextMatch = resolvedNextMatch?.match;
-  const isNextMatchLive = currentNextMatch ? isMatchLive(currentNextMatch.startTime) : false;
 
   return (
-    <div className="relative min-h-screen flex flex-col bg-[#0a0d14] overflow-x-hidden">
+    <div className="relative min-h-[calc(100dvh-4rem-6rem)] h-[calc(100dvh-4rem-6rem)] flex flex-col bg-[#0a0d14] overflow-hidden">
       {/* BACKGROUND MAP EFFECT */}
-      <div className="absolute inset-0 bg-[url('https://i.postimg.cc/7Z9Xp0mP/map-overlay.png')] bg-cover bg-center opacity-10 pointer-events-none" />
+      <div className="absolute inset-0 z-0 opacity-10 pointer-events-none">
+        <Image 
+          src="https://i.postimg.cc/7Z9Xp0mP/map-overlay.png" 
+          alt="" 
+          fill 
+          className="object-cover object-center"
+          unoptimized={true}
+        />
+      </div>
       
-      <div className="flex-1 w-full max-w-md mx-auto px-4 pt-4 pb-32 z-10">
+      <div className="flex-1 w-full max-w-md mx-auto px-4 pt-4 flex flex-col z-10 overflow-hidden">
         
         {/* NEXT MATCH TACTICAL CARD */}
-        <Card className="relative overflow-hidden mb-6 border-white/10 bg-gradient-to-br from-[#121c2e] to-[#0a0d14] rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.5)]">
-          <div className="absolute inset-0 bg-[url('https://i.postimg.cc/7L4vKjS3/tactical-map.jpg')] bg-cover bg-center opacity-40 mix-blend-overlay" />
+        <Card className="relative overflow-hidden mb-4 border-white/10 bg-[#121c2e] rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.5)] shrink-0 min-h-[140px]">
+          <div className="absolute inset-0 z-0 opacity-40 mix-blend-overlay">
+             <Image 
+                src="https://i.postimg.cc/7L4vKjS3/tactical-map.jpg" 
+                alt="" 
+                fill 
+                className="object-cover object-center"
+                unoptimized={true}
+             />
+          </div>
           <CardContent className="p-5 flex items-center justify-between relative z-10">
             <div className="flex items-center gap-4">
-              <div className="w-16 h-16 rounded-xl bg-secondary/60 border border-primary/30 flex items-center justify-center shadow-[0_0_20px_rgba(56,189,248,0.2)]">
-                <Swords className="w-8 h-8 text-primary" />
+              <div className="w-14 h-14 rounded-xl bg-secondary/60 border border-primary/30 flex items-center justify-center shadow-[0_0_20px_rgba(56,189,248,0.2)]">
+                <Swords className="w-7 h-7 text-primary" />
               </div>
               <div>
-                <p className="text-[10px] font-black text-primary/80 uppercase tracking-widest mb-1">{language === 'ru' ? 'СЛЕДУЮЩИЙ СОПЕРНИК' : 'NEXT OPPONENT'}</p>
-                <h2 className="text-xl font-headline font-bold text-white uppercase tracking-tight">{resolvedNextMatch?.opponentName || 'BOT0110017'}</h2>
-                <p className="text-[10px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'ТУР' : 'TOUR'} {currentNextMatch?.tour || 2}</p>
+                <p className="text-[9px] font-black text-primary/80 uppercase tracking-widest mb-1">{language === 'ru' ? 'СЛЕДУЮЩИЙ СОПЕРНИК' : 'NEXT OPPONENT'}</p>
+                <h2 className="text-lg font-headline font-bold text-white uppercase tracking-tight truncate max-w-[140px]">{resolvedNextMatch?.opponentName || 'SEARCHING...'}</h2>
+                <p className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'ТУР' : 'TOUR'} {currentNextMatch?.tour || '--'}</p>
               </div>
             </div>
             <div className="text-right">
-              <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest mb-1">{language === 'ru' ? 'ДО МАТЧА' : 'UNTIL MATCH'}</p>
-              <p className="text-2xl font-headline font-black text-primary italic text-glow-blue">
-                {currentNextMatch ? getCountdown(currentNextMatch.startTime) : '23:35:54'}
+              <p className="text-[7px] font-black text-muted-foreground uppercase tracking-widest mb-1">{language === 'ru' ? 'ДО МАТЧА' : 'UNTIL MATCH'}</p>
+              <p className="text-xl font-headline font-black text-primary italic text-glow-blue tabular-nums">
+                {currentNextMatch ? getCountdown(currentNextMatch.startTime) : '00:00:00'}
               </p>
             </div>
           </CardContent>
           {/* DECORATIVE DESK ICON */}
-          <div className="absolute bottom-[-15px] left-1/2 -translate-x-1/2 w-32 opacity-80 pointer-events-none">
+          <div className="absolute bottom-[-15px] left-1/2 -translate-x-1/2 w-28 opacity-80 pointer-events-none z-20">
             <img src="https://i.postimg.cc/VvPz5xM7/desk-ui.png" alt="" className="w-full h-auto" />
           </div>
         </Card>
 
-        {/* MAIN MENU GRID */}
-        <div className="grid grid-cols-4 gap-2.5">
+        {/* MAIN MENU GRID - Compact for no scroll */}
+        <div className="grid grid-cols-4 gap-2 flex-1 mb-2">
           {menuItems.map((item) => (
-            <Link key={item.label} href={item.href}>
-              <Card className="aspect-square glass-card border-white/5 hover:border-primary/40 hover:bg-primary/5 transition-all group flex flex-col items-center justify-center p-1.5 relative rounded-[1.5rem]">
-                <div className={cn("transition-transform duration-300 group-hover:scale-110", item.color)}>
-                  <item.icon className="w-8 h-8" />
-                </div>
+            <Link key={item.id} href={item.href} className="block">
+              <Card className="aspect-square glass-card border-white/5 hover:border-primary/40 hover:bg-primary/5 transition-all group flex flex-col items-center justify-center p-1 relative rounded-[1.25rem] overflow-hidden">
+                {item.isSystem ? (
+                  <div className="relative w-12 h-12 transition-transform duration-300 group-hover:scale-110">
+                     <Image 
+                        src="https://i.ibb.co/07QQCFT/1787830105436.png" 
+                        alt="System" 
+                        fill 
+                        className="object-contain"
+                        unoptimized={true}
+                     />
+                  </div>
+                ) : (
+                  <>
+                    <div className={cn("transition-transform duration-300 group-hover:scale-110", item.color)}>
+                      <item.icon className="w-7 h-7" />
+                    </div>
+                    <span className="text-[7px] font-black uppercase text-center text-muted-foreground group-hover:text-white mt-1.5 leading-none tracking-tighter">
+                      {item.label}
+                    </span>
+                  </>
+                )}
+                
                 {item.badge && (
-                  <div className="absolute top-2 right-2">
-                    <Badge className="bg-red-500 text-white text-[8px] h-4 min-w-[16px] px-1 font-black animate-pulse border-none shadow-lg">
+                  <div className="absolute top-1.5 right-1.5">
+                    <Badge className="bg-red-500 text-white text-[7px] h-3.5 min-w-[14px] px-1 font-black animate-pulse border-none shadow-lg">
                       {item.badge}
                     </Badge>
                   </div>
                 )}
-                {/* LABELS ONLY FOR NON-SYSTEM OR AS PER DESIGN */}
-                <span className="text-[7px] font-black uppercase text-center text-muted-foreground group-hover:text-white mt-2 leading-none tracking-tighter">
-                  {item.label}
-                </span>
               </Card>
             </Link>
           ))}
