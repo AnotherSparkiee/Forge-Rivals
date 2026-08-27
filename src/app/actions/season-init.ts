@@ -1,7 +1,7 @@
 'use server';
 
 /**
- * @fileOverview Серверный модуль инициализации v65 (Resilient Initialization).
+ * @fileOverview Серверный модуль инициализации v66 (Resilient Initialization).
  * Добавлена JIT-инициализация групп, если они отсутствуют в базе.
  */
 
@@ -101,6 +101,9 @@ export async function initializeClubV11(userId: string, data: any) {
     };
     delete stats[botId];
     batch.update(tableRef, { stats, updatedAt: serverTimestamp() });
+  } else {
+    // Если бот уже заменен кем-то другим, нам нужно найти новое место
+    console.log(`[INIT] Slot ${botId} already occupied. This should not happen during re-seeding.`);
   }
 
   // ОБНОВЛЕНИЕ КАЛЕНДАРЯ

@@ -1,7 +1,7 @@
 'use server';
 
 /**
- * @fileOverview Скрипт-синхронизатор v50 (Global Reseeder).
+ * @fileOverview Скрипт-синхронизатор v52 (Global Reseeder).
  * Реализует полную пересадку всех команд в актуальный Season 1 по дате регистрации.
  */
 
@@ -15,7 +15,7 @@ import { initializeLeagueWorld } from './world-engine';
 import { findStrategicPlacement, initializeClubV11 } from './season-init';
 
 /**
- * ГЛОБАЛЬНЫЙ РЕМОНТ МИРА v50.
+ * ГЛОБАЛЬНЫЙ РЕМОНТ МИРА v52.
  * Фаза 1: Постройка структуры 511 групп.
  * Фаза 2: Переселение ВСЕХ реальных игроков в Season 1 по приоритету createdAt.
  */
@@ -94,10 +94,6 @@ export async function runGlobalEmergencyRepair() {
         processed++;
       } catch (e: any) {
         console.error(`[RESEED ERROR] ${pDoc.id}:`, e.message);
-        // Если мир еще не достроен до нужной группы — останавливаемся
-        if (e.message?.includes('LEAGUE_SECTOR_NOT_READY')) {
-           return { status: 'AWAITING_REINIT' };
-        }
       }
 
       lastCreatedAt = p.createdAt;
