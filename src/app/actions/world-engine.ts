@@ -1,13 +1,14 @@
 'use server';
 
 /**
- * @fileOverview Глобальный двигатель инициализации мира v2.0 (Atomic Batch Logic).
- * Оптимизирован для предотвращения таймаутов в облачных средах.
+ * @fileOverview Глобальный двигатель инициализации мира v2.2 (Self-Healing & Atomic).
+ * Исправлены ошибки сохранения прогресса (чекпойнты после каждой группы) 
+ * и внедрена защита от перезаписи существующих данных игроков.
  */
 
 import { 
   doc, getDoc, writeBatch, 
-  Firestore, serverTimestamp, setDoc, updateDoc 
+  Firestore, serverTimestamp, setDoc 
 } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import { 
@@ -18,7 +19,7 @@ import {
 } from '@/app/lib/leagues-data';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 
-const GROUPS_PER_CHUNK = 30; // Уменьшено для предотвращения таймаутов
+const GROUPS_PER_CHUNK = 30; // Лимит групп за один вызов для стабильности в облаке
 
 /**
  * Создает структуру конкретной группы (таблица + календарь).
@@ -86,7 +87,14 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
     
     status = data.status;
     currentTier = data.lastTier || 1;
+    // Начинаем со следующей группы после последней успешно записанной
     currentGroup = (data.lastGroup || 0) + 1; 
+  }
+
+  // Если группа вышла за пределы тира при инкременте — переходим на следующий тир
+  if (currentGroup > Math.pow(2, currentTier - 1)) {
+    currentTier++;
+    currentGroup = 1;
   }
 
   if (currentTier > 9) {
@@ -111,15 +119,30 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
     const maxGroupsInTier = Math.pow(2, tier - 1);
     
     while (group <= maxGroupsInTier && groupsProcessed < GROUPS_PER_CHUNK) {
-      await createGroupStructure(db, leagueId, tier, group, seasonNum);
+      const tableId = `table_S${seasonNum}_L${leagueId}_V${tier}_G${group}`;
+      const tableRef = doc(db, 'league_tables_v1', tableId);
+      
+      // ПРОВЕРКА: Если группа уже создана (например, там реальный игрок), пропускаем создание
+      const checkSnap = await getDoc(tableRef);
+      if (!checkSnap.exists()) {
+        console.log(`[WORLD ENGINE] Creating group S${seasonNum} V${tier} G${group}`);
+        await createGroupStructure(db, leagueId, tier, group, seasonNum);
+      } else {
+        console.log(`[WORLD ENGINE] Group S${seasonNum} V${tier} G${group} already exists. Skipping.`);
+      }
+
       groupsProcessed++;
       
+      // ЧЕКПОЙНТ: Сохраняем прогресс СРАЗУ после каждой группы
+      // Это предотвращает откат к началу порции при таймауте
+      await setDoc(statusRef, { 
+        lastTier: tier,
+        lastGroup: group,
+        status: 'processing',
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+
       if (groupsProcessed >= GROUPS_PER_CHUNK) {
-        await setDoc(statusRef, { 
-          lastTier: tier,
-          lastGroup: group,
-          status: 'processing'
-        }, { merge: true });
         return { success: true, processed: groupsProcessed, lastTier: tier, lastGroup: group, isComplete: false };
       }
 
@@ -135,18 +158,18 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
   
   const isFullyComplete = tier > 9;
   
-  await setDoc(statusRef, { 
-    lastTier: isFullyComplete ? 9 : tier,
-    lastGroup: isFullyComplete ? 256 : group,
-    status: isFullyComplete ? 'completed' : 'processing',
-    finishedAt: isFullyComplete ? serverTimestamp() : null
-  }, { merge: true });
+  if (isFullyComplete) {
+    await setDoc(statusRef, { 
+      status: 'completed',
+      finishedAt: serverTimestamp()
+    }, { merge: true });
+  }
 
   return { 
     success: true, 
     processed: groupsProcessed, 
-    lastTier: tier, 
-    lastGroup: group,
+    lastTier: isFullyComplete ? 9 : tier, 
+    lastGroup: isFullyComplete ? 256 : group,
     isComplete: isFullyComplete 
   };
 }
