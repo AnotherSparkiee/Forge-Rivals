@@ -2,13 +2,13 @@
 'use server';
 
 /**
- * @fileOverview Глобальный двигатель инициализации мира v1.4.
- * Создает всю структуру лиги (511 групп) со всеми ботами и календарями.
+ * @fileOverview Глобальный двигатель инициализации мира v1.5 (Chunked Processing).
+ * Теперь создает структуру лиги порциями по 8 групп за вызов, чтобы избежать таймаутов.
  */
 
 import { 
-  collection, doc, getDoc, writeBatch, 
-  Firestore, serverTimestamp, setDoc 
+  doc, getDoc, writeBatch, 
+  Firestore, serverTimestamp, setDoc, updateDoc 
 } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import { 
@@ -19,34 +19,11 @@ import {
 } from '@/app/lib/leagues-data';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 
-class FirestoreBatcher {
-  private count = 0;
-  private batch;
-  constructor(private db: Firestore) {
-    this.batch = writeBatch(db);
-  }
-
-  async set(ref: any, data: any) {
-    this.batch.set(ref, data);
-    this.count++;
-    if (this.count >= 450) {
-      await this.commit();
-      this.batch = writeBatch(this.db);
-      this.count = 0;
-    }
-  }
-
-  async commit() {
-    if (this.count > 0) {
-      await this.batch.commit();
-      this.count = 0;
-    }
-  }
-}
+const GROUPS_PER_CHUNK = 8; // ~450 операций в батче (1 таблица + 56 матчей) * 8 = 456
 
 /**
- * Инициализирует весь мир лиги для конкретного сезона.
- * Генерирует 511 групп, 511 таблиц и ~28616 матчей.
+ * Инициализирует мир лиги порциями. 
+ * Возвращает статус прогресса.
  */
 export async function initializeLeagueWorld(leagueId: string, targetSeason?: number) {
   const { firestore: db } = initializeFirebase();
@@ -55,23 +32,58 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
 
   const statusRef = doc(db, 'system_v1', `init_S${seasonNum}_L${leagueId}`);
   const statusSnap = await getDoc(statusRef);
-  if (statusSnap.exists() && statusSnap.data().status === 'completed') {
-    return { success: true, alreadyDone: true };
+  
+  let currentTier = 1;
+  let currentGroup = 1;
+  let status = 'idle';
+
+  if (statusSnap.exists()) {
+    const data = statusSnap.data();
+    if (data.status === 'completed') return { success: true, alreadyDone: true };
+    status = data.status;
+    currentTier = data.lastTier || 1;
+    currentGroup = data.lastGroup || 1;
+    
+    // Если мы уже начинали, то следующая группа - это +1 к последней обработанной
+    if (status === 'processing' && data.lastGroup > 0) {
+      currentGroup++;
+      if (currentGroup > getGroupsCountInLevel(currentTier)) {
+        currentGroup = 1;
+        currentTier++;
+      }
+    }
   }
 
-  await setDoc(statusRef, { status: 'processing', startedAt: serverTimestamp() }, { merge: true });
+  // Если все дивизионы пройдены
+  if (currentTier > 9) {
+    await updateDoc(statusRef, { status: 'completed', finishedAt: serverTimestamp() });
+    return { success: true, finished: true };
+  }
 
-  console.log(`[WORLD ENGINE v1.4] STARTING GLOBAL INIT: League ${leagueId}, Season ${seasonNum}`);
+  console.log(`[WORLD ENGINE v1.5] Chunk: T${currentTier} G${currentGroup} for Season ${seasonNum}`);
 
-  let totalGroupsCreated = 0;
+  if (status === 'idle') {
+    await setDoc(statusRef, { 
+      status: 'processing', 
+      startedAt: serverTimestamp(),
+      lastTier: currentTier,
+      lastGroup: 0
+    }, { merge: true });
+  }
 
-  for (let tier = 1; tier <= 9; tier++) {
-    const groupsInTier = getGroupsCountInLevel(tier);
-    for (let group = 1; group <= groupsInTier; group++) {
+  let groupsProcessed = 0;
+  let tier = currentTier;
+  let group = currentGroup;
+
+  const batch = writeBatch(db);
+
+  while (groupsProcessed < GROUPS_PER_CHUNK && tier <= 9) {
+    const maxGroupsInTier = getGroupsCountInLevel(tier);
+    
+    while (group <= maxGroupsInTier && groupsProcessed < GROUPS_PER_CHUNK) {
       const tableId = `table_S${seasonNum}_L${leagueId}_V${tier}_G${group}`;
       const tableRef = doc(db, 'league_tables_v1', tableId);
       
-      const groupBatcher = new FirestoreBatcher(db);
       const initialStats: any = {};
       const teamsForCalendar = [];
 
@@ -85,7 +97,7 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
         teamsForCalendar.push({ id: bId, name: bId, rank: r });
       }
 
-      await groupBatcher.set(tableRef, {
+      batch.set(tableRef, {
         id: tableId, leagueId, level: tier, group, season: seasonNum,
         stats: initialStats,
         createdAt: serverTimestamp(),
@@ -95,7 +107,7 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
       const calendar = generateSeasonCalendar(teamsForCalendar, seasonNum, leagueId);
       for (const m of calendar) {
         const mId = `match_S${seasonNum}_L${leagueId}_V${tier}_G${group}_T${m.tour}_R${m.homeRank}_vs_R${m.awayRank}`;
-        await groupBatcher.set(doc(db, 'matches_v1', mId), {
+        batch.set(doc(db, 'matches_v1', mId), {
           ...m,
           id: mId,
           leagueId, level: tier, groupId: group, season: seasonNum,
@@ -104,11 +116,35 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
         });
       }
 
-      await groupBatcher.commit();
-      totalGroupsCreated++;
+      groupsProcessed++;
+      if (groupsProcessed < GROUPS_PER_CHUNK) {
+        group++;
+        if (group > maxGroupsInTier) {
+          tier++;
+          group = 1;
+          if (tier > 9) break;
+        }
+      }
     }
+    if (tier > 9 || groupsProcessed >= GROUPS_PER_CHUNK) break;
   }
 
-  await setDoc(statusRef, { status: 'completed', finishedAt: serverTimestamp() }, { merge: true });
-  return { success: true, created: totalGroupsCreated };
+  await batch.commit();
+  
+  const isFullyComplete = tier > 9 || (tier === 9 && group === getGroupsCountInLevel(9));
+  
+  await updateDoc(statusRef, { 
+    lastTier: tier > 9 ? 9 : tier,
+    lastGroup: group,
+    status: isFullyComplete ? 'completed' : 'processing',
+    finishedAt: isFullyComplete ? serverTimestamp() : null
+  });
+
+  return { 
+    success: true, 
+    processed: groupsProcessed, 
+    lastTier: tier, 
+    lastGroup: group,
+    isComplete: isFullyComplete 
+  };
 }

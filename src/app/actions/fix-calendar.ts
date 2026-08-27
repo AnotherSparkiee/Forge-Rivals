@@ -2,151 +2,120 @@
 'use server';
 
 /**
- * @fileOverview Скрипт-миграция v45: Глобальное восстановление мира под Сезон 1.
- * Выполняет две задачи:
- * 1. Создает структуру мира (511 групп) для актуального номера сезона.
- * 2. Перепривязывает всех существующих игроков к новым таблицам и календарям.
+ * @fileOverview Скрипт-миграция v46 (Chunked Repair).
+ * Разделяет процесс восстановления на безопасные этапы.
  */
 
 import { 
   collection, getDocs, writeBatch, doc, getDoc,
-  serverTimestamp, query, where, Firestore 
+  serverTimestamp, query, where, Firestore, setDoc, limit, startAfter, updateDoc
 } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 import { 
   getGroupsCountInLevel, getBotId, TEAMS_PER_GROUP, generateSeasonCalendar 
 } from '@/app/lib/leagues-data';
-
-class FirestoreBatcher {
-  private count = 0;
-  private batch;
-  constructor(private db: Firestore) {
-    this.batch = writeBatch(db);
-  }
-  async set(ref: any, data: any, options?: any) {
-    this.batch.set(ref, data, options || {});
-    this.count++;
-    if (this.count >= 480) await this.commit();
-  }
-  async update(ref: any, data: any) {
-    this.batch.update(ref, data);
-    this.count++;
-    if (this.count >= 480) await this.commit();
-  }
-  async commit() {
-    if (this.count > 0) {
-      await this.batch.commit();
-      this.batch = writeBatch(this.db);
-      this.count = 0;
-    }
-  }
-}
+import { initializeLeagueWorld } from './world-engine';
 
 /**
- * ГЛОБАЛЬНЫЙ РЕМОНТ МИРА.
- * Запускает цикл создания таблиц/матчей для S1 и миграцию игроков.
+ * ГЛОБАЛЬНЫЙ РЕМОНТ МИРА v46.
+ * Вызывает пошаговую инициализацию мира, а затем переносит игроков.
  */
 export async function runGlobalEmergencyRepair() {
   const { firestore: db } = initializeFirebase();
   const info = getGlobalSeasonInfo();
-  const seasonNum = info.activeSeasonNumber; // Гарантированно 1 при новой эпохе
+  const seasonNum = info.activeSeasonNumber;
   const leagueId = "ALPHA";
 
-  console.log(`[REPAIR] Starting full world restoration for Season ${seasonNum}...`);
+  const repairStatusRef = doc(db, 'system_v1', `repair_S${seasonNum}_L${leagueId}`);
+  const repairSnap = await getDoc(repairStatusRef);
+  const repairData = repairSnap.exists() ? repairSnap.data() : { phase: 'INIT_WORLD' };
 
-  const batcher = new FirestoreBatcher(db);
+  console.log(`[REPAIR v46] Current Phase: ${repairData.phase}`);
 
-  // 1. ПЕРЕИНИЦИАЛИЗАЦИЯ ВСЕХ 511 ГРУПП (Создаем пустой мир из ботов)
-  for (let tier = 1; tier <= 9; tier++) {
-    const groupsInTier = getGroupsCountInLevel(tier);
-    for (let group = 1; group <= groupsInTier; group++) {
-      const tableId = `table_S${seasonNum}_L${leagueId}_V${tier}_G${group}`;
-      const initialStats: any = {};
-      const teamsForCalendar = [];
-
-      for (let r = 1; r <= TEAMS_PER_GROUP; r++) {
-        const bId = getBotId(leagueId, tier, group, r);
-        initialStats[bId] = {
-          id: bId, name: bId, rank: r,
-          matchesPlayed: 0, wins: 0, draws: 0, losses: 0, points: 0, diff: 0,
-          isBot: true
-        };
-        teamsForCalendar.push({ id: bId, name: bId, rank: r });
-      }
-
-      await batcher.set(doc(db, 'league_tables_v1', tableId), {
-        id: tableId, leagueId, level: tier, group, season: seasonNum,
-        stats: initialStats,
-        createdAt: serverTimestamp(),
-        version: 45
-      });
-
-      const calendar = generateSeasonCalendar(teamsForCalendar, seasonNum, leagueId);
-      calendar.forEach(m => {
-        const mId = `match_S${seasonNum}_L${leagueId}_V${tier}_G${group}_T${m.tour}_R${m.homeRank}_vs_R${m.awayRank}`;
-        batcher.set(doc(db, 'matches_v1', mId), {
-          ...m,
-          id: mId, leagueId, level: tier, groupId: group, season: seasonNum,
-          isFinished: false, scoreA: 0, scoreB: 0,
-          version: 45
-        });
-      });
+  // ФАЗА 1: Создание структуры мира через world-engine (порционно)
+  if (repairData.phase === 'INIT_WORLD') {
+    const worldRes = await initializeLeagueWorld(leagueId, seasonNum);
+    if (worldRes.isComplete) {
+      await setDoc(repairStatusRef, { phase: 'MIGRATE_PLAYERS', lastPlayerId: null }, { merge: true });
+      return { status: 'PHASE_COMPLETE', nextPhase: 'MIGRATE_PLAYERS' };
     }
+    return { status: 'PROCESSING_WORLD', ...worldRes };
   }
-  await batcher.commit();
 
-  // 2. МИГРАЦИЯ РЕАЛЬНЫХ ИГРОКОВ (Внедряем их в только что созданный мир S1)
-  const playersSnap = await getDocs(collection(db, 'players_v11'));
-  console.log(`[REPAIR] Relinking ${playersSnap.size} players to Season ${seasonNum} tables...`);
-
-  for (const pDoc of playersSnap.docs) {
-    const p = pDoc.data();
-    const tier = Number(p.leagueLevel);
-    const group = Number(p.groupId);
-    const rank = Number(p.rank);
-    const userId = p.id;
-    const clubName = p.clubName || p.displayName;
-    const clubLogo = p.clubLogo || null;
-
-    const botId = getBotId(leagueId, tier, group, rank);
-    const tableId = `table_S${seasonNum}_L${leagueId}_V${tier}_G${group}`;
-    const tableRef = doc(db, 'league_tables_v1', tableId);
+  // ФАЗА 2: Перенос реальных игроков в новую структуру (порционно по 20 игроков)
+  if (repairData.phase === 'MIGRATE_PLAYERS') {
+    const playersQ = repairData.lastPlayerId 
+      ? query(collection(db, 'players_v11'), orderBy('__name__'), startAfter(repairData.lastPlayerId), limit(20))
+      : query(collection(db, 'players_v11'), orderBy('__name__'), limit(20));
     
-    // Обновляем таблицу
-    const tableSnap = await getDoc(tableRef);
-    if (tableSnap.exists()) {
-      const stats = { ...tableSnap.data().stats };
-      if (stats[botId]) {
-        stats[userId] = {
-          ...stats[botId],
-          id: userId, name: clubName, clubLogo: clubLogo, isBot: false
-        };
-        delete stats[botId];
-        await batcher.update(tableRef, { stats, updatedAt: serverTimestamp() });
-      }
+    const pSnap = await getDocs(playersQ);
+    if (pSnap.empty) {
+      await updateDoc(repairStatusRef, { phase: 'COMPLETED', finishedAt: serverTimestamp() });
+      return { status: 'ALL_COMPLETE' };
     }
 
-    // Обновляем календарь для этого игрока
-    const matchesQ = query(collection(db, 'matches_v1'), 
-      where('leagueId', '==', leagueId),
-      where('level', '==', tier),
-      where('groupId', '==', group),
-      where('season', '==', seasonNum)
-    );
-    const mSnap = await getDocs(matchesQ);
-    mSnap.forEach(mDoc => {
-      const mData = mDoc.data();
-      const updates: any = {};
-      if (mData.homeId === botId) { updates.homeId = userId; updates.homeName = clubName; updates.homeLogo = clubLogo; }
-      if (mData.awayId === botId) { updates.awayId = userId; updates.awayName = clubName; updates.awayLogo = clubLogo; }
-      if (Object.keys(updates).length > 0) {
-        batcher.update(mDoc.ref, updates);
+    const batch = writeBatch(db);
+    let lastId = repairData.lastPlayerId;
+
+    for (const pDoc of pSnap.docs) {
+      const p = pDoc.data();
+      const tier = Number(p.leagueLevel);
+      const group = Number(p.groupId);
+      const rank = Number(p.rank);
+      const userId = p.id;
+      const clubName = p.clubName || p.displayName;
+      const clubLogo = p.clubLogo || null;
+
+      const botId = getBotId(leagueId, tier, group, rank);
+      const tableId = `table_S${seasonNum}_L${leagueId}_V${tier}_G${group}`;
+      const tableRef = doc(db, 'league_tables_v1', tableId);
+      
+      // Обновляем таблицу (атомарно через dot-notation для безопасности)
+      const statsPath = `stats.${botId}`;
+      const newStatsPath = `stats.${userId}`;
+      
+      // Получаем текущие данные для переноса накопленной ботом статистики
+      const tableSnap = await getDoc(tableRef);
+      if (tableSnap.exists()) {
+        const stats = tableSnap.data().stats;
+        if (stats[botId]) {
+          const botStats = stats[botId];
+          const updatedStats = { ...stats };
+          updatedStats[userId] = {
+            ...botStats,
+            id: userId, name: clubName, clubLogo: clubLogo, isBot: false
+          };
+          delete updatedStats[botId];
+          batch.update(tableRef, { stats: updatedStats, updatedAt: serverTimestamp() });
+        }
       }
-    });
+
+      // Обновляем матчи игрока
+      const matchesQ = query(collection(db, 'matches_v1'), 
+        where('leagueId', '==', leagueId),
+        where('level', '==', tier),
+        where('groupId', '==', group),
+        where('season', '==', seasonNum)
+      );
+      const mSnap = await getDocs(matchesQ);
+      mSnap.forEach(mDoc => {
+        const mData = mDoc.data();
+        const updates: any = {};
+        if (mData.homeId === botId) { updates.homeId = userId; updates.homeName = clubName; updates.homeLogo = clubLogo; }
+        if (mData.awayId === botId) { updates.awayId = userId; updates.awayName = clubName; updates.awayLogo = clubLogo; }
+        if (Object.keys(updates).length > 0) {
+          batch.update(mDoc.ref, updates);
+        }
+      });
+
+      lastId = pDoc.id;
+    }
+
+    await batch.commit();
+    await updateDoc(repairStatusRef, { lastPlayerId: lastId });
+    return { status: 'MIGRATING', processed: pSnap.size, lastId };
   }
 
-  await batcher.commit();
-  console.log(`[REPAIR] World restoration sequence COMPLETED.`);
-  return { success: true };
+  return { status: 'ALREADY_DONE' };
 }
