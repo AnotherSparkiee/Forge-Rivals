@@ -2,7 +2,8 @@
 'use server';
 
 /**
- * @fileOverview Глобальный двигатель инициализации мира v1.7 (High-Throughput).
+ * @fileOverview Глобальный двигатель инициализации мира v1.8 (Fixed Multi-Group Logic).
+ * Исправлена ошибка, из-за которой создавалась только одна группа на дивизион.
  */
 
 import { 
@@ -18,7 +19,7 @@ import {
 } from '@/app/lib/leagues-data';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 
-const GROUPS_PER_CHUNK = 50; 
+const GROUPS_PER_CHUNK = 40; 
 
 /**
  * Создает структуру конкретной группы (таблица + календарь).
@@ -66,6 +67,7 @@ export async function createGroupStructure(db: Firestore, leagueId: string, tier
 
 /**
  * Инициализирует мир лиги порциями. 
+ * Генерирует пирамиду из 511 групп.
  */
 export async function initializeLeagueWorld(leagueId: string, targetSeason?: number) {
   const { firestore: db } = initializeFirebase();
@@ -82,17 +84,14 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
   if (statusSnap.exists()) {
     const data = statusSnap.data();
     if (data.status === 'completed') return { success: true, isComplete: true };
+    
     status = data.status;
     currentTier = data.lastTier || 1;
-    currentGroup = data.lastGroup || 0;
+    currentGroup = (data.lastGroup || 0) + 1; // Начинаем со следующей после сохраненной
     
-    // Переход к следующей группе
-    if (status === 'processing') {
-      currentGroup++;
-      if (currentGroup > getGroupsCountInLevel(currentTier)) {
-        currentGroup = 1;
-        currentTier++;
-      }
+    if (currentGroup > getGroupsCountInLevel(currentTier)) {
+      currentGroup = 1;
+      currentTier++;
     }
   }
 
@@ -119,25 +118,31 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
     
     while (group <= maxGroupsInTier && groupsProcessed < GROUPS_PER_CHUNK) {
       await createGroupStructure(db, leagueId, tier, group, seasonNum);
-      
       groupsProcessed++;
-      if (groupsProcessed < GROUPS_PER_CHUNK) {
-        group++;
-        if (group > maxGroupsInTier) {
-          tier++;
-          group = 1;
-          if (tier > 9) break;
-        }
+      
+      if (groupsProcessed >= GROUPS_PER_CHUNK) {
+        // Мы достигли лимита чанка. Сохраняем текущие координаты.
+        await updateDoc(statusRef, { 
+          lastTier: tier,
+          lastGroup: group,
+          status: 'processing'
+        });
+        return { success: true, processed: groupsProcessed, lastTier: tier, lastGroup: group, isComplete: false };
       }
+
+      group++;
     }
-    if (tier > 9 || groupsProcessed >= GROUPS_PER_CHUNK) break;
+    
+    // Если внутренний цикл закончился (прошли все группы в тире)
+    tier++;
+    group = 1;
   }
   
   const isFullyComplete = tier > 9;
   
   await updateDoc(statusRef, { 
-    lastTier: tier > 9 ? 9 : tier,
-    lastGroup: group,
+    lastTier: isFullyComplete ? 9 : (tier - 1),
+    lastGroup: isFullyComplete ? getGroupsCountInLevel(9) : group,
     status: isFullyComplete ? 'completed' : 'processing',
     finishedAt: isFullyComplete ? serverTimestamp() : null
   });
@@ -145,7 +150,7 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
   return { 
     success: true, 
     processed: groupsProcessed, 
-    lastTier: tier, 
+    lastTier: tier > 9 ? 9 : tier, 
     lastGroup: group,
     isComplete: isFullyComplete 
   };
