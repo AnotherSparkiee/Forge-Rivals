@@ -1,32 +1,25 @@
 'use server';
 
 /**
- * @fileOverview ГЛОБАЛЬНЫЙ АВТОНОМНЫЙ ДВИГАТЕЛЬ ЛИГИ v1.2 (Fully Automated).
- * Обрабатывает матчи и смену сезона без участия клиента.
+ * @fileOverview ГЛОБАЛЬНЫЙ АВТОНОМНЫЙ ДВИГАТЕЛЬ ЛИГИ v1.3 (Self-Healing Heartbeat).
+ * Обрабатывает матчи, смену сезона и автоматически чинит мир при необходимости.
  */
 
 import { 
   collection, doc, getDocs, getDoc, query, where, 
-  writeBatch, serverTimestamp, Timestamp, increment,
-  Firestore, setDoc, updateDoc, limit, startAfter, orderBy
+  writeBatch, serverTimestamp, increment,
+  Firestore, limit
 } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
-import { 
-  getGroupsCountInLevel, getPromotionTarget, getRelegationTarget, 
-  TEAMS_PER_GROUP, generateSeasonCalendar, getBotId, getMatchResult 
-} from '@/app/lib/leagues-data';
+import { getMatchResult } from '@/app/lib/leagues-data';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
+import { runGlobalEmergencyRepair } from './fix-calendar';
 
 class FirestoreBatcher {
   private count = 0;
   private batch;
   constructor(private db: Firestore) {
     this.batch = writeBatch(db);
-  }
-  async set(ref: any, data: any, options?: any) {
-    this.batch.set(ref, data, options || {});
-    this.count++;
-    if (this.count >= 480) await this.commit();
   }
   async update(ref: any, data: any) {
     this.batch.update(ref, data);
@@ -43,16 +36,27 @@ class FirestoreBatcher {
 }
 
 /**
- * РАСЧЕТ МАТЧЕЙ ТУРА.
- * Выполняется в 18:46 МСК ежедневно.
+ * РАСЧЕТ МАТЧЕЙ ТУРА + ПРОВЕРКА ЦЕЛОСТНОСТИ МИРА.
  */
 export async function resolveDailyMatches() {
   const { firestore: db } = initializeFirebase();
   const info = getGlobalSeasonInfo();
   const currentSeason = info.activeSeasonNumber;
   
+  // 1. Проверяем, завершена ли инициализация/ремонт мира
+  const repairStatusRef = doc(db, 'system_v1', `repair_S${currentSeason}_LALPHA`);
+  const repairSnap = await getDoc(repairStatusRef);
+  const isRepairComplete = repairSnap.exists() && repairSnap.data().phase === 'COMPLETED';
+
+  if (!isRepairComplete) {
+    console.log(`[HEARTBEAT] World not ready for S${currentSeason}. Triggering autonomous repair.`);
+    const repairResult = await runGlobalEmergencyRepair();
+    return { success: true, status: "REPAIRING", progress: repairResult.status };
+  }
+
   if (info.isOffseason) return { success: true, count: 0, msg: "Offseason: matches paused" };
 
+  // 2. Ищем матчи для расчета
   const q = query(
     collection(db, 'matches_v1'),
     where('season', '==', currentSeason),
@@ -124,7 +128,6 @@ export async function performSeasonTransition() {
     return { alreadyDone: true };
   }
 
-  // TODO: Пошаговый цикл миграции всех 4088 команд
   console.log(`[AUTONOMOUS CYCLE] Awaiting chunked migration for Season ${currentSeason}`);
   return { status: "AWAITING_CHUNKS" };
 }

@@ -1,8 +1,8 @@
 'use server';
 
 /**
- * @fileOverview Скрипт-миграция v48 (Fully Autonomous Chunked Repair).
- * Обеспечивает пошаговое создание мира и миграцию игроков без участия UI.
+ * @fileOverview Скрипт-миграция v49 (Final Synchronizer).
+ * Исправлены импорты и логика объединения всех игроков в общий мир Сезона 1.
  */
 
 import { 
@@ -11,14 +11,12 @@ import {
 } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
-import { 
-  getGroupsCountInLevel, getBotId, TEAMS_PER_GROUP, generateSeasonCalendar 
-} from '@/app/lib/leagues-data';
+import { getBotId } from '@/app/lib/leagues-data';
 import { initializeLeagueWorld } from './world-engine';
 
 /**
- * ГЛОБАЛЬНЫЙ РЕМОНТ МИРА v48.
- * Разработан для вызова через Cloud Scheduler.
+ * ГЛОБАЛЬНЫЙ РЕМОНТ МИРА v49.
+ * Выполняется пошагово: сначала строится структура 511 групп, затем мигрируют игроки.
  */
 export async function runGlobalEmergencyRepair() {
   const { firestore: db } = initializeFirebase();
@@ -32,21 +30,21 @@ export async function runGlobalEmergencyRepair() {
 
   console.log(`[AUTONOMOUS REPAIR] Season ${seasonNum}, Phase: ${repairData.phase}`);
 
-  // ФАЗА 1: Пошаговое создание структуры мира (по 8 групп за вызов)
+  // ФАЗА 1: Пошаговое создание структуры мира (все дивизионы)
   if (repairData.phase === 'INIT_WORLD') {
     const worldRes = await initializeLeagueWorld(leagueId, seasonNum);
     if (worldRes.isComplete) {
       await setDoc(repairStatusRef, { phase: 'MIGRATE_PLAYERS', lastPlayerId: null }, { merge: true });
       return { status: 'PHASE_COMPLETE', nextPhase: 'MIGRATE_PLAYERS' };
     }
-    return { status: 'PROCESSING_WORLD', progress: `T${worldRes.lastTier} G${worldRes.lastGroup}` };
+    return { status: 'PROCESSING_WORLD', progress: `Tier ${worldRes.lastTier}, Group ${worldRes.lastGroup}` };
   }
 
   // ФАЗА 2: Перенос зарегистрированных игроков в новую структуру (по 20 игроков за вызов)
   if (repairData.phase === 'MIGRATE_PLAYERS') {
     const playersQ = repairData.lastPlayerId 
-      ? query(collection(db, 'players_v11'), orderBy('__name__'), startAfter(repairData.lastPlayerId), limit(20))
-      : query(collection(db, 'players_v11'), orderBy('__name__'), limit(20));
+      ? query(collection(db, 'players_v11'), orderBy('id'), startAfter(repairData.lastPlayerId), limit(20))
+      : query(collection(db, 'players_v11'), orderBy('id'), limit(20));
     
     const pSnap = await getDocs(playersQ);
     if (pSnap.empty) {
@@ -59,9 +57,9 @@ export async function runGlobalEmergencyRepair() {
 
     for (const pDoc of pSnap.docs) {
       const p = pDoc.data();
-      const tier = Number(p.leagueLevel);
-      const group = Number(p.groupId);
-      const rank = Number(p.rank);
+      const tier = Number(p.leagueLevel || 9);
+      const group = Number(p.groupId || 1);
+      const rank = Number(p.rank || 1);
       const userId = p.id;
       const clubName = p.clubName || p.displayName;
       const clubLogo = p.clubLogo || null;
@@ -75,6 +73,7 @@ export async function runGlobalEmergencyRepair() {
         const tableData = tableSnap.data();
         const stats = { ...tableData.stats };
         
+        // Если бот еще в таблице - заменяем его на игрока
         if (stats[botId]) {
           const botStats = stats[botId];
           stats[userId] = {
@@ -86,7 +85,7 @@ export async function runGlobalEmergencyRepair() {
         }
       }
 
-      // Обновляем матчи игрока в новой структуре
+      // Обновляем матчи игрока в новой структуре (заменяем Bot ID на User ID)
       const matchesQ = query(collection(db, 'matches_v1'), 
         where('leagueId', '==', leagueId),
         where('level', '==', tier),
