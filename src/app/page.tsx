@@ -110,7 +110,7 @@ export default function Home() {
 
   if (isUserLoading || !isLoaded || !isDataReady) return <LoadingScreen />;
 
-  const systemIconUrl = PlaceHolderImages.find(img => img.id === 'ui-system-icon')?.imageUrl || "https://i.ibb.co/07QQCFT/1787830105436.png";
+  const systemIconUrl = "https://i.ibb.co/07QQCFT/1787830105436.png";
 
   const menuItems = [
     { label: language === 'ru' ? 'ОБЗОР МАТЧА' : 'MATCH OVERVIEW', href: '/reports', icon: Tv, color: 'text-primary', badge: totalUnreadCount > 0 ? totalUnreadCount : null },
@@ -131,7 +131,7 @@ export default function Home() {
     { label: language === 'ru' ? 'АССОЦИАЦИИ' : 'ALLIANCE', href: '/associations', icon: Shield, color: 'text-sky-400' },
     { label: language === 'ru' ? 'МАГАЗИН' : 'SHOP', href: '/shop', icon: ShoppingCart, color: 'text-lime-400' },
     { label: language === 'ru' ? 'НОВОСТИ' : 'NEWS', href: '/news', icon: Newspaper, color: 'text-slate-400' },
-    { label: language === 'ru' ? 'СИСТЕМА' : 'SYSTEM', href: '/system', icon: null, imageUrl: systemIconUrl, color: 'text-zinc-400' },
+    { label: 'SYSTEM', href: '/system', icon: null, imageUrl: systemIconUrl, color: 'text-zinc-400' },
     { label: language === 'ru' ? 'ПОИСК' : 'SEARCH', href: '/search', icon: Search, color: 'text-blue-500' },
   ];
 
@@ -139,7 +139,7 @@ export default function Home() {
   const seasonInfo = getGlobalSeasonInfo();
   const isNextMatchLive = currentNextMatch ? isMatchLive(currentNextMatch.startTime) : false;
 
-  const systemLabel = language === 'ru' ? 'СИСТЕМА' : 'SYSTEM';
+  const systemLabel = 'SYSTEM';
 
   return (
     <div className="relative h-[calc(100dvh-3.5rem-5rem)] flex flex-col overflow-hidden bg-[#0a0d14]">
@@ -232,12 +232,12 @@ export default function Home() {
           <div className="grid grid-cols-4 gap-2 w-full py-2">
             {menuItems.map((item) => (
               <Link key={item.label} href={item.href}>
-                <Card className="glass-card hover:bg-white/5 transition-all active:scale-95 duration-75 border-white/5 group aspect-square flex flex-col items-center justify-center p-1 relative overflow-visible">
-                  <div className={cn("transition-colors mb-1.5 flex items-center justify-center", item.color)}>
+                <div className="group aspect-square flex flex-col items-center justify-center p-1 relative overflow-visible transition-all active:scale-90 duration-75">
+                  <div className={cn("transition-all duration-300 flex items-center justify-center", item.color)}>
                     {item.icon ? (
-                      <item.icon className="w-6 h-6" />
+                      <item.icon className="w-7 h-7 group-hover:scale-110" />
                     ) : (
-                      <img src={item.imageUrl} className="w-6 h-6 object-contain" alt="" />
+                      <img src={item.imageUrl} className="w-10 h-10 object-contain group-hover:scale-110" alt="" />
                     )}
                   </div>
                   {item.badge && (
@@ -251,11 +251,11 @@ export default function Home() {
                     </div>
                   )}
                   {item.label !== systemLabel && (
-                    <span className="text-[7px] font-black uppercase text-center text-muted-foreground group-hover:text-white transition-colors leading-tight px-0.5">
+                    <span className="text-[7px] font-black uppercase text-center text-muted-foreground group-hover:text-white transition-colors leading-tight px-0.5 mt-1.5">
                       {item.label}
                     </span>
                   )}
-                </Card>
+                </div>
               </Link>
             ))}
           </div>
