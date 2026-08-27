@@ -1,5 +1,5 @@
 /**
- * @fileOverview Ядро лиг v70: Детерминированные ID ботов и формат имен Bot01.
+ * @fileOverview Ядро лиг v71: Финальные имена ботов Bot01{Level}{Rank}.
  */
 
 import { GLOBAL_EPOCH_ISO } from './time-utils';
