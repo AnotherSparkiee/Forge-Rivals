@@ -1,13 +1,13 @@
 'use server';
 
 /**
- * @fileOverview Скрипт-синхронизатор v52 (Global Reseeder).
+ * @fileOverview Скрипт-синхронизатор v53 (Global Reseeder).
  * Реализует полную пересадку всех команд в актуальный Season 1 по дате регистрации.
  */
 
 import { 
   collection, getDocs, doc, getDoc,
-  serverTimestamp, query, where, limit, startAfter, updateDoc, orderBy 
+  serverTimestamp, query, where, limit, startAfter, updateDoc, orderBy, setDoc 
 } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
@@ -15,7 +15,7 @@ import { initializeLeagueWorld } from './world-engine';
 import { findStrategicPlacement, initializeClubV11 } from './season-init';
 
 /**
- * ГЛОБАЛЬНЫЙ РЕМОНТ МИРА v52.
+ * ГЛОБАЛЬНЫЙ РЕМОНТ МИРА v53.
  * Фаза 1: Постройка структуры 511 групп.
  * Фаза 2: Переселение ВСЕХ реальных игроков в Season 1 по приоритету createdAt.
  */
@@ -36,7 +36,7 @@ export async function runGlobalEmergencyRepair() {
     const worldRes = await initializeLeagueWorld(leagueId, seasonNum);
     if (worldRes.isComplete) {
       // Переходим к фазе пересадки игроков
-      await updateDoc(repairStatusRef, { phase: 'RESEED_PLAYERS', lastCreatedAt: null });
+      await setDoc(repairStatusRef, { phase: 'RESEED_PLAYERS', lastCreatedAt: null }, { merge: true });
       return { status: 'PHASE_COMPLETE', nextPhase: 'RESEED_PLAYERS' };
     }
     return { status: 'PROCESSING_WORLD', progress: `Tier ${worldRes.lastTier}, Group ${worldRes.lastGroup}` };
@@ -45,18 +45,20 @@ export async function runGlobalEmergencyRepair() {
   // ФАЗА 2: Переселение игроков (по 5 игроков за вызов)
   if (repairData.phase === 'RESEED_PLAYERS') {
     // Выбираем тех, кто еще не в текущем сезоне, начиная с самых ранних регистраций
-    const playersQ = repairData.lastCreatedAt 
-      ? query(
-          collection(db, 'players_v11'), 
-          orderBy('createdAt', 'asc'), 
-          startAfter(repairData.lastCreatedAt), 
-          limit(5)
-        )
-      : query(
-          collection(db, 'players_v11'), 
-          orderBy('createdAt', 'asc'), 
-          limit(5)
-        );
+    let playersQ = query(
+      collection(db, 'players_v11'), 
+      orderBy('createdAt', 'asc'), 
+      limit(5)
+    );
+
+    if (repairData.lastCreatedAt) {
+      playersQ = query(
+        collection(db, 'players_v11'), 
+        orderBy('createdAt', 'asc'), 
+        startAfter(repairData.lastCreatedAt), 
+        limit(5)
+      );
+    }
     
     const pSnap = await getDocs(playersQ);
     if (pSnap.empty) {
@@ -99,7 +101,7 @@ export async function runGlobalEmergencyRepair() {
       lastCreatedAt = p.createdAt;
     }
 
-    await updateDoc(repairStatusRef, { lastCreatedAt });
+    await setDoc(repairStatusRef, { lastCreatedAt }, { merge: true });
     return { status: 'RESEEDING', processed };
   }
 
