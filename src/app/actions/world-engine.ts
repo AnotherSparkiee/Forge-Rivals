@@ -1,11 +1,11 @@
 'use server';
 
 /**
- * Глобальный двигатель перезагрузки мира v17 (Nuclear High-Speed Builder).
+ * Глобальный двигатель заполнения мира v18 (Safe Gap-Filler).
  * Особенности:
- * 1. Скорость: Обрабатывает до 25 групп за один вызов через Multi-Batch.
- * 2. Надежность: Полный цикл WIPING -> INIT_WORLD для нового сезона.
- * 3. Имена ботов: Строгое соответствие Bot01{Level}{Rank}.
+ * 1. Безопасность: Не перезаписывает существующие группы (защита игроков).
+ * 2. Автономность: Сканирует до 150 секторов, заполняя пустоты ботами.
+ * 3. Атомарность: Каждая группа создается в отдельном батче с отметкой прогресса.
  */
 
 import { 
@@ -22,12 +22,9 @@ import {
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 
 const TOTAL_GROUPS = 511; 
-const GROUPS_PER_CALL = 25; 
+const GROUPS_TO_CREATE_PER_CALL = 7; 
 const MAX_SCAN_LIMIT = 150; 
 
-/**
- * Рассчитывает координаты группы (Tier, Group) по сквозному индексу 1..511.
- */
 function getGroupCoordinates(index: number) {
   if (index < 1) return { tier: 1, group: 1 };
   let tier = 1;
@@ -40,12 +37,9 @@ function getGroupCoordinates(index: number) {
     runningTotal += groupsInTier;
     tier++;
   }
-  return { tier: 1, group: 1 };
+  return { tier: 9, group: 256 };
 }
 
-/**
- * Ядро подготовки данных группы (Таблица + Календарь).
- */
 function injectGroupToBatch(
   batch: any, 
   db: Firestore, 
@@ -75,7 +69,7 @@ function injectGroupToBatch(
     id: tableId, leagueId, level: tier, group, season: seasonNum,
     stats: initialStats,
     createdAt: serverTimestamp(),
-    version: 17
+    version: 18
   });
 
   const calendar = generateSeasonCalendar(teamsForCalendar, seasonNum, leagueId);
@@ -86,39 +80,11 @@ function injectGroupToBatch(
       id: mId,
       leagueId, level: tier, groupId: group, season: seasonNum,
       isFinished: false, scoreA: 0, scoreB: 0,
-      version: 17
+      version: 18
     });
   }
 }
 
-/**
- * Очистка данных группы.
- */
-function wipeGroupInBatch(
-  batch: any, 
-  db: Firestore, 
-  leagueId: string, 
-  tier: number, 
-  group: number, 
-  seasonNum: number
-) {
-  const tableId = `table_S${seasonNum}_L${leagueId}_V${tier}_G${group}`;
-  batch.delete(doc(db, 'league_tables_v1', tableId));
-
-  // Очистка матчей (на основе шаблона рангов)
-  for (let t = 1; tour <= 14; tour++) {
-    // В циклах турнира обычно 4 матча на тур в группе из 8 команд
-    for (let r = 1; r <= 8; r++) {
-       // Мы не знаем точно кто с кем, поэтому удаляем все возможные комбинации (упрощенно)
-       // Но лучше удалять по ID, который мы генерируем детерминировано в inject
-    }
-  }
-  // Для простоты WIPING в v17 мы удаляем только документы таблиц, а матчи будут перезаписаны
-}
-
-/**
- * Главный цикл инициализации мира. 
- */
 export async function initializeLeagueWorld(leagueId: string, targetSeason?: number) {
   const { firestore: db } = initializeFirebase();
   const info = getGlobalSeasonInfo();
@@ -127,22 +93,19 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
   const statusRef = doc(db, 'system_v1', `init_S${seasonNum}_L${leagueId}`);
   const statusSnap = await getDoc(statusRef);
   
-  let phase = 'WIPING'; 
   let currentIndex = 0;
-
   if (statusSnap.exists()) {
     const data = statusSnap.data();
     if (data.status === 'completed') return { success: true, isComplete: true };
-    phase = data.phase || 'WIPING';
     currentIndex = data.currentIndex || 0;
   }
 
-  let processedInThisCall = 0;
+  let createdInThisCall = 0;
   let scannedInThisCall = 0;
 
-  console.log(`[WORLD v17] Season ${seasonNum} | Phase: ${phase} | From: ${currentIndex}`);
+  console.log(`[WORLD v18] Scanning from index ${currentIndex}...`);
 
-  while (processedInThisCall < GROUPS_PER_CALL && currentIndex < TOTAL_GROUPS && scannedInThisCall < MAX_SCAN_LIMIT) {
+  while (createdInThisCall < GROUPS_TO_CREATE_PER_CALL && currentIndex < TOTAL_GROUPS && scannedInThisCall < MAX_SCAN_LIMIT) {
     currentIndex++;
     scannedInThisCall++;
     const coords = getGroupCoordinates(currentIndex);
@@ -150,65 +113,51 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
     const tableId = `table_S${seasonNum}_L${leagueId}_V${coords.tier}_G${coords.group}`;
     const tableRef = doc(db, 'league_tables_v1', tableId);
     
-    // В фазе INIT_WORLD проверяем, не создана ли уже группа (защита от дублей)
-    if (phase === 'INIT_WORLD') {
-      const checkSnap = await getDoc(tableRef);
-      if (checkSnap.exists()) continue; 
+    // ПРОВЕРКА СУЩЕСТВОВАНИЯ (Защита реальных игроков)
+    const checkSnap = await getDoc(tableRef);
+    if (checkSnap.exists() && checkSnap.data().stats) {
+      // Группа уже есть, просто обновляем currentIndex в статусе (но не в батче, чтобы сэкономить операции)
+      continue; 
     }
 
     const batch = writeBatch(db);
-    
-    if (phase === 'WIPING') {
-      batch.delete(tableRef);
-    } else {
-      injectGroupToBatch(batch, db, leagueId, coords.tier, coords.group, seasonNum);
-    }
+    injectGroupToBatch(batch, db, leagueId, coords.tier, coords.group, seasonNum);
 
-    // Сохраняем прогресс после КАЖДОЙ группы
+    // Обновляем прогресс при каждой успешной вставке группы
     batch.set(statusRef, {
-      phase,
       currentIndex,
       lastTier: coords.tier,
       lastGroup: coords.group,
       updatedAt: serverTimestamp(),
       status: 'processing',
-      version: 17
+      version: 18
     }, { merge: true });
 
     await batch.commit();
-    processedInThisCall++;
+    createdInThisCall++;
   }
 
-  // Смена фаз или завершение
+  // Обновляем финальный currentIndex если мы просто просканировали существующие группы
+  if (createdInThisCall === 0 && scannedInThisCall > 0) {
+    await setDoc(statusRef, { currentIndex, updatedAt: serverTimestamp() }, { merge: true });
+  }
+
   if (currentIndex >= TOTAL_GROUPS) {
-    if (phase === 'WIPING') {
-      await setDoc(statusRef, { 
-        phase: 'INIT_WORLD', 
-        currentIndex: 0, 
-        updatedAt: serverTimestamp() 
-      }, { merge: true });
-      return { success: true, phase: 'PHASE_CHANGED', next: 'INIT_WORLD' };
-    } else {
-      await setDoc(statusRef, { 
-        status: 'completed', 
-        updatedAt: serverTimestamp() 
-      }, { merge: true });
-      return { success: true, isComplete: true };
-    }
+    await setDoc(statusRef, { 
+      status: 'completed', 
+      updatedAt: serverTimestamp() 
+    }, { merge: true });
+    return { success: true, isComplete: true };
   }
 
   return { 
     success: true, 
-    phase, 
     currentIndex, 
-    processed: processedInThisCall,
+    created: createdInThisCall,
     scanned: scannedInThisCall
   };
 }
 
-/**
- * JIT-создание структуры группы (безопасное).
- */
 export async function createGroupStructure(
   db: any, 
   leagueId: string, 
