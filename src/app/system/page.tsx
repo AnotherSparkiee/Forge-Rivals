@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useGameState } from '../lib/store';
@@ -16,16 +15,10 @@ import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query } from 'firebase/firestore';
 import { useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
-import { runGlobalEmergencyRepair } from '@/app/actions/fix-calendar';
-import { useToast } from '@/hooks/use-toast';
 
 export default function SystemPage() {
   const { language } = useGameState();
   const db = useFirestore();
-  const { toast } = useToast();
-
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [syncStatus, setSyncStatus] = useState<string | null>(null);
 
   // Запрос всех игроков v11 для подсчета статистики
   const playersQuery = useMemoFirebase(() => {
@@ -50,25 +43,6 @@ export default function SystemPage() {
     return { total: Math.max(total, 0), online: Math.max(onlineCount, 0) };
   }, [players]);
 
-  const handleSyncWorld = async () => {
-    setIsSyncing(true);
-    try {
-      const res = await runGlobalEmergencyRepair();
-      setSyncStatus(res.details || res.status);
-      
-      if (res.status === 'ALL_COMPLETE' || res.status === 'ALREADY_DONE') {
-        toast({ title: language === 'ru' ? "Синхронизация завершена!" : "Sync Complete!" });
-      } else {
-        toast({ title: language === 'ru' ? "Порция обработана" : "Chunk Processed" });
-      }
-    } catch (e) {
-      console.error(e);
-      toast({ variant: "destructive", title: "Sync Failed" });
-    } finally {
-      setIsSyncing(false);
-    }
-  };
-
   const t = {
     ru: { 
       title: "СИСТЕМА", 
@@ -83,13 +57,10 @@ export default function SystemPage() {
       rolesDesc: "Специализации и позиции на карте",
       items: "Предметы",
       itemsDesc: "Каталог артефактов и снаряжения",
-      bonuses: "Список Подарков",
+      bonuses: "Реестр Подарков",
       bonusesDesc: "Справочник дипломатических грузов S-Tier",
       loading: "Синхронизация...",
-      hostId: "ID хоста",
-      syncTitle: "ГЛОБАЛЬНАЯ СИНХРОНИЗАЦИЯ",
-      syncBtn: "СИНХРОНИЗИРОВАТЬ МИР",
-      syncDesc: "Нажмите для пошагового развертывания 511 групп лиги и переноса игроков."
+      hostId: "ID хоста"
     },
     en: { 
       title: "SYSTEM", 
@@ -104,13 +75,10 @@ export default function SystemPage() {
       rolesDesc: "Specializations and roles",
       items: "Items",
       itemsDesc: "Artifact and equipment catalog",
-      bonuses: "Gifts List",
+      bonuses: "Gifts Registry",
       bonusesDesc: "Guide to S-Tier diplomatic cargo",
       loading: "Syncing...",
-      hostId: "Host ID",
-      syncTitle: "GLOBAL SYNCHRONIZATION",
-      syncBtn: "SYNC WORLD STRUCTURE",
-      syncDesc: "Click to deploy 511 league groups and migrate players chunk by chunk."
+      hostId: "Host ID"
     }
   }[language === 'ru' ? 'ru' : 'en'];
 
@@ -162,38 +130,6 @@ export default function SystemPage() {
               </CardContent>
             </Card>
           </div>
-        </section>
-
-        {/* НОВЫЙ БЛОК СИНХРОНИЗАЦИИ */}
-        <section className="space-y-3">
-           <h2 className="text-[10px] font-black uppercase tracking-widest text-primary px-1">{t.syncTitle}</h2>
-           <Card className="glass-card border-primary/20 bg-primary/5">
-              <CardContent className="p-4 space-y-4">
-                 <div className="flex gap-4">
-                    <div className="p-2.5 rounded-xl bg-primary/20 border border-primary/30 shrink-0">
-                       {isSyncing ? <RefreshCw className="w-6 h-6 text-primary animate-spin" /> : <Globe className="w-6 h-6 text-primary" />}
-                    </div>
-                    <div>
-                       <p className="text-[10px] text-muted-foreground leading-relaxed italic">
-                         "{t.syncDesc}"
-                       </p>
-                       {syncStatus && (
-                         <Badge variant="outline" className="mt-2 text-[8px] border-primary/30 text-primary uppercase font-black">
-                           STATUS: {syncStatus}
-                         </Badge>
-                       )}
-                    </div>
-                 </div>
-                 <Button 
-                   className="w-full h-12 hero-gradient font-black text-[10px] tracking-widest uppercase shadow-lg active:scale-95 transition-all"
-                   onClick={handleSyncWorld}
-                   disabled={isSyncing}
-                 >
-                   {isSyncing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <RefreshCw className="w-4 h-4 mr-2" />}
-                   {t.syncBtn}
-                 </Button>
-              </CardContent>
-           </Card>
         </section>
 
         <section className="space-y-2">

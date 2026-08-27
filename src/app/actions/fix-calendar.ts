@@ -1,9 +1,8 @@
-
 'use server';
 
 /**
- * @fileOverview Скрипт-миграция v47 (Chunked Repair & Sync).
- * Исправлены импорты и логика переноса игроков.
+ * @fileOverview Скрипт-миграция v48 (Fully Autonomous Chunked Repair).
+ * Обеспечивает пошаговое создание мира и миграцию игроков без участия UI.
  */
 
 import { 
@@ -18,8 +17,8 @@ import {
 import { initializeLeagueWorld } from './world-engine';
 
 /**
- * ГЛОБАЛЬНЫЙ РЕМОНТ МИРА v47.
- * Вызывает пошаговую инициализацию мира, а затем переносит игроков.
+ * ГЛОБАЛЬНЫЙ РЕМОНТ МИРА v48.
+ * Разработан для вызова через Cloud Scheduler.
  */
 export async function runGlobalEmergencyRepair() {
   const { firestore: db } = initializeFirebase();
@@ -31,23 +30,19 @@ export async function runGlobalEmergencyRepair() {
   const repairSnap = await getDoc(repairStatusRef);
   const repairData = repairSnap.exists() ? repairSnap.data() : { phase: 'INIT_WORLD' };
 
-  console.log(`[REPAIR v47] Current Phase: ${repairData.phase}`);
+  console.log(`[AUTONOMOUS REPAIR] Season ${seasonNum}, Phase: ${repairData.phase}`);
 
-  // ФАЗА 1: Создание структуры мира через world-engine (порционно по 8 групп)
+  // ФАЗА 1: Пошаговое создание структуры мира (по 8 групп за вызов)
   if (repairData.phase === 'INIT_WORLD') {
     const worldRes = await initializeLeagueWorld(leagueId, seasonNum);
     if (worldRes.isComplete) {
       await setDoc(repairStatusRef, { phase: 'MIGRATE_PLAYERS', lastPlayerId: null }, { merge: true });
-      return { status: 'PHASE_COMPLETE', nextPhase: 'MIGRATE_PLAYERS', details: 'World Structure Created' };
+      return { status: 'PHASE_COMPLETE', nextPhase: 'MIGRATE_PLAYERS' };
     }
-    return { 
-      status: 'PROCESSING_WORLD', 
-      progress: `Tier ${worldRes.lastTier}, Group ${worldRes.lastGroup}`,
-      details: 'Creating League Groups...' 
-    };
+    return { status: 'PROCESSING_WORLD', progress: `T${worldRes.lastTier} G${worldRes.lastGroup}` };
   }
 
-  // ФАЗА 2: Перенос реальных игроков в новую структуру (порционно по 20 игроков)
+  // ФАЗА 2: Перенос зарегистрированных игроков в новую структуру (по 20 игроков за вызов)
   if (repairData.phase === 'MIGRATE_PLAYERS') {
     const playersQ = repairData.lastPlayerId 
       ? query(collection(db, 'players_v11'), orderBy('__name__'), startAfter(repairData.lastPlayerId), limit(20))
@@ -56,7 +51,7 @@ export async function runGlobalEmergencyRepair() {
     const pSnap = await getDocs(playersQ);
     if (pSnap.empty) {
       await updateDoc(repairStatusRef, { phase: 'COMPLETED', finishedAt: serverTimestamp() });
-      return { status: 'ALL_COMPLETE', details: 'All players migrated successfully' };
+      return { status: 'ALL_COMPLETE' };
     }
 
     const batch = writeBatch(db);
@@ -114,8 +109,8 @@ export async function runGlobalEmergencyRepair() {
 
     await batch.commit();
     await updateDoc(repairStatusRef, { lastPlayerId: lastId });
-    return { status: 'MIGRATING', details: `Migrating users... Last ID: ${lastId.slice(0,5)}`, processed: pSnap.size };
+    return { status: 'MIGRATING', processed: pSnap.size };
   }
 
-  return { status: 'ALREADY_DONE', details: 'System is fully synchronized' };
+  return { status: 'ALREADY_DONE' };
 }
