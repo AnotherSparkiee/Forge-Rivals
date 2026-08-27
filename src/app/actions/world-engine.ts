@@ -1,9 +1,8 @@
-
 'use server';
 
 /**
- * @fileOverview Глобальный двигатель инициализации мира v1.9 (Atomic Batch Logic).
- * Создает полную пирамиду из 511 групп с ботами и расписанием.
+ * @fileOverview Глобальный двигатель инициализации мира v2.0 (Atomic Batch Logic).
+ * Оптимизирован для предотвращения таймаутов в облачных средах.
  */
 
 import { 
@@ -19,7 +18,7 @@ import {
 } from '@/app/lib/leagues-data';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 
-const GROUPS_PER_CHUNK = 40; 
+const GROUPS_PER_CHUNK = 30; // Уменьшено для предотвращения таймаутов
 
 /**
  * Создает структуру конкретной группы (таблица + календарь).
@@ -91,7 +90,7 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
   }
 
   if (currentTier > 9) {
-    await updateDoc(statusRef, { status: 'completed', finishedAt: serverTimestamp() });
+    await setDoc(statusRef, { status: 'completed', finishedAt: serverTimestamp() }, { merge: true });
     return { success: true, isComplete: true };
   }
 
@@ -116,11 +115,11 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
       groupsProcessed++;
       
       if (groupsProcessed >= GROUPS_PER_CHUNK) {
-        await updateDoc(statusRef, { 
+        await setDoc(statusRef, { 
           lastTier: tier,
           lastGroup: group,
           status: 'processing'
-        });
+        }, { merge: true });
         return { success: true, processed: groupsProcessed, lastTier: tier, lastGroup: group, isComplete: false };
       }
 
@@ -136,12 +135,12 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
   
   const isFullyComplete = tier > 9;
   
-  await updateDoc(statusRef, { 
+  await setDoc(statusRef, { 
     lastTier: isFullyComplete ? 9 : tier,
     lastGroup: isFullyComplete ? 256 : group,
     status: isFullyComplete ? 'completed' : 'processing',
     finishedAt: isFullyComplete ? serverTimestamp() : null
-  });
+  }, { merge: true });
 
   return { 
     success: true, 

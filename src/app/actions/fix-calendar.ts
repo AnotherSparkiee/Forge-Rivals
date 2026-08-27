@@ -1,9 +1,8 @@
-
 'use server';
 
 /**
- * @fileOverview Скрипт-синхронизатор v56 (Autonomous Global Reseeder).
- * Реализует полную пересадку всех команд в актуальный Season 1 по дате регистрации.
+ * @fileOverview Скрипт-синхронизатор v57 (Autonomous Global Reseeder).
+ * Оптимизирован для работы в условиях сетевых задержек.
  */
 
 import { 
@@ -15,12 +14,10 @@ import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 import { initializeLeagueWorld } from './world-engine';
 import { findStrategicPlacement, initializeClubV11 } from './season-init';
 
-const PLAYERS_PER_CHUNK = 25;
+const PLAYERS_PER_CHUNK = 20; // Уменьшено для предотвращения таймаутов записи
 
 /**
- * ГЛОБАЛЬНЫЙ РЕМОНТ МИРА v56.
- * Фаза 1: Постройка структуры 511 групп.
- * Фаза 2: Переселение ВСЕХ реальных игроков в Season 1 по приоритету createdAt.
+ * ГЛОБАЛЬНЫЙ РЕМОНТ МИРА v57.
  */
 export async function runGlobalEmergencyRepair() {
   const { firestore: db } = initializeFirebase();
@@ -38,7 +35,6 @@ export async function runGlobalEmergencyRepair() {
   if (repairData.phase === 'INIT_WORLD') {
     const worldRes = await initializeLeagueWorld(leagueId, seasonNum);
     if (worldRes.isComplete) {
-      // Переходим к фазе пересадки игроков
       await setDoc(repairStatusRef, { phase: 'RESEED_PLAYERS', lastCreatedAt: null }, { merge: true });
       return { status: 'PHASE_COMPLETE', nextPhase: 'RESEED_PLAYERS' };
     }
@@ -64,7 +60,7 @@ export async function runGlobalEmergencyRepair() {
     
     const pSnap = await getDocs(playersQ);
     if (pSnap.empty) {
-      await updateDoc(repairStatusRef, { phase: 'COMPLETED', finishedAt: serverTimestamp() });
+      await setDoc(repairStatusRef, { phase: 'COMPLETED', finishedAt: serverTimestamp() }, { merge: true });
       return { status: 'ALL_COMPLETE' };
     }
 
@@ -75,18 +71,13 @@ export async function runGlobalEmergencyRepair() {
       const p = pDoc.data();
       lastCreatedAt = p.createdAt;
       
-      // Идемпотентность: если игрок уже в Season 1 и его координаты актуальны - пропускаем
       if (p.lastProcessedSeason === seasonNum && p.selectedLeagueId === leagueId && p.leagueLevel && p.groupId) {
         continue;
       }
 
       try {
         console.log(`[RESEEDING] Moving manager ${p.clubName || p.displayName} (Registered: ${p.createdAt})`);
-        
-        // 1. Ищем новое место в Season 1 (начиная с верхних дивизионов)
         const placement = await findStrategicPlacement(leagueId);
-        
-        // 2. Выполняем захват слота и обновление профиля
         await initializeClubV11(pDoc.id, {
           ...p,
           tier: placement.tier,
@@ -95,7 +86,6 @@ export async function runGlobalEmergencyRepair() {
           selectedLeagueId: leagueId,
           lastProcessedSeason: seasonNum
         });
-
         processed++;
       } catch (e: any) {
         console.error(`[RESEED ERROR] ${pDoc.id}:`, e.message);
