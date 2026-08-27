@@ -2,7 +2,7 @@
 'use client';
 
 /**
- * @fileOverview ОФИЦИАЛЬНЫЙ ПЛЕЕР МАТЧЕЙ v6.4 (Database Target Fix).
+ * @fileOverview ОФИЦИАЛЬНЫЙ ПЛЕЕР МАТЧЕЙ v6.5 (Import & Style Fix).
  * Исправлена работа с базой данных: теперь система ищет матчи в 'matches_v1'.
  */
 
@@ -20,7 +20,7 @@ import {
   Timer, ChevronRight, Crown,
   Skull, Activity as ActivityIcon, Castle, Radio,
   Package, Sparkles, Flame, HeartPulse, GraduationCap,
-  Microscope, X
+  Microscope, X, Shield
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -476,7 +476,7 @@ function MatchContent() {
                   <div className="w-14 h-14 rounded-2xl bg-secondary/50 border border-white/5 flex items-center justify-center overflow-hidden p-2 shrink-0 shadow-lg">
                     {displayAwayLogo ? <img src={displayAwayLogo} alt="" className="w-full h-full object-contain" /> : <Shield className="w-6 h-6 text-muted-foreground/30" />}
                   </div>
-                  <p className="text-[9px] font-black uppercase truncate w-full text-center text-white/90 Bird-leading-tight">{resolvedMatchData.awayName}</p>
+                  <p className="text-[9px] font-black uppercase truncate w-full text-center text-white/90 leading-tight">{resolvedMatchData.awayName}</p>
                 </div>
               </div>
               
