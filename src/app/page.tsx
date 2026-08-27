@@ -118,18 +118,7 @@ export default function Home() {
   const currentNextMatch = resolvedNextMatch?.match;
 
   return (
-    <div className="relative min-h-[calc(100dvh-4rem-3.5rem)] h-[calc(100dvh-4rem-3.5rem)] flex flex-col bg-[#0a0d14] overflow-hidden">
-      {/* BACKGROUND MAP EFFECT */}
-      <div className="absolute inset-0 z-0 opacity-10 pointer-events-none">
-        <Image 
-          src="https://i.postimg.cc/7Z9Xp0mP/map-overlay.png" 
-          alt="" 
-          fill 
-          className="object-cover object-center"
-          unoptimized={true}
-        />
-      </div>
-      
+    <div className="relative min-h-[calc(100dvh-4rem-3.5rem)] h-[calc(100dvh-4rem-3.5rem)] flex flex-col overflow-hidden">
       <div className="flex-1 w-full max-w-md mx-auto px-4 pt-4 flex flex-col z-10 overflow-hidden">
         
         {/* NEXT MATCH TACTICAL CARD */}
@@ -156,7 +145,7 @@ export default function Home() {
             </div>
             <div className="text-right">
               <p className="text-[7px] font-black text-muted-foreground uppercase tracking-widest mb-1">{language === 'ru' ? 'ДО МАТЧА' : 'UNTIL MATCH'}</p>
-              <p className="text-xl font-headline font-black text-primary italic text-glow-blue tabular-nums">
+              <p className="text-xl font-headline font-black text-primary italic text-glow-blue tabular-nums leading-none">
                 {currentNextMatch ? getCountdown(currentNextMatch.startTime) : '00:00:00'}
               </p>
             </div>
