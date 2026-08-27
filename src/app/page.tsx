@@ -137,8 +137,16 @@ export default function Home() {
           
           <CardContent className="p-4 flex items-center justify-between relative z-10 h-full min-h-[110px]">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-xl bg-secondary/80 border border-primary/40 flex items-center justify-center shadow-[0_0_20px_rgba(56,189,248,0.3)]">
-                <Swords className="w-6 h-6 text-primary" />
+              <div className="w-12 h-12 rounded-xl bg-secondary/80 border border-primary/40 flex items-center justify-center shadow-[0_0_20px_rgba(56,189,248,0.3)] overflow-hidden">
+                {resolvedNextMatch?.opponentLogo ? (
+                  <img 
+                    src={resolvedNextMatch.opponentLogo} 
+                    alt="Opponent Logo" 
+                    className="w-full h-full object-contain p-1.5" 
+                  />
+                ) : (
+                  <Swords className="w-6 h-6 text-primary" />
+                )}
               </div>
               <div>
                 <p className="text-[8px] font-black text-primary uppercase tracking-widest mb-0.5 drop-shadow-[0_2px_3px_rgba(0,0,0,0.8)]">{language === 'ru' ? 'СЛЕДУЮЩИЙ СОПЕРНИК' : 'NEXT OPPONENT'}</p>
