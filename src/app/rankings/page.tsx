@@ -1,12 +1,13 @@
+
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGameState } from '../lib/store';
 import { 
   Trophy, ChevronLeft, ChevronRight, 
   Shield, Globe, Layers, RefreshCw,
-  ShieldAlert, ArrowUp, X, Circle
+  ShieldAlert, ArrowUp, X
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -34,7 +35,6 @@ export default function RankingsPage() {
   const [navLevel, setNavLevel] = useState<number | null>(null);
   const [navGroup, setNavGroup] = useState<number | null>(null);
 
-  // ПОЛУЧАЕМ ПРОФИЛЬ ТЕКУЩЕГО ПОЛЬЗОВАТЕЛЯ ИЗ БД (v11)
   const userProfileRef = useMemoFirebase(() => {
     if (!db || !user?.uid) return null;
     return doc(db, 'players_v11', user.uid);
@@ -42,12 +42,10 @@ export default function RankingsPage() {
 
   const { data: profile, isLoading: isProfileLoading } = useDoc(userProfileRef);
 
-  // ОПРЕДЕЛЯЕМ КОНТЕКСТ ПРОСМОТРА
   const contextLeagueId = String(navLeague || profile?.selectedLeagueId || "ALPHA");
   const contextLevel = Number(navLevel || profile?.leagueLevel || 9);
   const contextGroup = Number(navGroup || profile?.groupId || 1);
 
-  // ПОДПИСЫВАЕМСЯ НА ТАБЛИЦУ В БД
   const tableId = `table_S${seasonNumber}_L${contextLeagueId}_V${contextLevel}_G${contextGroup}`;
   const tableRef = useMemoFirebase(() => {
     if (!db || !isLoaded) return null;
@@ -56,7 +54,6 @@ export default function RankingsPage() {
 
   const { data: tableData, isLoading: isTableLoading } = useDoc(tableRef);
 
-  // ПОДПИСЫВАЕМСЯ НА ИГРОКОВ ГРУППЫ ДЛЯ ЛОГОТИПОВ
   const groupPlayersQuery = useMemoFirebase(() => {
     if (!db) return null;
     return query(collection(db, 'players_v11'), 
@@ -78,7 +75,6 @@ export default function RankingsPage() {
     return map;
   }, [groupPlayers]);
 
-  // СОРТИРОВКА ДАННЫХ
   const standings = useMemo(() => {
     if (!tableData?.stats) return [];
     
@@ -174,80 +170,77 @@ export default function RankingsPage() {
 
       {(activeTab === 'my_league' || navGroup) && (
         <div className="space-y-4 animate-in fade-in duration-500">
+           <div className="flex items-center justify-end px-1">
+             <div className="flex items-center gap-3 text-[7px] font-black uppercase tracking-widest">
+                <div className="flex items-center gap-1 text-green-400">
+                  <div className="w-2.5 h-2.5 rounded-full border border-green-400 flex items-center justify-center"><ArrowUp className="w-1.5 h-1.5" /></div>
+                  {t.promotion}
+                </div>
+                <div className="flex items-center gap-1 text-red-400">
+                  <div className="w-2.5 h-2.5 rounded-full border border-red-400 flex items-center justify-center"><X className="w-1.5 h-1.5" /></div>
+                  {t.relegation}
+                </div>
+             </div>
+           </div>
+
            {isTableLoading ? (
              <div className="py-20 flex flex-col items-center justify-center space-y-4 opacity-50">
                 <RefreshCw className="w-10 h-10 text-primary animate-spin" />
                 <p className="text-[10px] font-black uppercase tracking-[0.3em] text-primary">{t.loading}</p>
              </div>
            ) : standings.length > 0 ? (
-             <>
-               <div className="flex items-center justify-end px-1">
-                 <div className="flex items-center gap-3 text-[7px] font-black uppercase tracking-widest">
-                    <div className="flex items-center gap-1 text-green-400">
-                      <div className="w-2.5 h-2.5 rounded-full border border-green-400 flex items-center justify-center"><ArrowUp className="w-1.5 h-1.5" /></div>
-                      {t.promotion}
-                    </div>
-                    <div className="flex items-center gap-1 text-red-400">
-                      <div className="w-2.5 h-2.5 rounded-full border border-red-400 flex items-center justify-center"><X className="w-1.5 h-1.5" /></div>
-                      {t.relegation}
-                    </div>
-                 </div>
+             <div className="space-y-1">
+               <div className="grid grid-cols-[24px_1fr_25px_60px_35px] gap-1 px-3 py-2 text-[8px] font-black text-muted-foreground uppercase tracking-widest border-b border-white/5">
+                 <span>#</span><span>{t.team}</span><span className="text-center">{t.m}</span><span className="text-center">{t.winLoss}</span><span className="text-right">{t.pts}</span>
                </div>
-               
-               <div className="space-y-1">
-                 <div className="grid grid-cols-[24px_1fr_25px_60px_35px] gap-1 px-3 py-2 text-[8px] font-black text-muted-foreground uppercase tracking-widest border-b border-white/5">
-                   <span>#</span><span>{t.team}</span><span className="text-center">{t.m}</span><span className="text-center">{t.winLoss}</span><span className="text-right">{t.pts}</span>
-                 </div>
-                 {standings.map((entry: any, i: number) => {
-                   const pos = i + 1;
-                   const isMe = entry.id === user?.uid;
-                   const clubLogo = logoMap[entry.id] || entry.clubLogo;
-                   
-                   const isChampionZone = pos === 1;
-                   const isRelegationZone = pos >= 7;
+               {standings.map((entry: any, i: number) => {
+                 const pos = i + 1;
+                 const isMe = entry.id === user?.uid;
+                 const clubLogo = logoMap[entry.id] || entry.clubLogo;
+                 
+                 const isChampionZone = pos === 1;
+                 const isRelegationZone = pos >= 7;
 
-                   return (
-                    <div key={entry.id} className={cn(
-                      "grid grid-cols-[24px_1fr_25px_60px_35px] gap-1 items-center p-2.5 rounded-xl border mb-1 transition-all", 
-                      isMe ? "bg-primary/20 border-primary/40 shadow-[0_0_15px_rgba(var(--primary),0.1)] z-10" : 
-                      isChampionZone ? "bg-green-500/10 border-green-500/20 shadow-[0_0_10px_rgba(34,197,94,0.05)]" :
-                      isRelegationZone ? "bg-red-500/10 border-red-500/20" :
-                      "bg-secondary/20 border-white/5"
-                    )}>
-                      <div className={cn(
-                        "text-[10px] font-black italic",
-                        isMe ? "text-primary" : 
-                        isChampionZone ? "text-green-400" :
-                        isRelegationZone ? "text-red-400" :
-                        "text-muted-foreground"
-                      )}>{pos}</div>
-                      
-                      <div className="truncate flex items-center gap-2 min-w-0">
-                         {clubLogo ? (
-                           <img src={clubLogo} alt="" className="w-6 h-6 object-contain shrink-0" />
-                         ) : entry.isBot ? (
-                           <img src="https://i.postimg.cc/8cpvcNZ9/logo-lote.png" alt="Bot" className="w-7 h-7 object-contain shrink-0 drop-shadow-[0_0_10px_rgba(var(--primary),0.3)]" />
-                         ) : (
-                           <Shield className="w-4 h-4 text-primary/30 shrink-0" />
-                         )}
-                        <span className={cn(
-                          "text-[10px] font-bold uppercase truncate", 
-                          isMe ? "text-primary font-black" : "text-white/90"
-                        )}>
-                          {entry.name}
-                        </span>
-                      </div>
-                      
-                      <div className="text-center font-mono text-[9px] text-muted-foreground">{entry.matchesPlayed}</div>
-                      <div className="text-center font-mono text-[9px] text-muted-foreground/60">{entry.wins}-{entry.draws}-{entry.losses}</div>
-                      <div className="text-right pr-1">
-                        <span className="text-lg font-headline font-black text-primary italic leading-none">{entry.points}</span>
-                      </div>
+                 return (
+                  <div key={entry.id} className={cn(
+                    "grid grid-cols-[24px_1fr_25px_60px_35px] gap-1 items-center p-2.5 rounded-xl border mb-1 transition-all", 
+                    isMe ? "bg-primary/20 border-primary/40 shadow-[0_0_15px_rgba(var(--primary),0.1)] z-10" : 
+                    isChampionZone ? "bg-green-500/10 border-green-500/20" :
+                    isRelegationZone ? "bg-red-500/10 border-red-500/20" :
+                    "bg-secondary/20 border-white/5"
+                  )}>
+                    <div className={cn(
+                      "text-[10px] font-black italic",
+                      isChampionZone ? "text-green-400" :
+                      isRelegationZone ? "text-red-400" :
+                      "text-muted-foreground"
+                    )}>{pos}</div>
+                    
+                    <div className="truncate flex items-center gap-2 min-w-0">
+                       {clubLogo ? (
+                         <img src={clubLogo} alt="" className="w-6 h-6 object-contain shrink-0" />
+                       ) : entry.isBot ? (
+                         <img src="https://i.postimg.cc/8cpvcNZ9/logo-lote.png" alt="Bot" className="w-7 h-7 object-contain shrink-0 drop-shadow-[0_0_10px_rgba(var(--primary),0.3)]" />
+                       ) : (
+                         <Shield className="w-4 h-4 text-primary/30 shrink-0" />
+                       )}
+                      <span className={cn(
+                        "text-[10px] font-bold uppercase truncate", 
+                        isMe ? "text-primary font-black" : "text-white/90"
+                      )}>
+                        {entry.name}
+                      </span>
                     </div>
-                   );
-                 })}
-               </div>
-             </>
+                    
+                    <div className="text-center font-mono text-[9px] text-muted-foreground">{entry.matchesPlayed}</div>
+                    <div className="text-center font-mono text-[9px] text-muted-foreground/60">{entry.wins}-{entry.draws}-{entry.losses}</div>
+                    <div className="text-right pr-1">
+                      <span className="text-lg font-headline font-black text-primary italic leading-none">{entry.points}</span>
+                    </div>
+                  </div>
+                 );
+               })}
+             </div>
            ) : (
              <div className="py-20 text-center opacity-30 border border-dashed border-white/10 rounded-3xl p-10 flex flex-col items-center gap-4">
                 <ShieldAlert className="w-12 h-12 text-muted-foreground" />
