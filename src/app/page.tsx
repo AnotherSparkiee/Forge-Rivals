@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useGameState } from './lib/store';
@@ -123,8 +122,8 @@ export default function Home() {
       <div className="flex-1 w-full max-w-md mx-auto px-4 pt-4 flex flex-col z-10 overflow-hidden">
         
         {/* NEXT MATCH TACTICAL CARD */}
-        <Card className="relative overflow-hidden mb-4 border-white/10 bg-[#121c2e] rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.5)] shrink-0 min-h-[140px]">
-          <div className="absolute inset-0 z-0 opacity-40 mix-blend-overlay">
+        <Card className="relative overflow-hidden mb-4 border-white/20 bg-[#1a2b45] rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.5)] shrink-0 min-h-[140px]">
+          <div className="absolute inset-0 z-0 opacity-80">
              <Image 
                 src="https://i.ibb.co/Qj1q1TZV/IMG-20260827-161555.png" 
                 alt="" 
@@ -133,28 +132,27 @@ export default function Home() {
                 unoptimized={true}
              />
           </div>
+          {/* Light Overlay to make the map brighter */}
+          <div className="absolute inset-0 bg-white/5 z-1" />
+          
           <CardContent className="p-5 flex items-center justify-between relative z-10">
             <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-xl bg-secondary/60 border border-primary/30 flex items-center justify-center shadow-[0_0_20px_rgba(56,189,248,0.2)]">
+              <div className="w-14 h-14 rounded-xl bg-secondary/80 border border-primary/40 flex items-center justify-center shadow-[0_0_20px_rgba(56,189,248,0.3)]">
                 <Swords className="w-7 h-7 text-primary" />
               </div>
               <div>
-                <p className="text-[9px] font-black text-primary/80 uppercase tracking-widest mb-1">{language === 'ru' ? 'СЛЕДУЮЩИЙ СОПЕРНИК' : 'NEXT OPPONENT'}</p>
-                <h2 className="text-lg font-headline font-bold text-white uppercase tracking-tight truncate max-w-[140px]">{resolvedNextMatch?.opponentName || 'SEARCHING...'}</h2>
-                <p className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'ТУР' : 'TOUR'} {currentNextMatch?.tour || '--'}</p>
+                <p className="text-[9px] font-black text-primary uppercase tracking-widest mb-1 drop-shadow-md">{language === 'ru' ? 'СЛЕДУЮЩИЙ СОПЕРНИК' : 'NEXT OPPONENT'}</p>
+                <h2 className="text-lg font-headline font-bold text-white uppercase tracking-tight truncate max-w-[140px] drop-shadow-lg">{resolvedNextMatch?.opponentName || 'SEARCHING...'}</h2>
+                <p className="text-[9px] font-bold text-white/80 uppercase drop-shadow-md">{language === 'ru' ? 'ТУР' : 'TOUR'} {currentNextMatch?.tour || '--'}</p>
               </div>
             </div>
             <div className="text-right">
-              <p className="text-[7px] font-black text-muted-foreground uppercase tracking-widest mb-1">{language === 'ru' ? 'ДО МАТЧА' : 'UNTIL MATCH'}</p>
-              <p className="text-xl font-headline font-black text-primary italic text-glow-blue tabular-nums leading-none">
+              <p className="text-[7px] font-black text-white/70 uppercase tracking-widest mb-1 drop-shadow-md">{language === 'ru' ? 'ДО МАТЧА' : 'UNTIL MATCH'}</p>
+              <p className="text-xl font-headline font-black text-primary italic text-glow-blue tabular-nums leading-none drop-shadow-xl">
                 {currentNextMatch ? getCountdown(currentNextMatch.startTime) : '00:00:00'}
               </p>
             </div>
           </CardContent>
-          {/* DECORATIVE DESK ICON */}
-          <div className="absolute bottom-[-15px] left-1/2 -translate-x-1/2 w-28 opacity-80 pointer-events-none z-20">
-            <img src="https://i.postimg.cc/VvPz5xM7/desk-ui.png" alt="" className="w-full h-auto" />
-          </div>
         </Card>
 
         {/* MAIN MENU GRID - Compact for no scroll */}
