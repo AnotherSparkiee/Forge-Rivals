@@ -121,8 +121,8 @@ export default function Home() {
     <div className="relative min-h-[calc(100dvh-4rem-3.5rem)] h-[calc(100dvh-4rem-3.5rem)] flex flex-col overflow-hidden">
       <div className="flex-1 w-full max-w-md mx-auto px-4 pt-4 flex flex-col z-10 overflow-hidden">
         
-        {/* NEXT MATCH TACTICAL CARD */}
-        <Card className="relative overflow-hidden mb-4 border-white/20 bg-[#1a2b45] rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.5)] shrink-0 min-h-[140px]">
+        {/* NEXT MATCH TACTICAL CARD - Reduced Height */}
+        <Card className="relative overflow-hidden mb-4 border-white/20 bg-[#1a2b45] rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.5)] shrink-0 min-h-[110px]">
           <div className="absolute inset-0 z-0 opacity-80">
              <Image 
                 src="https://i.ibb.co/Qj1q1TZV/IMG-20260827-161555.png" 
@@ -132,23 +132,26 @@ export default function Home() {
                 unoptimized={true}
              />
           </div>
-          {/* Light Overlay to make the map brighter */}
+          {/* Light Overlay */}
           <div className="absolute inset-0 bg-white/5 z-1" />
           
-          <CardContent className="p-5 flex items-center justify-between relative z-10">
-            <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-xl bg-secondary/80 border border-primary/40 flex items-center justify-center shadow-[0_0_20px_rgba(56,189,248,0.3)]">
-                <Swords className="w-7 h-7 text-primary" />
+          <CardContent className="p-4 flex items-center justify-between relative z-10 h-full min-h-[110px]">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-secondary/80 border border-primary/40 flex items-center justify-center shadow-[0_0_20px_rgba(56,189,248,0.3)]">
+                <Swords className="w-6 h-6 text-primary" />
               </div>
               <div>
-                <p className="text-[9px] font-black text-primary uppercase tracking-widest mb-1 drop-shadow-md">{language === 'ru' ? 'СЛЕДУЮЩИЙ СОПЕРНИК' : 'NEXT OPPONENT'}</p>
-                <h2 className="text-lg font-headline font-bold text-white uppercase tracking-tight truncate max-w-[140px] drop-shadow-lg">{resolvedNextMatch?.opponentName || 'SEARCHING...'}</h2>
-                <p className="text-[9px] font-bold text-white/80 uppercase drop-shadow-md">{language === 'ru' ? 'ТУР' : 'TOUR'} {currentNextMatch?.tour || '--'}</p>
+                <p className="text-[8px] font-black text-primary uppercase tracking-widest mb-0.5 drop-shadow-[0_2px_3px_rgba(0,0,0,0.8)]">{language === 'ru' ? 'СЛЕДУЮЩИЙ СОПЕРНИК' : 'NEXT OPPONENT'}</p>
+                <h2 className="text-base font-headline font-bold text-white uppercase tracking-tight truncate max-w-[130px] drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">{resolvedNextMatch?.opponentName || 'SEARCHING...'}</h2>
+                <p className="text-[8px] font-bold text-white/80 uppercase drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">{language === 'ru' ? 'ТУР' : 'TOUR'} {currentNextMatch?.tour || '--'}</p>
               </div>
             </div>
-            <div className="text-right">
-              <p className="text-[7px] font-black text-white/70 uppercase tracking-widest mb-1 drop-shadow-md">{language === 'ru' ? 'ДО МАТЧА' : 'UNTIL MATCH'}</p>
-              <p className="text-xl font-headline font-black text-primary italic text-glow-blue tabular-nums leading-none drop-shadow-xl">
+            <div className="text-right flex flex-col items-end">
+              <p className="text-[7px] font-black text-white uppercase tracking-widest mb-1 drop-shadow-[0_2px_3px_rgba(0,0,0,1)] flex items-center gap-1">
+                <Timer className="w-2.5 h-2.5" />
+                {language === 'ru' ? 'ДО МАТЧА' : 'UNTIL MATCH'}
+              </p>
+              <p className="text-xl font-headline font-black text-primary italic text-glow-blue tabular-nums leading-none drop-shadow-[0_2px_5px_rgba(0,0,0,1)]">
                 {currentNextMatch ? getCountdown(currentNextMatch.startTime) : '00:00:00'}
               </p>
             </div>
