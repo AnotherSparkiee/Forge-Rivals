@@ -121,7 +121,7 @@ export default function Home() {
     <div className="relative min-h-[calc(100dvh-4rem-3.5rem)] h-[calc(100dvh-4rem-3.5rem)] flex flex-col overflow-hidden">
       <div className="flex-1 w-full max-w-md mx-auto px-4 pt-4 flex flex-col z-10 overflow-hidden">
         
-        {/* NEXT MATCH TACTICAL CARD - Reduced Height */}
+        {/* NEXT MATCH TACTICAL CARD */}
         <Card className="relative overflow-hidden mb-4 border-white/20 bg-[#1a2b45] rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.5)] shrink-0 min-h-[110px]">
           <div className="absolute inset-0 z-0 opacity-80">
              <Image 
@@ -132,20 +132,20 @@ export default function Home() {
                 unoptimized={true}
              />
           </div>
-          {/* Light Overlay */}
           <div className="absolute inset-0 bg-white/5 z-1" />
           
           <CardContent className="p-4 flex items-center justify-between relative z-10 h-full min-h-[110px]">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-xl bg-secondary/80 border border-primary/40 flex items-center justify-center shadow-[0_0_20px_rgba(56,189,248,0.3)] overflow-hidden">
+            <div className="flex items-center gap-4">
+              {/* Opponent Logo - Larger and no block */}
+              <div className="w-14 h-14 flex items-center justify-center shrink-0">
                 {resolvedNextMatch?.opponentLogo ? (
                   <img 
                     src={resolvedNextMatch.opponentLogo} 
                     alt="Opponent Logo" 
-                    className="w-full h-full object-contain p-1.5" 
+                    className="w-full h-full object-contain drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]" 
                   />
                 ) : (
-                  <Swords className="w-6 h-6 text-primary" />
+                  <Swords className="w-10 h-10 text-primary drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]" />
                 )}
               </div>
               <div>
@@ -166,7 +166,7 @@ export default function Home() {
           </CardContent>
         </Card>
 
-        {/* MAIN MENU GRID - Compact for no scroll */}
+        {/* MAIN MENU GRID */}
         <div className="grid grid-cols-4 gap-2 flex-1 mb-2">
           {menuItems.map((item) => (
             <Link key={item.id} href={item.href} className="block">
