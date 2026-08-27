@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useGameState } from './lib/store';
@@ -125,7 +126,7 @@ export default function Home() {
         <Card className="relative overflow-hidden mb-4 border-white/10 bg-[#121c2e] rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.5)] shrink-0 min-h-[140px]">
           <div className="absolute inset-0 z-0 opacity-40 mix-blend-overlay">
              <Image 
-                src="https://i.postimg.cc/7L4vKjS3/tactical-map.jpg" 
+                src="https://i.ibb.co/Qj1q1TZV/IMG-20260827-161555.png" 
                 alt="" 
                 fill 
                 className="object-cover object-center"

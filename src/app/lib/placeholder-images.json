@@ -1,3 +1,4 @@
+
 {
   "placeholderImages": [
     {
@@ -5,6 +6,12 @@
       "description": "Main tactical game background",
       "imageUrl": "https://i.ibb.co/GQ39Zhc9/1787834437641.png",
       "imageHint": "sci-fi background"
+    },
+    {
+      "id": "tactical-map-card",
+      "description": "Background for the next opponent tactical card",
+      "imageUrl": "https://i.ibb.co/Qj1q1TZV/IMG-20260827-161555.png",
+      "imageHint": "tactical map"
     },
     {
       "id": "hero-tank",
