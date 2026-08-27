@@ -34,8 +34,8 @@ function GameInterface({ children }: { children: React.ReactNode }) {
       <div 
         className="fixed inset-0 z-[-1] pointer-events-none bg-[#0a0d14]"
         style={{
-          // Lightened the overlay gradient (lowered alpha values for better image visibility)
-          backgroundImage: `linear-gradient(to bottom, rgba(10, 13, 20, 0.1), rgba(10, 13, 20, 0.5)), url('https://i.ibb.co/GQ39Zhc9/1787834437641.png')`,
+          // Even lighter overlay (reduced alpha from 0.1/0.5 to 0.02/0.15)
+          backgroundImage: `linear-gradient(to bottom, rgba(10, 13, 20, 0.02), rgba(10, 13, 20, 0.15)), url('https://i.ibb.co/GQ39Zhc9/1787834437641.png')`,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
           backgroundRepeat: 'no-repeat'
