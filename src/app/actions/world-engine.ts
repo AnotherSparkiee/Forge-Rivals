@@ -1,11 +1,12 @@
+
 'use server';
 
 /**
- * @fileOverview Глобальный двигатель инициализации мира v2.6 (Atomic & Protected).
+ * @fileOverview Глобальный двигатель инициализации мира v2.7 (Atomic & Data-Aware).
  * Особенности:
- * 1. Проверка существования (Idempotency): Никогда не перезаписывает существующие группы.
- * 2. Пошаговый чекпойнт: Сохраняет прогресс в том же батче, что и данные группы.
- * 3. Безопасность лимитов: Каждая группа обрабатывается как отдельная транзакция.
+ * 1. Глубокая проверка (Data-Aware): Пропускает группу только если в ней есть данные (статистика).
+ * 2. Атомарный Чекпойнт: Обновляет статус прогресса в том же батче, что и данные группы.
+ * 3. Лимиты транзакций: Обработка 7 групп (400+ операций) за раз для гарантии успеха в 500-limit.
  */
 
 import { 
@@ -21,8 +22,8 @@ import {
 } from '@/app/lib/leagues-data';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 
-// Количество групп за один вызов функции (для предотвращения таймаутов)
-const GROUPS_PER_CHUNK = 8; 
+// 7 групп * 57 документов = 399 операций. Запас до лимита 500.
+const GROUPS_PER_CHUNK = 7; 
 
 /**
  * Внутреннее ядро подготовки данных группы.
@@ -101,7 +102,7 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
   const statusSnap = await getDoc(statusRef);
   
   let currentTier = 1;
-  let currentGroup = 0; // Начинаем с нуля, чтобы первая группа была 1
+  let currentGroup = 0; 
   let status = 'idle';
 
   if (statusSnap.exists()) {
@@ -111,14 +112,6 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
     status = data.status;
     currentTier = data.lastTier || 1;
     currentGroup = data.lastGroup || 0; 
-  } else {
-    // Создаем начальный документ статуса
-    await setDoc(statusRef, { 
-      status: 'processing', 
-      startedAt: serverTimestamp(),
-      lastTier: 1,
-      lastGroup: 0
-    });
   }
 
   let groupsProcessedInThisCall = 0;
@@ -126,53 +119,65 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
   let group = currentGroup;
 
   while (groupsProcessedInThisCall < GROUPS_PER_CHUNK && tier <= 9) {
-    // 1. Рассчитываем следующую группу
-    group++;
-    const maxGroupsInTier = Math.pow(2, tier - 1);
+    // 1. ОПРЕДЕЛЯЕМ СЛЕДУЮЩИЕ КООРДИНАТЫ
+    let nextTier = tier;
+    let nextGroup = group + 1;
+    const maxInCurrentTier = Math.pow(2, nextTier - 1);
     
-    if (group > maxGroupsInTier) {
-      tier++;
-      group = 1;
-      if (tier > 9) break; // Все 511 групп проверены/созданы
+    if (nextGroup > maxInCurrentTier) {
+      nextTier++;
+      nextGroup = 1;
     }
 
-    const tableId = `table_S${seasonNum}_L${leagueId}_V${tier}_G${group}`;
+    if (nextTier > 9) {
+      // Все 511 групп обработаны
+      await setDoc(statusRef, { 
+        status: 'completed', 
+        lastTier: 9, 
+        lastGroup: 256, 
+        finishedAt: serverTimestamp() 
+      }, { merge: true });
+      return { success: true, isComplete: true };
+    }
+
+    // 2. ОБРАБОТКА ГРУППЫ
+    const tableId = `table_S${seasonNum}_L${leagueId}_V${nextTier}_G${nextGroup}`;
     const tableRef = doc(db, 'league_tables_v1', tableId);
     
-    // 2. КРИТИЧЕСКАЯ ПРОВЕРКА: Существует ли группа?
+    // Проверка существования данных (защита существующих игроков)
     const checkSnap = await getDoc(tableRef);
+    const hasData = checkSnap.exists() && Object.keys(checkSnap.data()?.stats || {}).length > 0;
     
     const batch = writeBatch(db);
     
-    if (!checkSnap.exists()) {
-      console.log(`[WORLD ENGINE] Creating missing group S${seasonNum} V${tier} G${group}`);
-      prepareGroupData(batch, db, leagueId, tier, group, seasonNum);
+    if (!hasData) {
+      console.log(`[WORLD ENGINE] Initializing group S${seasonNum} V${nextTier} G${nextGroup}`);
+      prepareGroupData(batch, db, leagueId, nextTier, nextGroup, seasonNum);
     } else {
-      console.log(`[WORLD ENGINE] Skipping existing group S${seasonNum} V${tier} G${group}`);
-      // Если группа есть, мы ничего не пишем в её таблицу, но должны обновить статус прогресса
+      console.log(`[WORLD ENGINE] Data found in S${seasonNum} V${nextTier} G${nextGroup}. Skipping.`);
     }
 
-    // 3. Обновляем статус прогресса (Чекпойнт) ВСЕГДА (и при пропуске, и при создании)
-    // Это гарантирует, что мы не застрянем на существующих группах
+    // 3. АТОМАРНОЕ СОХРАНЕНИЕ ЧЕКПОЙНТА
     batch.set(statusRef, { 
-      lastTier: tier,
-      lastGroup: group,
-      status: tier > 9 ? 'completed' : 'processing',
-      updatedAt: serverTimestamp(),
-      finishedAt: tier > 9 ? serverTimestamp() : null
+      lastTier: nextTier,
+      lastGroup: nextGroup,
+      status: 'processing',
+      updatedAt: serverTimestamp()
     }, { merge: true });
 
     await batch.commit();
+
+    // Переходим к следующему шагу
+    tier = nextTier;
+    group = nextGroup;
     groupsProcessedInThisCall++;
   }
-  
-  const isFullyComplete = tier > 9;
   
   return { 
     success: true, 
     processed: groupsProcessedInThisCall, 
-    lastTier: tier > 9 ? 9 : tier, 
-    lastGroup: tier > 9 ? 256 : group,
-    isComplete: isFullyComplete 
+    lastTier: tier, 
+    lastGroup: group,
+    isComplete: tier > 9
   };
 }
