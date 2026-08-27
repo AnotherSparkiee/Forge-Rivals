@@ -1,7 +1,7 @@
 
 /**
- * @fileOverview Ядро лиг v68: Детерминированные ID ботов и расчеты перемещений.
- * Исправлена формула расчета времени старта матчей.
+ * @fileOverview Ядро лиг v69: Детерминированные ID ботов и расчеты перемещений.
+ * Исправлена формула расчета времени старта матчей и возвращен формат имен Bot01.
  */
 
 import { GLOBAL_EPOCH_ISO } from './time-utils';
@@ -28,10 +28,12 @@ export function getBotId(leagueId: string, level: number, group: number, rank: n
 }
 
 /**
- * Генерирует читаемое имя для бота.
+ * Генерирует техническое имя для бота (классический формат).
+ * Пример: Bot0110017
  */
 export function getBotName(level: number, group: number, rank: number): string {
-  return `Manager_L${level}G${group}R${rank}`;
+  const leagueIdx = "01";
+  return `Bot${leagueIdx}${level}${group.toString().padStart(3, '0')}${rank}`;
 }
 
 export function getGroupsCountInLevel(level: number): number {
@@ -81,8 +83,6 @@ export function generateSeasonCalendar(teams: any[], seasonNumber: number, leagu
       const away = teams[aIdx];
 
       const createMatch = (day: number, h: any, a: any, tour: number) => {
-        // Рассчитываем старт относительно полуночи МСК текущего сезона
-        // hh (18:00 МСК) преобразуется в 18 часов от полуночи МСК эпохи
         const startTime = new Date(seasonStartMs + (day - 1) * dayMs + hh * 3600000 + mm * 60000);
         return {
           day,

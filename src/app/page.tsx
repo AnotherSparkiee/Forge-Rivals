@@ -18,8 +18,7 @@ import { Badge } from '@/components/ui/badge';
 import { useState, useEffect, useMemo } from 'react';
 import { getMoscowTime, isMatchLive } from './lib/time-utils';
 import { collection, query, where } from 'firebase/firestore';
-import { getBotName } from './lib/leagues-data';
-import Image from 'next/image';
+import { getBotName, LEAGUES } from './lib/leagues-data';
 
 export default function Home() {
   const { user, isUserLoading } = useUser();
@@ -125,16 +124,17 @@ export default function Home() {
         
         {/* NEXT MATCH TACTICAL CARD */}
         <Card className="relative overflow-hidden mb-4 border-white/20 bg-[#1a2b45] rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.5)] shrink-0 min-h-[110px]">
-          <div className="absolute inset-0 z-0 opacity-80">
-             <Image 
+          {/* Background Map Image */}
+          <div className="absolute inset-0 z-0 opacity-60">
+             <img 
                 src="https://i.ibb.cc/Qj1q1TZV/IMG-20260827-161555.png" 
                 alt="" 
-                fill 
-                className="object-cover object-center"
-                unoptimized={true}
+                className="w-full h-full object-cover object-center"
              />
           </div>
-          <div className="absolute inset-0 bg-white/5 z-1" />
+          
+          {/* Dark Gradient Overlay for readability */}
+          <div className="absolute inset-0 bg-gradient-to-r from-[#1a2b45]/90 via-transparent to-transparent z-[1]" />
           
           <CardContent className="p-4 flex items-center justify-between relative z-10 h-full min-h-[110px]">
             <div className="flex items-center gap-4">
@@ -147,13 +147,10 @@ export default function Home() {
                     className="w-full h-full object-contain drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]" 
                   />
                 ) : (
-                  <Image 
+                  <img 
                     src="https://i.postimg.cc/8cpvcNZ9/logo-lote.png"
                     alt="Bot Logo"
-                    width={56}
-                    height={56}
                     className="w-full h-full object-contain drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]"
-                    unoptimized={true}
                   />
                 )}
               </div>
@@ -182,12 +179,10 @@ export default function Home() {
               <Card className="aspect-square glass-card border-white/5 hover:border-primary/40 hover:bg-primary/5 transition-all group flex flex-col items-center justify-center p-1 relative rounded-[1.25rem] overflow-hidden">
                 {item.isSystem ? (
                   <div className="relative w-12 h-12 transition-transform duration-300 group-hover:scale-110">
-                     <Image 
+                     <img 
                         src="https://i.ibb.cc/07QQCFT/1787830105436.png" 
                         alt="System" 
-                        fill 
-                        className="object-contain"
-                        unoptimized={true}
+                        className="w-full h-full object-contain"
                      />
                   </div>
                 ) : (
