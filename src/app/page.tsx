@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useGameState } from './lib/store';
@@ -17,6 +18,7 @@ import { Badge } from '@/components/ui/badge';
 import { useState, useEffect, useMemo } from 'react';
 import { getMoscowTime, isMatchLive } from './lib/time-utils';
 import { collection, query, where } from 'firebase/firestore';
+import { getBotName } from './lib/leagues-data';
 import Image from 'next/image';
 
 export default function Home() {
@@ -68,10 +70,10 @@ export default function Home() {
     const oppRank = isHome ? Number(myNext.awayRank) : Number(myNext.homeRank);
     return {
       match: myNext,
-      opponentName: nameMap.names[oppRank] || `BOT01100${oppRank}`,
+      opponentName: nameMap.names[oppRank] || getBotName(leagueLevel, groupId, oppRank),
       opponentLogo: nameMap.logos[oppRank] || null
     };
-  }, [allSeasonMatches, rank, nameMap]);
+  }, [allSeasonMatches, rank, nameMap, leagueLevel, groupId]);
 
   const getCountdown = (targetTimeIso: string) => {
     const diff = new Date(targetTimeIso).getTime() - now.getTime();
@@ -125,7 +127,7 @@ export default function Home() {
         <Card className="relative overflow-hidden mb-4 border-white/20 bg-[#1a2b45] rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.5)] shrink-0 min-h-[110px]">
           <div className="absolute inset-0 z-0 opacity-80">
              <Image 
-                src="https://i.ibb.co/Qj1q1TZV/IMG-20260827-161555.png" 
+                src="https://i.ibb.cc/Qj1q1TZV/IMG-20260827-161555.png" 
                 alt="" 
                 fill 
                 className="object-cover object-center"
@@ -145,7 +147,14 @@ export default function Home() {
                     className="w-full h-full object-contain drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]" 
                   />
                 ) : (
-                  <Swords className="w-10 h-10 text-primary drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]" />
+                  <Image 
+                    src="https://i.postimg.cc/8cpvcNZ9/logo-lote.png"
+                    alt="Bot Logo"
+                    width={56}
+                    height={56}
+                    className="w-full h-full object-contain drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]"
+                    unoptimized={true}
+                  />
                 )}
               </div>
               <div>
@@ -174,7 +183,7 @@ export default function Home() {
                 {item.isSystem ? (
                   <div className="relative w-12 h-12 transition-transform duration-300 group-hover:scale-110">
                      <Image 
-                        src="https://i.ibb.co/07QQCFT/1787830105436.png" 
+                        src="https://i.ibb.cc/07QQCFT/1787830105436.png" 
                         alt="System" 
                         fill 
                         className="object-contain"

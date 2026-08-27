@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -15,6 +16,7 @@ import {
 import { initializeFirebase } from '@/firebase';
 import { 
   getBotId, 
+  getBotName,
   TEAMS_PER_GROUP, 
   generateSeasonCalendar 
 } from '@/app/lib/leagues-data';
@@ -60,12 +62,13 @@ function prepareGroupData(
 
   for (let r = 1; r <= TEAMS_PER_GROUP; r++) {
     const bId = getBotId(leagueId, tier, group, r);
+    const bName = getBotName(tier, group, r);
     initialStats[bId] = {
-      id: bId, name: bId, rank: r,
+      id: bId, name: bName, rank: r,
       matchesPlayed: 0, wins: 0, draws: 0, losses: 0, points: 0, diff: 0,
       isBot: true
     };
-    teamsForCalendar.push({ id: bId, name: bId, rank: r });
+    teamsForCalendar.push({ id: bId, name: bName, rank: r });
   }
 
   // 1. Создаем таблицу (overwrite)

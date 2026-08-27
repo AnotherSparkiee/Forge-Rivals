@@ -27,6 +27,13 @@ export function getBotId(leagueId: string, level: number, group: number, rank: n
   return `BOT_${leagueId}_L${level}_G${group}_R${rank}`;
 }
 
+/**
+ * Генерирует читаемое имя для бота.
+ */
+export function getBotName(level: number, group: number, rank: number): string {
+  return `Manager_L${level}G${group}R${rank}`;
+}
+
 export function getGroupsCountInLevel(level: number): number {
   return Math.pow(2, level - 1);
 }
