@@ -1,11 +1,11 @@
 'use server';
 
 /**
- * Глобальный двигатель заполнения мира v18 (Safe Gap-Filler).
+ * Глобальный двигатель заполнения мира v19 (Safe Gap-Filler).
  * Особенности:
  * 1. Безопасность: Не перезаписывает существующие группы (защита игроков).
- * 2. Автономность: Сканирует до 150 секторов, заполняя пустоты ботами.
- * 3. Атомарность: Каждая группа создается в отдельном батче с отметкой прогресса.
+ * 2. Автономность: Сканирует до 150 секторов за один вызов.
+ * 3. Пошаговая инициализация: Создает до 8 новых групп за запуск.
  */
 
 import { 
@@ -22,7 +22,7 @@ import {
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 
 const TOTAL_GROUPS = 511; 
-const GROUPS_TO_CREATE_PER_CALL = 7; 
+const GROUPS_TO_CREATE_PER_CALL = 8; 
 const MAX_SCAN_LIMIT = 150; 
 
 function getGroupCoordinates(index: number) {
@@ -69,7 +69,7 @@ function injectGroupToBatch(
     id: tableId, leagueId, level: tier, group, season: seasonNum,
     stats: initialStats,
     createdAt: serverTimestamp(),
-    version: 18
+    version: 19
   });
 
   const calendar = generateSeasonCalendar(teamsForCalendar, seasonNum, leagueId);
@@ -80,7 +80,7 @@ function injectGroupToBatch(
       id: mId,
       leagueId, level: tier, groupId: group, season: seasonNum,
       isFinished: false, scoreA: 0, scoreB: 0,
-      version: 18
+      version: 19
     });
   }
 }
@@ -103,7 +103,7 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
   let createdInThisCall = 0;
   let scannedInThisCall = 0;
 
-  console.log(`[WORLD v18] Scanning from index ${currentIndex}...`);
+  console.log(`[WORLD v19] Scanning from index ${currentIndex}...`);
 
   while (createdInThisCall < GROUPS_TO_CREATE_PER_CALL && currentIndex < TOTAL_GROUPS && scannedInThisCall < MAX_SCAN_LIMIT) {
     currentIndex++;
@@ -116,7 +116,6 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
     // ПРОВЕРКА СУЩЕСТВОВАНИЯ (Защита реальных игроков)
     const checkSnap = await getDoc(tableRef);
     if (checkSnap.exists() && checkSnap.data().stats) {
-      // Группа уже есть, просто обновляем currentIndex в статусе (но не в батче, чтобы сэкономить операции)
       continue; 
     }
 
@@ -130,7 +129,7 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
       lastGroup: coords.group,
       updatedAt: serverTimestamp(),
       status: 'processing',
-      version: 18
+      version: 19
     }, { merge: true });
 
     await batch.commit();

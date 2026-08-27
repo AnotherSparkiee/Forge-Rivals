@@ -1,5 +1,5 @@
 /**
- * @fileOverview Ядро лиг v71: Финальные имена ботов Bot01{Level}{Rank}.
+ * @fileOverview Ядро лиг v72: Формат имен ботов Bot01{Level}{Rank}.
  */
 
 import { GLOBAL_EPOCH_ISO } from './time-utils';
@@ -27,12 +27,12 @@ export function getBotId(leagueId: string, level: number, group: number, rank: n
 
 /**
  * Генерирует публичное имя для бота.
- * Формат: Bot01{Level}{Rank} (согласно запросу пользователя)
- * Пример: Bot0117
+ * Формат: Bot01{Level}{Rank} (например: Bot01107)
  */
 export function getBotName(level: number, group: number, rank: number): string {
   const leagueIdx = "01";
-  return `Bot${leagueIdx}${level}${rank}`;
+  const paddedRank = String(rank).padStart(2, '0');
+  return `Bot${leagueIdx}${level}${paddedRank}`;
 }
 
 export function getGroupsCountInLevel(level: number): number {
