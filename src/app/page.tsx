@@ -232,7 +232,7 @@ export default function Home() {
           <div className="grid grid-cols-4 gap-2 w-full py-2">
             {menuItems.map((item) => (
               <Link key={item.label} href={item.href}>
-                <div className="group aspect-square flex flex-col items-center justify-center p-1 relative overflow-visible transition-all active:scale-90 duration-75">
+                <div className="group aspect-square flex flex-col items-center justify-center p-1 relative overflow-visible transition-all active:scale-95 duration-75 glass-card bg-secondary/10 border-white/5 rounded-2xl hover:bg-white/5">
                   <div className={cn("transition-all duration-300 flex items-center justify-center", item.color)}>
                     {item.icon ? (
                       <item.icon className="w-7 h-7 group-hover:scale-110" />
