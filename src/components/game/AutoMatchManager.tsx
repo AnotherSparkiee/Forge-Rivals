@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useRef } from 'react';
@@ -5,11 +6,11 @@ import { useGameState } from '@/app/lib/store';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 import { useFirestore, useUser } from '@/firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
-import { resolveDailyMatches } from '@/app/actions/autonomous-cycle';
 
 /**
- * ГЛОБАЛЬНЫЙ СИНХРОНИЗАТОР v18.0 (Unconditional World Engine)
- * Запускает автономный цикл постройки мира сразу после авторизации пользователя.
+ * КЛИЕНТСКИЙ СИНХРОНИЗАТОР v19.0 (Pure Passive Sync)
+ * Больше не запускает логику расчетов. Только синхронизирует локальное состояние
+ * с результатами, которые серверный CRON уже записал в БД.
  */
 export function AutoMatchManager() {
   const { 
@@ -21,9 +22,9 @@ export function AutoMatchManager() {
   const { user } = useUser();
   const db = useFirestore();
   const syncStartedRef = useRef<string | null>(null);
-  const heartbeatStartedRef = useRef(false);
 
-  // 1. СИНХРОНИЗАЦИЯ КАЛЕНДАРЯ (только для зарегистрированных с лигой)
+  // СИНХРОНИЗАЦИЯ КАЛЕНДАРЯ
+  // Загружает матчи вашей группы, чтобы в интерфейсе всегда были актуальные счета и расписание
   useEffect(() => {
     if (!isLoaded || !db || !selectedLeagueId || !user) {
       if (isLoaded && !user) setWorldReady(true);
@@ -39,7 +40,7 @@ export function AutoMatchManager() {
 
       const syncMatches = async () => {
         try {
-          console.log(`[AUTO SYNC] Syncing calendar for ${currentContext}`);
+          console.log(`[PASSIVE SYNC] Loading group calendar for ${currentContext}`);
           const q = query(collection(db, 'matches_v1'), 
             where('leagueId', '==', selectedLeagueId),
             where('level', '==', leagueLevel),
@@ -56,7 +57,7 @@ export function AutoMatchManager() {
             });
           }
         } catch (e) {
-          console.error("[AUTO SYNC] Sync failed:", e);
+          console.error("[PASSIVE SYNC] Sync failed:", e);
         } finally {
           setWorldReady(true);
         }
@@ -65,29 +66,6 @@ export function AutoMatchManager() {
       syncMatches();
     }
   }, [isLoaded, selectedLeagueId, leagueLevel, groupId, user, saveToLocal, setWorldReady, db]);
-
-  // 2. ГЛОБАЛЬНОЕ СЕРДЦЕБИЕНИЕ (Запуск постройки мира ботами)
-  // Работает для любого авторизованного пользователя
-  useEffect(() => {
-    if (!isLoaded || !db || !user || heartbeatStartedRef.current) return;
-
-    heartbeatStartedRef.current = true;
-    
-    const triggerHeartbeat = async () => {
-      try {
-        console.log("[HEARTBEAT] Unconditional world build sync triggered...");
-        // Серверный экшен теперь сам разберется с лигой и сезоном
-        await resolveDailyMatches();
-      } catch (e) {
-        console.error("[HEARTBEAT] Cycle error:", e);
-      }
-    };
-
-    triggerHeartbeat();
-    // Повторяем каждые 3 минуты (ускорено) для активного заполнения пирамиды
-    const interval = setInterval(triggerHeartbeat, 180000);
-    return () => clearInterval(interval);
-  }, [isLoaded, db, user]);
 
   return null;
 }

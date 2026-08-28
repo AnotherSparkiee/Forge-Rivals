@@ -1,11 +1,12 @@
+
 'use server';
 
 /**
- * Глобальный двигатель заполнения мира v19 (Safe Gap-Filler).
+ * Глобальный двигатель заполнения мира v20 (Server-Side Optimized).
  * Особенности:
  * 1. Безопасность: Не перезаписывает существующие группы (защита игроков).
- * 2. Автономность: Сканирует до 150 секторов за один вызов.
- * 3. Пошаговая инициализация: Создает до 8 новых групп за запуск.
+ * 2. Эффективность: При статусе 'completed' завершается мгновенно (0 операций).
+ * 3. Автономность: Идеально подходит для Cloud Scheduler (вызовы каждые 30-60 сек).
  */
 
 import { 
@@ -22,8 +23,8 @@ import {
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 
 const TOTAL_GROUPS = 511; 
-const GROUPS_TO_CREATE_PER_CALL = 8; 
-const MAX_SCAN_LIMIT = 150; 
+const GROUPS_TO_CREATE_PER_CALL = 12; // Оптимально для частого вызова
+const MAX_SCAN_LIMIT = 200; // Глубокое сканирование пустот
 
 function getGroupCoordinates(index: number) {
   if (index < 1) return { tier: 1, group: 1 };
@@ -69,7 +70,7 @@ function injectGroupToBatch(
     id: tableId, leagueId, level: tier, group, season: seasonNum,
     stats: initialStats,
     createdAt: serverTimestamp(),
-    version: 19
+    version: 20
   });
 
   const calendar = generateSeasonCalendar(teamsForCalendar, seasonNum, leagueId);
@@ -80,7 +81,7 @@ function injectGroupToBatch(
       id: mId,
       leagueId, level: tier, groupId: group, season: seasonNum,
       isFinished: false, scoreA: 0, scoreB: 0,
-      version: 19
+      version: 20
     });
   }
 }
@@ -96,14 +97,17 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
   let currentIndex = 0;
   if (statusSnap.exists()) {
     const data = statusSnap.data();
-    if (data.status === 'completed') return { success: true, isComplete: true };
+    // Если мир для этого сезона уже готов — мгновенный выход
+    if (data.status === 'completed') {
+      return { status: 'COMPLETE', season: seasonNum };
+    }
     currentIndex = data.currentIndex || 0;
   }
 
   let createdInThisCall = 0;
   let scannedInThisCall = 0;
 
-  console.log(`[WORLD v19] Scanning from index ${currentIndex}...`);
+  console.log(`[AUTONOMOUS WORLD ENGINE] Scanning from index ${currentIndex} for Season ${seasonNum}...`);
 
   while (createdInThisCall < GROUPS_TO_CREATE_PER_CALL && currentIndex < TOTAL_GROUPS && scannedInThisCall < MAX_SCAN_LIMIT) {
     currentIndex++;
@@ -113,23 +117,23 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
     const tableId = `table_S${seasonNum}_L${leagueId}_V${coords.tier}_G${coords.group}`;
     const tableRef = doc(db, 'league_tables_v1', tableId);
     
-    // ПРОВЕРКА СУЩЕСТВОВАНИЯ (Защита реальных игроков)
+    // Проверка существования (Защита реальных игроков и уже созданных групп)
     const checkSnap = await getDoc(tableRef);
-    if (checkSnap.exists() && checkSnap.data().stats) {
+    if (checkSnap.exists()) {
       continue; 
     }
 
     const batch = writeBatch(db);
     injectGroupToBatch(batch, db, leagueId, coords.tier, coords.group, seasonNum);
 
-    // Обновляем прогресс при каждой успешной вставке группы
+    // Обновляем прогресс атомарно с созданием группы
     batch.set(statusRef, {
       currentIndex,
       lastTier: coords.tier,
       lastGroup: coords.group,
       updatedAt: serverTimestamp(),
       status: 'processing',
-      version: 19
+      version: 20
     }, { merge: true });
 
     await batch.commit();
@@ -141,19 +145,21 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
     await setDoc(statusRef, { currentIndex, updatedAt: serverTimestamp() }, { merge: true });
   }
 
+  // Финальный флаг завершения всей пирамиды
   if (currentIndex >= TOTAL_GROUPS) {
     await setDoc(statusRef, { 
       status: 'completed', 
       updatedAt: serverTimestamp() 
     }, { merge: true });
-    return { success: true, isComplete: true };
+    return { status: 'FINISHED', isComplete: true, season: seasonNum };
   }
 
   return { 
-    success: true, 
+    status: 'IN_PROGRESS', 
     currentIndex, 
     created: createdInThisCall,
-    scanned: scannedInThisCall
+    scanned: scannedInThisCall,
+    season: seasonNum
   };
 }
 
