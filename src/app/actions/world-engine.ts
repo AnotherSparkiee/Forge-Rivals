@@ -119,7 +119,7 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
     
     // Проверка существования (Защита реальных игроков и уже созданных групп)
     const checkSnap = await getDoc(tableRef);
-    if (checkSnap.exists()) {
+    if (checkSnap.exists() && checkSnap.data()?.stats && Object.keys(checkSnap.data()?.stats || {}).length > 0) {
       continue; 
     }
 
