@@ -1,5 +1,5 @@
 /**
- * @fileOverview Ядро времени v125 (Universal Sync - Season Reset). 
+ * @fileOverview Ядро времени v126 (Universal Sync - Season Reset). 
  * Обеспечивает единство отсчета для всех групп лиги.
  * Точка отсчета: 29 августа 2026 года, 00:00 MSK (День 1 Сезона 1).
  */

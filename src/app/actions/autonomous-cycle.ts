@@ -1,7 +1,7 @@
 'use server';
 
 /**
- * @fileOverview ГЛОБАЛЬНЫЙ АВТОНОМНЫЙ ДВИГАТЕЛЬ ЛИГИ v2.0 (Endless Cycle).
+ * @fileOverview ГЛОБАЛЬНЫЙ АВТОНОМНЫЙ ДВИГАТЕЛЬ ЛИГИ v2.1 (Endless Cycle).
  * Обрабатывает матчи и смену сезона.
  */
 
@@ -115,7 +115,7 @@ export async function resolveDailyMatches() {
 }
 
 /**
- * СМЕНА СЕЗОНА (Migration Engine v100).
+ * СМЕНА СЕЗОНА (Migration Engine v101).
  * Порционная обработка групп для расчета повышений/понижений.
  */
 export async function performSeasonTransition() {
@@ -140,7 +140,6 @@ export async function performSeasonTransition() {
   const batcher = new FirestoreBatcher(db);
 
   for (let i = startIdx + 1; i <= endIdx; i++) {
-    // Получаем координаты группы из индекса (логика из world-engine)
     const coords = getGroupCoords(i);
     const tableId = `table_S${currentSeason}_LALPHA_V${coords.tier}_G${coords.group}`;
     const tableSnap = await getDoc(doc(db, 'league_tables_v1', tableId));
@@ -152,21 +151,26 @@ export async function performSeasonTransition() {
         return b.diff - a.diff;
       });
 
-      // Обработка каждого участника
+      // Обработка каждого участника в таблице
       for (let rank = 1; rank <= standings.length; rank++) {
         const team: any = standings[rank - 1];
-        if (team.isBot) continue;
+        if (!team.id || team.isBot) continue;
 
-        // Расчет нового места
+        // Расчет нового места на сезон N+1
         let nextLvl = coords.tier;
         let nextGrp = coords.group;
+        let nextRank = rank;
         
         if (rank <= 2) {
           const promo = getPromotionTarget(coords.tier, coords.group);
-          nextLvl = promo.level; nextGrp = promo.group;
+          nextLvl = promo.level; 
+          nextGrp = promo.group;
+          nextRank = 8; // Повышенные встают в хвост (условно)
         } else if (rank >= 7) {
           const releg = getRelegationTarget(coords.tier, coords.group, rank);
-          nextLvl = releg.level; nextGrp = releg.group;
+          nextLvl = releg.level; 
+          nextGrp = releg.group;
+          nextRank = 1; // Пониженные встают в начало (условно)
         }
 
         // Записываем игроку его "целевые" координаты на новый сезон
@@ -174,14 +178,13 @@ export async function performSeasonTransition() {
         await batcher.update(playerRef, {
           targetLevel: nextLvl,
           targetGroup: nextGrp,
-          targetRank: rank, // Ранг наследуется или сбрасывается
-          lastProcessedSeason: 0 // Сброс для фазы RESEED
+          targetRank: nextRank,
+          lastProcessedSeason: 0 // Сброс для фазы RESEED в новом сезоне
         });
       }
     }
   }
 
-  // Обновляем прогресс миграции
   const isFinished = endIdx >= 511;
   await batcher.set(transitionStatusRef, {
     currentIndex: endIdx,
