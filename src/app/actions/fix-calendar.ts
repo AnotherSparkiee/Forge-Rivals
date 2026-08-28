@@ -1,10 +1,10 @@
 'use server';
 
 /**
- * Скрипт-синхронизатор v63 (Autonomous Global Reseeder).
+ * Скрипт-синхронизатор v64 (Autonomous Global Reseeder).
  * 
  * Логика работы:
- * ФАЗА 0 (NUCLEAR_WIPE): Разовая полная очистка S1 данных при первом запуске (v102).
+ * ФАЗА 0 (NUCLEAR_WIPE): Разовая полная очистка S1 данных при первом запуске (v103).
  * ФАЗА 1 (INIT_WORLD): Проверка наличия всех 511 групп. Если нет - достройка ботами.
  * ФАЗА 2 (RESEED_PLAYERS): Порционное переселение реальных игроков на их места.
  * ФАЗА 3 (COMPLETED): Мир готов к расчету матчей.
@@ -22,7 +22,7 @@ import { findStrategicPlacement, initializeClubV11 } from './season-init';
 const PLAYERS_PER_CHUNK = 25; 
 
 /**
- * ГЛОБАЛЬНЫЙ РЕМОНТ И ИНИЦИАЛИЗАЦИЯ МИРА v63.
+ * ГЛОБАЛЬНЫЙ РЕМОНТ И ИНИЦИАЛИЗАЦИЯ МИРА v64.
  */
 export async function runGlobalEmergencyRepair() {
   const { firestore: db } = initializeFirebase();
@@ -30,8 +30,8 @@ export async function runGlobalEmergencyRepair() {
   const seasonNum = info.activeSeasonNumber;
   const leagueId = "ALPHA";
 
-  // Используем v102 в ID документа, чтобы принудительно запустить сброс один раз
-  const repairStatusRef = doc(db, 'system_v1', `repair_v102_S${seasonNum}_L${leagueId}`);
+  // Используем v103 в ID документа, чтобы принудительно запустить сброс один раз
+  const repairStatusRef = doc(db, 'system_v1', `repair_v103_S${seasonNum}_L${leagueId}`);
   const repairSnap = await getDoc(repairStatusRef);
   const repairData = repairSnap.exists() ? repairSnap.data() : { phase: 'NUCLEAR_WIPE', status: 'processing' };
 
@@ -41,9 +41,9 @@ export async function runGlobalEmergencyRepair() {
 
   console.log(`[AUTONOMOUS REPAIR] Season ${seasonNum}, Phase: ${repairData.phase}`);
 
-  // ФАЗА 0: ГЛОБАЛЬНЫЙ СБРОС (Для перехода на v102)
+  // ФАЗА 0: ГЛОБАЛЬНЫЙ СБРОС (Для перехода на v103)
   if (repairData.phase === 'NUCLEAR_WIPE') {
-    console.log("[NUCLEAR] v102: Starting Automatic Deep Clean for New Season...");
+    console.log("[NUCLEAR] v103: Starting Automatic Deep Clean for New Season...");
 
     // 1. Удаление таблиц старых сезонов
     const tablesSnap = await getDocs(collection(db, 'league_tables_v1'));
