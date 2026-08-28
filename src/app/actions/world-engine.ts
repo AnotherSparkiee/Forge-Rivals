@@ -1,11 +1,11 @@
 'use server';
 
 /**
- * Глобальный двигатель заполнения мира v21 (Deep Scan Enabled).
+ * Глобальный двигатель заполнения мира v22 (Deep Scan Hole Fix).
  * Особенности:
  * 1. Безопасность: Не перезаписывает существующие группы (защита игроков).
  * 2. Глубокое сканирование: Проверяет наличие stats и их размер, исправляя пустые группы.
- * 3. Эффективность: За один вызов может просканировать до 200 секторов в поисках дыр.
+ * 3. Эффективность: За один вызов может просканировать до 300 секторов в поисках дыр.
  */
 
 import { 
@@ -23,7 +23,7 @@ import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 
 const TOTAL_GROUPS = 511; 
 const GROUPS_TO_CREATE_PER_CALL = 12; 
-const MAX_SCAN_LIMIT = 200; // Позволяет быстро пролететь заполненные дивизионы, чтобы найти пустоты (например, в Дивизионе 3)
+const MAX_SCAN_LIMIT = 300; 
 
 function getGroupCoordinates(index: number) {
   if (index < 1) return { tier: 1, group: 1 };
@@ -69,7 +69,7 @@ function injectGroupToBatch(
     id: tableId, leagueId, level: tier, group, season: seasonNum,
     stats: initialStats,
     createdAt: serverTimestamp(),
-    version: 21
+    version: 22
   });
 
   const calendar = generateSeasonCalendar(teamsForCalendar, seasonNum, leagueId);
@@ -80,7 +80,7 @@ function injectGroupToBatch(
       id: mId,
       leagueId, level: tier, groupId: group, season: seasonNum,
       isFinished: false, scoreA: 0, scoreB: 0,
-      version: 21
+      version: 22
     });
   }
 }
@@ -97,6 +97,7 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
   if (statusSnap.exists()) {
     const data = statusSnap.data();
     if (data.status === 'completed') {
+      // Даже если завершено, при v105 fix-calendar мы удаляем этот док, так что сюда не попадем до полного обхода
       return { status: 'COMPLETE', season: seasonNum, isComplete: true, currentIndex: TOTAL_GROUPS };
     }
     currentIndex = data.currentIndex || 0;
@@ -105,7 +106,7 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
   let createdInThisCall = 0;
   let scannedInThisCall = 0;
 
-  console.log(`[WORLD ENGINE v21] Deep scanning from index ${currentIndex} for Season ${seasonNum}...`);
+  console.log(`[WORLD ENGINE v22] Searching for holes from index ${currentIndex} for Season ${seasonNum}...`);
 
   while (createdInThisCall < GROUPS_TO_CREATE_PER_CALL && currentIndex < TOTAL_GROUPS && scannedInThisCall < MAX_SCAN_LIMIT) {
     currentIndex++;
@@ -115,14 +116,16 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
     const tableId = `table_S${seasonNum}_L${leagueId}_V${coords.tier}_G${coords.group}`;
     const tableRef = doc(db, 'league_tables_v1', tableId);
     
-    // ПРОВЕРКА ПУСТОТ: Если документа нет ИЛИ stats пустые (битая группа) - создаем
+    // ПРОВЕРКА ПУСТОТ: Если документа нет ИЛИ stats пустые или отсутствуют - создаем
     const checkSnap = await getDoc(tableRef);
     if (checkSnap.exists()) {
       const data = checkSnap.data();
-      if (data?.stats && Object.keys(data.stats).length > 0) {
-        continue; // Группа в порядке, пропускаем
+      if (data?.stats && Object.keys(data.stats).length >= 8) {
+        continue; // Группа заполнена (минимум 8 команд), пропускаем
       }
     }
+
+    console.log(`[WORLD ENGINE] Hole detected at Div ${coords.tier} Group ${coords.group}. Repairing...`);
 
     const batch = writeBatch(db);
     injectGroupToBatch(batch, db, leagueId, coords.tier, coords.group, seasonNum);
@@ -134,14 +137,14 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
       lastGroup: coords.group,
       updatedAt: serverTimestamp(),
       status: 'processing',
-      version: 21
+      version: 22
     }, { merge: true });
 
     await batch.commit();
     createdInThisCall++;
   }
 
-  // Если мы ничего не создали, но просканировали до конца
+  // Если мы ничего не создали, но просканировали порцию - сохраняем currentIndex, чтобы в след раз не сканить то же самое
   if (createdInThisCall === 0 && scannedInThisCall > 0) {
     await setDoc(statusRef, { currentIndex, updatedAt: serverTimestamp() }, { merge: true });
   }

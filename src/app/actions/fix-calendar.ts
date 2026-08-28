@@ -1,10 +1,10 @@
 'use server';
 
 /**
- * Скрипт-синхронизатор v64 (Autonomous Global Reseeder).
+ * Скрипт-синхронизатор v105 (Autonomous Global Reseeder).
  * 
  * Логика работы:
- * ФАЗА 0 (NUCLEAR_WIPE): Разовая полная очистка S1 данных при первом запуске (v104).
+ * ФАЗА 0 (NUCLEAR_WIPE): Разовая полная очистка S1 данных при первом запуске (v105).
  * ФАЗА 1 (INIT_WORLD): Проверка наличия всех 511 групп. Если нет - достройка ботами.
  * ФАЗА 2 (RESEED_PLAYERS): Порционное переселение реальных игроков на их места.
  * ФАЗА 3 (COMPLETED): Мир готов к расчету матчей.
@@ -22,7 +22,7 @@ import { findStrategicPlacement, initializeClubV11 } from './season-init';
 const PLAYERS_PER_CHUNK = 25; 
 
 /**
- * ГЛОБАЛЬНЫЙ РЕМОНТ И ИНИЦИАЛИЗАЦИЯ МИРА v64.
+ * ГЛОБАЛЬНЫЙ РЕМОНТ И ИНИЦИАЛИЗАЦИЯ МИРА v105.
  */
 export async function runGlobalEmergencyRepair() {
   const { firestore: db } = initializeFirebase();
@@ -30,8 +30,8 @@ export async function runGlobalEmergencyRepair() {
   const seasonNum = info.activeSeasonNumber;
   const leagueId = "ALPHA";
 
-  // Используем v104 в ID документа, чтобы принудительно запустить сброс и перепроверку всех 511 групп
-  const repairStatusRef = doc(db, 'system_v1', `repair_v104_S${seasonNum}_L${leagueId}`);
+  // Версия v105 принудительно сбрасывает все прогрессы для поиска дыр
+  const repairStatusRef = doc(db, 'system_v1', `repair_v105_S${seasonNum}_L${leagueId}`);
   const repairSnap = await getDoc(repairStatusRef);
   const repairData = repairSnap.exists() ? repairSnap.data() : { phase: 'NUCLEAR_WIPE', status: 'processing' };
 
@@ -41,14 +41,15 @@ export async function runGlobalEmergencyRepair() {
 
   console.log(`[AUTONOMOUS REPAIR] Season ${seasonNum}, Phase: ${repairData.phase}`);
 
-  // ФАЗА 0: ГЛОБАЛЬНЫЙ СБРОС (Для перехода на v104)
+  // ФАЗА 0: ГЛОБАЛЬНЫЙ СБРОС (Для перехода на v105)
   if (repairData.phase === 'NUCLEAR_WIPE') {
-    console.log("[NUCLEAR] v104: Starting Automatic Deep Clean for New Season...");
+    console.log("[NUCLEAR] v105: Full Rescan Sequence Initiated...");
 
-    // 1. Удаление таблиц старых сезонов (опционально, если нужно полностью очистить)
-    // В v104 мы просто сбрасываем флаги, чтобы world-engine прошелся по всем 511 заново
+    // Сбрасываем прогресс билдера мира, чтобы он начал с 1 группы
+    const worldInitRef = doc(db, 'system_v1', `init_S${seasonNum}_L${leagueId}`);
+    await deleteDoc(worldInitRef).catch(() => {});
     
-    // 2. Сброс всех игроков в players_v11 для новой расстановки
+    // Сброс всех игроков в players_v11 для новой расстановки
     const playersSnap = await getDocs(collection(db, 'players_v11'));
     const batch = writeBatch(db);
     playersSnap.forEach(p => {
