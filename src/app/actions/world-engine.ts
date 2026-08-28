@@ -1,12 +1,11 @@
-
 'use server';
 
 /**
- * Глобальный двигатель заполнения мира v20 (Server-Side Optimized).
+ * Глобальный двигатель заполнения мира v21 (Deep Scan Enabled).
  * Особенности:
  * 1. Безопасность: Не перезаписывает существующие группы (защита игроков).
- * 2. Эффективность: При статусе 'completed' завершается мгновенно (0 операций).
- * 3. Автономность: Идеально подходит для Cloud Scheduler (вызовы каждые 30-60 сек).
+ * 2. Глубокое сканирование: Проверяет наличие stats и их размер, исправляя пустые группы.
+ * 3. Эффективность: За один вызов может просканировать до 200 секторов в поисках дыр.
  */
 
 import { 
@@ -23,8 +22,8 @@ import {
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 
 const TOTAL_GROUPS = 511; 
-const GROUPS_TO_CREATE_PER_CALL = 12; // Оптимально для частого вызова
-const MAX_SCAN_LIMIT = 200; // Глубокое сканирование пустот
+const GROUPS_TO_CREATE_PER_CALL = 12; 
+const MAX_SCAN_LIMIT = 200; // Позволяет быстро пролететь заполненные дивизионы, чтобы найти пустоты (например, в Дивизионе 3)
 
 function getGroupCoordinates(index: number) {
   if (index < 1) return { tier: 1, group: 1 };
@@ -70,7 +69,7 @@ function injectGroupToBatch(
     id: tableId, leagueId, level: tier, group, season: seasonNum,
     stats: initialStats,
     createdAt: serverTimestamp(),
-    version: 20
+    version: 21
   });
 
   const calendar = generateSeasonCalendar(teamsForCalendar, seasonNum, leagueId);
@@ -81,7 +80,7 @@ function injectGroupToBatch(
       id: mId,
       leagueId, level: tier, groupId: group, season: seasonNum,
       isFinished: false, scoreA: 0, scoreB: 0,
-      version: 20
+      version: 21
     });
   }
 }
@@ -97,9 +96,8 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
   let currentIndex = 0;
   if (statusSnap.exists()) {
     const data = statusSnap.data();
-    // Если мир для этого сезона уже готов — мгновенный выход
     if (data.status === 'completed') {
-      return { status: 'COMPLETE', season: seasonNum };
+      return { status: 'COMPLETE', season: seasonNum, isComplete: true, currentIndex: TOTAL_GROUPS };
     }
     currentIndex = data.currentIndex || 0;
   }
@@ -107,7 +105,7 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
   let createdInThisCall = 0;
   let scannedInThisCall = 0;
 
-  console.log(`[AUTONOMOUS WORLD ENGINE] Scanning from index ${currentIndex} for Season ${seasonNum}...`);
+  console.log(`[WORLD ENGINE v21] Deep scanning from index ${currentIndex} for Season ${seasonNum}...`);
 
   while (createdInThisCall < GROUPS_TO_CREATE_PER_CALL && currentIndex < TOTAL_GROUPS && scannedInThisCall < MAX_SCAN_LIMIT) {
     currentIndex++;
@@ -117,10 +115,13 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
     const tableId = `table_S${seasonNum}_L${leagueId}_V${coords.tier}_G${coords.group}`;
     const tableRef = doc(db, 'league_tables_v1', tableId);
     
-    // Проверка существования (Защита реальных игроков и уже созданных групп)
+    // ПРОВЕРКА ПУСТОТ: Если документа нет ИЛИ stats пустые (битая группа) - создаем
     const checkSnap = await getDoc(tableRef);
-    if (checkSnap.exists() && checkSnap.data()?.stats && Object.keys(checkSnap.data()?.stats || {}).length > 0) {
-      continue; 
+    if (checkSnap.exists()) {
+      const data = checkSnap.data();
+      if (data?.stats && Object.keys(data.stats).length > 0) {
+        continue; // Группа в порядке, пропускаем
+      }
     }
 
     const batch = writeBatch(db);
@@ -133,25 +134,25 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
       lastGroup: coords.group,
       updatedAt: serverTimestamp(),
       status: 'processing',
-      version: 20
+      version: 21
     }, { merge: true });
 
     await batch.commit();
     createdInThisCall++;
   }
 
-  // Обновляем финальный currentIndex если мы просто просканировали существующие группы
+  // Если мы ничего не создали, но просканировали до конца
   if (createdInThisCall === 0 && scannedInThisCall > 0) {
     await setDoc(statusRef, { currentIndex, updatedAt: serverTimestamp() }, { merge: true });
   }
 
-  // Финальный флаг завершения всей пирамиды
-  if (currentIndex >= TOTAL_GROUPS) {
+  const isComplete = currentIndex >= TOTAL_GROUPS;
+  if (isComplete) {
     await setDoc(statusRef, { 
       status: 'completed', 
       updatedAt: serverTimestamp() 
     }, { merge: true });
-    return { status: 'FINISHED', isComplete: true, season: seasonNum };
+    return { status: 'FINISHED', isComplete: true, season: seasonNum, currentIndex };
   }
 
   return { 
@@ -159,7 +160,8 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
     currentIndex, 
     created: createdInThisCall,
     scanned: scannedInThisCall,
-    season: seasonNum
+    season: seasonNum,
+    isComplete: false
   };
 }
 

@@ -4,7 +4,7 @@
  * Скрипт-синхронизатор v64 (Autonomous Global Reseeder).
  * 
  * Логика работы:
- * ФАЗА 0 (NUCLEAR_WIPE): Разовая полная очистка S1 данных при первом запуске (v103).
+ * ФАЗА 0 (NUCLEAR_WIPE): Разовая полная очистка S1 данных при первом запуске (v104).
  * ФАЗА 1 (INIT_WORLD): Проверка наличия всех 511 групп. Если нет - достройка ботами.
  * ФАЗА 2 (RESEED_PLAYERS): Порционное переселение реальных игроков на их места.
  * ФАЗА 3 (COMPLETED): Мир готов к расчету матчей.
@@ -30,8 +30,8 @@ export async function runGlobalEmergencyRepair() {
   const seasonNum = info.activeSeasonNumber;
   const leagueId = "ALPHA";
 
-  // Используем v103 в ID документа, чтобы принудительно запустить сброс один раз
-  const repairStatusRef = doc(db, 'system_v1', `repair_v103_S${seasonNum}_L${leagueId}`);
+  // Используем v104 в ID документа, чтобы принудительно запустить сброс и перепроверку всех 511 групп
+  const repairStatusRef = doc(db, 'system_v1', `repair_v104_S${seasonNum}_L${leagueId}`);
   const repairSnap = await getDoc(repairStatusRef);
   const repairData = repairSnap.exists() ? repairSnap.data() : { phase: 'NUCLEAR_WIPE', status: 'processing' };
 
@@ -41,19 +41,14 @@ export async function runGlobalEmergencyRepair() {
 
   console.log(`[AUTONOMOUS REPAIR] Season ${seasonNum}, Phase: ${repairData.phase}`);
 
-  // ФАЗА 0: ГЛОБАЛЬНЫЙ СБРОС (Для перехода на v103)
+  // ФАЗА 0: ГЛОБАЛЬНЫЙ СБРОС (Для перехода на v104)
   if (repairData.phase === 'NUCLEAR_WIPE') {
-    console.log("[NUCLEAR] v103: Starting Automatic Deep Clean for New Season...");
+    console.log("[NUCLEAR] v104: Starting Automatic Deep Clean for New Season...");
 
-    // 1. Удаление таблиц старых сезонов
-    const tablesSnap = await getDocs(collection(db, 'league_tables_v1'));
-    for (const d of tablesSnap.docs) await deleteDoc(d.ref);
-
-    // 2. Удаление старых матчей
-    const matchesSnap = await getDocs(collection(db, 'matches_v1'));
-    for (const d of matchesSnap.docs) await deleteDoc(d.ref);
-
-    // 3. Сброс всех игроков в players_v11 для новой расстановки
+    // 1. Удаление таблиц старых сезонов (опционально, если нужно полностью очистить)
+    // В v104 мы просто сбрасываем флаги, чтобы world-engine прошелся по всем 511 заново
+    
+    // 2. Сброс всех игроков в players_v11 для новой расстановки
     const playersSnap = await getDocs(collection(db, 'players_v11'));
     const batch = writeBatch(db);
     playersSnap.forEach(p => {
@@ -73,6 +68,7 @@ export async function runGlobalEmergencyRepair() {
     await setDoc(repairStatusRef, { 
       phase: 'INIT_WORLD', 
       status: 'processing',
+      currentIndex: 0,
       updatedAt: serverTimestamp()
     }, { merge: true });
 
