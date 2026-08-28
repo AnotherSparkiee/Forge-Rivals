@@ -1,16 +1,16 @@
 'use server';
 
 /**
- * Глобальный двигатель заполнения мира v23 (Deep Scan Hole Fix).
+ * Глобальный двигатель заполнения мира v107 (Full Pyramid Reconstruction).
  * Особенности:
- * 1. Безопасность: Не перезаписывает существующие группы с полным составом.
- * 2. Глубокое сканирование: Проверяет наличие stats и их размер, исправляя пустые или битые группы.
- * 3. Эффективность: За один вызов может просканировать до 300 секторов и создать до 20 групп.
+ * 1. Полный охват: За один вызов может просканировать всю пирамиду (511 групп).
+ * 2. Надежность: currentIndex сохраняется всегда, даже если группы не создавались.
+ * 3. Агрессивный ремонт: Любая группа < 8 команд считается дырой и пересоздается.
  */
 
 import { 
   doc, getDoc, writeBatch, 
-  Firestore, serverTimestamp, setDoc, deleteDoc
+  Firestore, serverTimestamp, setDoc
 } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import { 
@@ -22,9 +22,13 @@ import {
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 
 const TOTAL_GROUPS = 511; 
-const GROUPS_TO_CREATE_PER_CALL = 20; 
-const MAX_SCAN_LIMIT = 300; 
+const GROUPS_TO_CREATE_PER_CALL = 25; 
+const MAX_SCAN_LIMIT = 511; 
 
+/**
+ * Математически точный расчет координат бинарной пирамиды.
+ * Индексы 1..511
+ */
 function getGroupCoordinates(index: number) {
   if (index < 1) return { tier: 1, group: 1 };
   let tier = 1;
@@ -51,7 +55,7 @@ function injectGroupToBatch(
   const tableId = `table_S${seasonNum}_L${leagueId}_V${tier}_G${group}`;
   const tableRef = doc(db, 'league_tables_v1', tableId);
   
-  // Принудительно удаляем старый документ, если он был "битым" (пустым)
+  // Принудительно удаляем старый документ для чистой перезаписи
   batch.delete(tableRef);
 
   const initialStats: any = {};
@@ -72,7 +76,7 @@ function injectGroupToBatch(
     id: tableId, leagueId, level: tier, group, season: seasonNum,
     stats: initialStats,
     createdAt: serverTimestamp(),
-    version: 23
+    version: 107
   });
 
   const calendar = generateSeasonCalendar(teamsForCalendar, seasonNum, leagueId);
@@ -83,7 +87,7 @@ function injectGroupToBatch(
       id: mId,
       leagueId, level: tier, groupId: group, season: seasonNum,
       isFinished: false, scoreA: 0, scoreB: 0,
-      version: 23
+      version: 107
     });
   }
 }
@@ -100,15 +104,16 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
   if (statusSnap.exists()) {
     const data = statusSnap.data();
     if (data.status === 'completed') {
-      return { status: 'COMPLETE', season: seasonNum, isComplete: true, currentIndex: TOTAL_GROUPS };
+      return { status: 'COMPLETE', isComplete: true, currentIndex: TOTAL_GROUPS };
     }
     currentIndex = data.currentIndex || 0;
   }
 
   let createdInThisCall = 0;
   let scannedInThisCall = 0;
+  const batch = writeBatch(db);
 
-  console.log(`[WORLD ENGINE v23] Searching for holes from index ${currentIndex} for Season ${seasonNum}...`);
+  console.log(`[WORLD ENGINE v107] Starting pyramid scan from index ${currentIndex}...`);
 
   while (createdInThisCall < GROUPS_TO_CREATE_PER_CALL && currentIndex < TOTAL_GROUPS && scannedInThisCall < MAX_SCAN_LIMIT) {
     currentIndex++;
@@ -118,59 +123,41 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
     const tableId = `table_S${seasonNum}_L${leagueId}_V${coords.tier}_G${coords.group}`;
     const tableRef = doc(db, 'league_tables_v1', tableId);
     
-    // ПРОВЕРКА ПУСТОТ: Если документа нет ИЛИ stats имеют меньше 8 команд - создаем
+    // ПРОВЕРКА ДЫР: Документа нет ИЛИ статистика пуста ИЛИ в ней меньше 8 команд
     const checkSnap = await getDoc(tableRef);
     let needsRepair = true;
     
     if (checkSnap.exists()) {
       const data = checkSnap.data();
       if (data?.stats && Object.keys(data.stats).length >= 8) {
-        needsRepair = false; // Группа заполнена, пропускаем
+        needsRepair = false; 
       }
     }
 
     if (needsRepair) {
-      console.log(`[WORLD ENGINE] Hole detected at Div ${coords.tier} Group ${coords.group} (Index: ${currentIndex}). Repairing...`);
-
-      const batch = writeBatch(db);
+      console.log(`[WORLD ENGINE] Fixing Group index ${currentIndex}: Div ${coords.tier} Group ${coords.group}`);
       injectGroupToBatch(batch, db, leagueId, coords.tier, coords.group, seasonNum);
-
-      // Обновляем прогресс атомарно с созданием группы
-      batch.set(statusRef, {
-        currentIndex,
-        lastTier: coords.tier,
-        lastGroup: coords.group,
-        updatedAt: serverTimestamp(),
-        status: 'processing',
-        version: 23
-      }, { merge: true });
-
-      await batch.commit();
       createdInThisCall++;
     }
   }
 
-  // Если мы ничего не создали, но просканировали порцию - сохраняем currentIndex
-  if (createdInThisCall === 0 && scannedInThisCall > 0) {
-    await setDoc(statusRef, { currentIndex, updatedAt: serverTimestamp() }, { merge: true });
-  }
-
+  // ОБНОВЛЯЕМ ПРОГРЕСС ВСЕГДА В КОНЦЕ
   const isComplete = currentIndex >= TOTAL_GROUPS;
-  if (isComplete) {
-    await setDoc(statusRef, { 
-      status: 'completed', 
-      updatedAt: serverTimestamp() 
-    }, { merge: true });
-    return { status: 'FINISHED', isComplete: true, season: seasonNum, currentIndex };
-  }
+  batch.set(statusRef, {
+    currentIndex,
+    status: isComplete ? 'completed' : 'processing',
+    updatedAt: serverTimestamp(),
+    version: 107
+  }, { merge: true });
+
+  await batch.commit();
 
   return { 
-    status: 'IN_PROGRESS', 
+    status: isComplete ? 'FINISHED' : 'IN_PROGRESS', 
     currentIndex, 
     created: createdInThisCall,
     scanned: scannedInThisCall,
-    season: seasonNum,
-    isComplete: false
+    isComplete
   };
 }
 
