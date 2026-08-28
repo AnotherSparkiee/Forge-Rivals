@@ -1,10 +1,10 @@
 'use server';
 
 /**
- * Скрипт-синхронизатор v62 (Autonomous Global Reseeder).
+ * Скрипт-синхронизатор v63 (Autonomous Global Reseeder).
  * 
  * Логика работы:
- * ФАЗА 0 (NUCLEAR_WIPE): Разовая полная очистка S1 данных при первом запуске.
+ * ФАЗА 0 (NUCLEAR_WIPE): Разовая полная очистка S1 данных при первом запуске (v102).
  * ФАЗА 1 (INIT_WORLD): Проверка наличия всех 511 групп. Если нет - достройка ботами.
  * ФАЗА 2 (RESEED_PLAYERS): Порционное переселение реальных игроков на их места.
  * ФАЗА 3 (COMPLETED): Мир готов к расчету матчей.
@@ -22,7 +22,7 @@ import { findStrategicPlacement, initializeClubV11 } from './season-init';
 const PLAYERS_PER_CHUNK = 25; 
 
 /**
- * ГЛОБАЛЬНЫЙ РЕМОНТ И ИНИЦИАЛИЗАЦИЯ МИРА v62.
+ * ГЛОБАЛЬНЫЙ РЕМОНТ И ИНИЦИАЛИЗАЦИЯ МИРА v63.
  */
 export async function runGlobalEmergencyRepair() {
   const { firestore: db } = initializeFirebase();
@@ -30,7 +30,8 @@ export async function runGlobalEmergencyRepair() {
   const seasonNum = info.activeSeasonNumber;
   const leagueId = "ALPHA";
 
-  const repairStatusRef = doc(db, 'system_v1', `repair_S${seasonNum}_L${leagueId}`);
+  // Используем v102 в ID документа, чтобы принудительно запустить сброс один раз
+  const repairStatusRef = doc(db, 'system_v1', `repair_v102_S${seasonNum}_L${leagueId}`);
   const repairSnap = await getDoc(repairStatusRef);
   const repairData = repairSnap.exists() ? repairSnap.data() : { phase: 'NUCLEAR_WIPE', status: 'processing' };
 
@@ -40,28 +41,19 @@ export async function runGlobalEmergencyRepair() {
 
   console.log(`[AUTONOMOUS REPAIR] Season ${seasonNum}, Phase: ${repairData.phase}`);
 
-  // ФАЗА 0: ОДНОРАЗОВЫЙ ГЛОБАЛЬНЫЙ СБРОС (Для S1)
+  // ФАЗА 0: ГЛОБАЛЬНЫЙ СБРОС (Для перехода на v102)
   if (repairData.phase === 'NUCLEAR_WIPE') {
-    console.log("[NUCLEAR] Starting Automatic Deep Clean for Season 1...");
+    console.log("[NUCLEAR] v102: Starting Automatic Deep Clean for New Season...");
 
-    // 1. Удаление таблиц S1
-    const tablesQ = query(collection(db, 'league_tables_v1'), where('season', '==', 1));
-    const tablesSnap = await getDocs(tablesQ);
+    // 1. Удаление таблиц старых сезонов
+    const tablesSnap = await getDocs(collection(db, 'league_tables_v1'));
     for (const d of tablesSnap.docs) await deleteDoc(d.ref);
 
-    // 2. Удаление матчей S1
-    const matchesQ = query(collection(db, 'matches_v1'), where('season', '==', 1));
-    const matchesSnap = await getDocs(matchesQ);
+    // 2. Удаление старых матчей
+    const matchesSnap = await getDocs(collection(db, 'matches_v1'));
     for (const d of matchesSnap.docs) await deleteDoc(d.ref);
 
-    // 3. Удаление старых системных флагов
-    const sysRefs = [
-      doc(db, 'system_v1', 'init_S1_LALPHA'),
-      doc(db, 'system_v1', 'transition_S1')
-    ];
-    for (const r of sysRefs) await deleteDoc(r).catch(() => {});
-
-    // 4. Сброс всех игроков в players_v11
+    // 3. Сброс всех игроков в players_v11 для новой расстановки
     const playersSnap = await getDocs(collection(db, 'players_v11'));
     const batch = writeBatch(db);
     playersSnap.forEach(p => {
@@ -139,12 +131,10 @@ export async function runGlobalEmergencyRepair() {
       lastCreatedAt = p.createdAt;
       
       try {
-        // Умная расстановка: сначала проверяем "целевые" координаты от миграции (performSeasonTransition)
         let tier = p.targetLevel;
         let group = p.targetGroup;
         let rank = p.targetRank;
 
-        // Если целей нет (новый игрок или сбой) — ищем свободное место стратегически (снизу вверх)
         if (!tier || !group) {
           const placement = await findStrategicPlacement(leagueId);
           tier = placement.tier;
