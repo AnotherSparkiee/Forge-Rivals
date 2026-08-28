@@ -1,8 +1,8 @@
 'use server';
 
 /**
- * @fileOverview ГЛОБАЛЬНЫЙ АВТОНОМНЫЙ ДВИГАТЕЛЬ ЛИГИ v1.4 (Self-Healing Heartbeat).
- * Обрабатывает матчи, смену сезона и автоматически чинит мир при необходимости.
+ * @fileOverview ГЛОБАЛЬНЫЙ АВТОНОМНЫЙ ДВИГАТЕЛЬ ЛИГИ v1.5 (Self-Healing Heartbeat).
+ * Обрабатывает матчи и смену сезона. Блокируется, если мир не готов.
  */
 
 import { 
@@ -36,27 +36,28 @@ class FirestoreBatcher {
 }
 
 /**
- * РАСЧЕТ МАТЧЕЙ ТУРА + ПРОВЕРКА ЦЕЛОСТНОСТИ МИРА.
+ * РАСЧЕТ МАТЧЕЙ ТУРА.
  */
 export async function resolveDailyMatches() {
   const { firestore: db } = initializeFirebase();
   const info = getGlobalSeasonInfo();
   const currentSeason = info.activeSeasonNumber;
   
-  // 1. Проверяем, завершена ли инициализация/ремонт мира
+  // КРИТИЧЕСКАЯ ПРОВЕРКА: Готов ли мир?
   const repairStatusRef = doc(db, 'system_v1', `repair_S${currentSeason}_LALPHA`);
   const repairSnap = await getDoc(repairStatusRef);
   const isRepairComplete = repairSnap.exists() && repairSnap.data().phase === 'COMPLETED';
 
   if (!isRepairComplete) {
-    console.log(`[HEARTBEAT] World not ready for S${currentSeason}. Triggering autonomous repair.`);
+    console.log(`[HEARTBEAT] World not ready for S${currentSeason}. Matches suspended.`);
+    // Вместо расчета матчей вызываем ремонт
     const repairResult = await runGlobalEmergencyRepair();
     return { success: true, status: "REPAIRING", progress: repairResult.status };
   }
 
   if (info.isOffseason) return { success: true, count: 0, msg: "Offseason: matches paused" };
 
-  // 2. Ищем матчи для расчета
+  // Поиск матчей текущего тура
   const q = query(
     collection(db, 'matches_v1'),
     where('season', '==', currentSeason),
@@ -112,7 +113,7 @@ export async function resolveDailyMatches() {
 }
 
 /**
- * СМЕНА СЕЗОНА (Autonomous Phase-based Transition).
+ * СМЕНА СЕЗОНА.
  */
 export async function performSeasonTransition() {
   const { firestore: db } = initializeFirebase();
@@ -128,6 +129,9 @@ export async function performSeasonTransition() {
     return { alreadyDone: true };
   }
 
+  // При переходе на новый сезон Repair автоматически сбросится, 
+  // так как его ID привязан к номеру сезона.
+  
   console.log(`[AUTONOMOUS CYCLE] Awaiting chunked migration for Season ${currentSeason}`);
   return { status: "AWAITING_CHUNKS" };
 }
