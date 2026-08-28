@@ -48,7 +48,8 @@ export async function resolveDailyMatches() {
   const info = getGlobalSeasonInfo();
   const currentSeason = info.activeSeasonNumber;
   
-  const repairStatusRef = doc(db, 'system_v1', `repair_S${currentSeason}_LALPHA`);
+  // Синхронизация с актуальной версией ремонта v106
+  const repairStatusRef = doc(db, 'system_v1', `repair_v106_S${currentSeason}_LALPHA`);
   const repairSnap = await getDoc(repairStatusRef);
   const isRepairComplete = repairSnap.exists() && repairSnap.data().phase === 'COMPLETED';
 
