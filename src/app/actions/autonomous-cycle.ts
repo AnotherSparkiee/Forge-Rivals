@@ -1,17 +1,17 @@
 'use server';
 
 /**
- * @fileOverview ГЛОБАЛЬНЫЙ АВТОНОМНЫЙ ДВИГАТЕЛЬ ЛИГИ v1.5 (Self-Healing Heartbeat).
- * Обрабатывает матчи и смену сезона. Блокируется, если мир не готов.
+ * @fileOverview ГЛОБАЛЬНЫЙ АВТОНОМНЫЙ ДВИГАТЕЛЬ ЛИГИ v2.0 (Endless Cycle).
+ * Обрабатывает матчи и смену сезона.
  */
 
 import { 
   collection, doc, getDocs, getDoc, query, where, 
   writeBatch, serverTimestamp, increment,
-  Firestore, limit
+  Firestore, limit, setDoc, orderBy, startAfter
 } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
-import { getMatchResult } from '@/app/lib/leagues-data';
+import { getMatchResult, getPromotionTarget, getRelegationTarget } from '@/app/lib/leagues-data';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 import { runGlobalEmergencyRepair } from './fix-calendar';
 
@@ -23,6 +23,11 @@ class FirestoreBatcher {
   }
   async update(ref: any, data: any) {
     this.batch.update(ref, data);
+    this.count++;
+    if (this.count >= 480) await this.commit();
+  }
+  async set(ref: any, data: any, options?: any) {
+    this.batch.set(ref, data, options);
     this.count++;
     if (this.count >= 480) await this.commit();
   }
@@ -43,21 +48,18 @@ export async function resolveDailyMatches() {
   const info = getGlobalSeasonInfo();
   const currentSeason = info.activeSeasonNumber;
   
-  // КРИТИЧЕСКАЯ ПРОВЕРКА: Готов ли мир?
   const repairStatusRef = doc(db, 'system_v1', `repair_S${currentSeason}_LALPHA`);
   const repairSnap = await getDoc(repairStatusRef);
   const isRepairComplete = repairSnap.exists() && repairSnap.data().phase === 'COMPLETED';
 
   if (!isRepairComplete) {
     console.log(`[HEARTBEAT] World not ready for S${currentSeason}. Matches suspended.`);
-    // Вместо расчета матчей вызываем ремонт
     const repairResult = await runGlobalEmergencyRepair();
     return { success: true, status: "REPAIRING", progress: repairResult.status };
   }
 
   if (info.isOffseason) return { success: true, count: 0, msg: "Offseason: matches paused" };
 
-  // Поиск матчей текущего тура
   const q = query(
     collection(db, 'matches_v1'),
     where('season', '==', currentSeason),
@@ -113,7 +115,8 @@ export async function resolveDailyMatches() {
 }
 
 /**
- * СМЕНА СЕЗОНА.
+ * СМЕНА СЕЗОНА (Migration Engine v100).
+ * Порционная обработка групп для расчета повышений/понижений.
  */
 export async function performSeasonTransition() {
   const { firestore: db } = initializeFirebase();
@@ -122,16 +125,84 @@ export async function performSeasonTransition() {
   if (!info.isOffseason) return { success: false, error: "Not an offseason yet" };
 
   const currentSeason = info.activeSeasonNumber;
-  const statusRef = doc(db, 'system_v1', `transition_S${currentSeason}`);
-  
-  const statusSnap = await getDoc(statusRef);
-  if (statusSnap.exists() && statusSnap.data().status === 'completed') {
-    return { alreadyDone: true };
+  const transitionStatusRef = doc(db, 'system_v1', `transition_S${currentSeason}`);
+  const statusSnap = await getDoc(transitionStatusRef);
+  const status = statusSnap.exists() ? statusSnap.data() : { currentIndex: 0, status: 'processing' };
+
+  if (status.status === 'completed') return { alreadyDone: true };
+
+  const GROUPS_PER_CHUNK = 25;
+  const startIdx = status.currentIndex || 0;
+  const endIdx = Math.min(startIdx + GROUPS_PER_CHUNK, 511);
+
+  console.log(`[TRANSITION] Processing Season ${currentSeason} groups: ${startIdx} to ${endIdx}`);
+
+  const batcher = new FirestoreBatcher(db);
+
+  for (let i = startIdx + 1; i <= endIdx; i++) {
+    // Получаем координаты группы из индекса (логика из world-engine)
+    const coords = getGroupCoords(i);
+    const tableId = `table_S${currentSeason}_LALPHA_V${coords.tier}_G${coords.group}`;
+    const tableSnap = await getDoc(doc(db, 'league_tables_v1', tableId));
+
+    if (tableSnap.exists()) {
+      const tableData = tableSnap.data();
+      const standings = Object.values(tableData.stats || {}).sort((a: any, b: any) => {
+        if (b.points !== a.points) return b.points - a.points;
+        return b.diff - a.diff;
+      });
+
+      // Обработка каждого участника
+      for (let rank = 1; rank <= standings.length; rank++) {
+        const team: any = standings[rank - 1];
+        if (team.isBot) continue;
+
+        // Расчет нового места
+        let nextLvl = coords.tier;
+        let nextGrp = coords.group;
+        
+        if (rank <= 2) {
+          const promo = getPromotionTarget(coords.tier, coords.group);
+          nextLvl = promo.level; nextGrp = promo.group;
+        } else if (rank >= 7) {
+          const releg = getRelegationTarget(coords.tier, coords.group, rank);
+          nextLvl = releg.level; nextGrp = releg.group;
+        }
+
+        // Записываем игроку его "целевые" координаты на новый сезон
+        const playerRef = doc(db, 'players_v11', team.id);
+        await batcher.update(playerRef, {
+          targetLevel: nextLvl,
+          targetGroup: nextGrp,
+          targetRank: rank, // Ранг наследуется или сбрасывается
+          lastProcessedSeason: 0 // Сброс для фазы RESEED
+        });
+      }
+    }
   }
 
-  // При переходе на новый сезон Repair автоматически сбросится, 
-  // так как его ID привязан к номеру сезона.
-  
-  console.log(`[AUTONOMOUS CYCLE] Awaiting chunked migration for Season ${currentSeason}`);
-  return { status: "AWAITING_CHUNKS" };
+  // Обновляем прогресс миграции
+  const isFinished = endIdx >= 511;
+  await batcher.set(transitionStatusRef, {
+    currentIndex: endIdx,
+    status: isFinished ? 'completed' : 'processing',
+    updatedAt: serverTimestamp()
+  }, { merge: true });
+
+  await batcher.commit();
+  return { status: isFinished ? "COMPLETED" : "PROCESSING", processed: endIdx };
+}
+
+function getGroupCoords(index: number) {
+  let tier = 1;
+  let runningTotal = 0;
+  while (tier <= 9) {
+    const groupsInTier = Math.pow(2, tier - 1);
+    if (index <= runningTotal + groupsInTier) {
+      return { tier, group: index - runningTotal };
+    }
+    runningTotal += groupsInTier;
+    tier++;
+  }
+  return { tier: 9, group: 256 };
 }
