@@ -8,16 +8,17 @@ import {
   ChevronLeft, Settings, Users, ShieldCheck, 
   Info, Loader2, Package, Gift,
   ChevronRight, Sparkles, Database, Sword,
-  RefreshCw, Globe, ShieldAlert, AlertTriangle
+  RefreshCw, Globe, ShieldAlert, AlertTriangle, Construction
 } from 'lucide-react';
 import Link from 'next/link';
-import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query } from 'firebase/firestore';
+import { useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
+import { collection, query, doc } from 'firebase/firestore';
 import { useMemo } from 'react';
 import { cn } from '@/lib/utils';
+import { TOTAL_GROUPS } from '../lib/leagues-data';
 
 export default function SystemPage() {
-  const { language } = useGameState();
+  const { language, seasonNumber, selectedLeagueId } = useGameState();
   const db = useFirestore();
 
   // Запрос всех актуальных игроков v12 для подсчета статистики
@@ -27,6 +28,14 @@ export default function SystemPage() {
   }, [db]);
   
   const { data: players, isLoading } = useCollection(playersQuery);
+
+  // Запрос статуса инициализации мира
+  const initStatusRef = useMemoFirebase(() => {
+    if (!db || !selectedLeagueId) return null;
+    return doc(db, 'system_v1', `init_S${seasonNumber}_L${selectedLeagueId}`);
+  }, [db, selectedLeagueId, seasonNumber]);
+
+  const { data: initStatus } = useDoc(initStatusRef);
 
   const stats = useMemo(() => {
     if (!players) return { total: 0, online: 0 };
@@ -42,6 +51,9 @@ export default function SystemPage() {
 
     return { total: Math.max(total, 0), online: Math.max(onlineCount, 0) };
   }, [players]);
+
+  const worldProgress = initStatus?.currentIndex || 0;
+  const isWorldReady = initStatus?.status === 'completed';
 
   const t = {
     ru: { 
@@ -60,7 +72,10 @@ export default function SystemPage() {
       bonuses: "Реестр Подарков",
       bonusesDesc: "Справочник дипломатических грузов S-Tier",
       loading: "Синхронизация...",
-      hostId: "ID хоста"
+      hostId: "ID хоста",
+      worldStatus: "Состояние мира",
+      building: "Постройка пирамиды...",
+      ready: "Мир v120 полностью готов"
     },
     en: { 
       title: "SYSTEM", 
@@ -78,7 +93,10 @@ export default function SystemPage() {
       bonuses: "Gifts Registry",
       bonusesDesc: "Guide to S-Tier diplomatic cargo",
       loading: "Syncing...",
-      hostId: "Host ID"
+      hostId: "Host ID",
+      worldStatus: "World Integrity",
+      building: "Building Pyramid...",
+      ready: "World v120 Ready"
     }
   }[language === 'ru' ? 'ru' : 'en'];
 
@@ -100,6 +118,37 @@ export default function SystemPage() {
       </header>
 
       <div className="space-y-6">
+        <section className="space-y-3">
+          <h2 className="text-[10px] font-black uppercase tracking-widest text-accent px-1">{t.worldStatus}</h2>
+          <Card className={cn(
+            "glass-card border-white/5 bg-secondary/10 overflow-hidden transition-all",
+            !isWorldReady && "border-primary/30"
+          )}>
+            <CardContent className="p-4">
+               <div className="flex items-center justify-between mb-3">
+                 <div className="flex items-center gap-3">
+                   <div className={cn("p-2 rounded-lg bg-secondary/50", !isWorldReady ? "text-primary animate-pulse" : "text-green-400")}>
+                     {isWorldReady ? <ShieldCheck className="w-5 h-5" /> : <Construction className="w-5 h-5" />}
+                   </div>
+                   <div>
+                     <p className="text-xs font-bold uppercase text-white">{isWorldReady ? t.ready : t.building}</p>
+                     <p className="text-[8px] text-muted-foreground uppercase font-black">Universe Build v120</p>
+                   </div>
+                 </div>
+                 <div className="text-right">
+                    <p className="text-sm font-headline font-bold text-primary">{worldProgress} / {TOTAL_GROUPS}</p>
+                 </div>
+               </div>
+               <div className="h-1.5 w-full bg-background rounded-full overflow-hidden border border-white/5">
+                  <div 
+                    className="h-full bg-primary transition-all duration-1000 ease-out shadow-[0_0_10px_rgba(var(--primary),0.5)]" 
+                    style={{ width: `${(worldProgress / TOTAL_GROUPS) * 100}%` }}
+                  />
+               </div>
+            </CardContent>
+          </Card>
+        </section>
+
         <section className="space-y-3">
           <h2 className="text-[10px] font-black uppercase tracking-widest text-accent px-1">{t.status}</h2>
           <div className="grid grid-cols-2 gap-3">
