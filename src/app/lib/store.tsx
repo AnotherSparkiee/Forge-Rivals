@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * Глобальное локальное хранилище v233 (V2 Collections Integration).
- * Повышена версия хранилища для перехода на matches_v2 и league_tables_v2.
+ * Глобальное локальное хранилище v234 (Total Reset Synchronization).
+ * Повышена версия хранилища для принудительной очистки кэша после сброса сезона.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useMemo } from 'react';
@@ -124,7 +124,7 @@ interface GameState {
   saveToLocal: (state: Partial<GameState>) => void;
 }
 
-const STORAGE_KEY = 'lote_game_state_v233';
+const STORAGE_KEY = 'lote_game_state_v234';
 
 const DEFAULT_STATE: GameState = {
   credits: 1000000, crystals: 50, experiencePoints: 0, managerLevel: 1,
@@ -144,7 +144,7 @@ const DEFAULT_STATE: GameState = {
   arena: { capacity: 5000 }, hq: {}, bootcamp: {}, academy: {}, medical: {},
   country: null, isPremium: false, premiumUntil: null, activeSeasonNumber: 1, seasonNumber: 1, seasonDay: 1, isSyncing: false, language: 'ru',
   isDataReady: false, allSeasonMatches: [], nextMatch: null, isMatchesLoading: true,
-  lastProcessedSeason: 0, trophies: [], version: 233,
+  lastProcessedSeason: 0, trophies: [], version: 234,
   availableGiftsToSend: [], receivedGifts: [], lastGiftGenDate: null,
   addCrystals: () => {}, addCredits: () => {}, updatePlayer: () => {}, removePlayer: () => {}, assignToRole: () => {}, updateLineup: () => {}, updateTactics: () => {},
   claimReward: () => {}, setLanguage: () => {}, purchaseLicense: () => false, purchasePremium: () => false,
@@ -187,7 +187,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (parsed.version < 233) {
+        if (parsed.version < 234) {
           localStorage.removeItem(STORAGE_KEY);
           window.location.reload();
           return;

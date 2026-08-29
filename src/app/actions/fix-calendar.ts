@@ -1,4 +1,3 @@
-
 'use server';
 
 /**
@@ -35,7 +34,7 @@ export async function runGlobalEmergencyRepair() {
   console.log(`[TOTAL PURGE] v120, Phase: ${repairData.phase}`);
 
   /**
-   * ЭТАП 1: Очистка старых коллекций v1
+   * ЭТАП 1: Очистка старых коллекций v1 и ошибочных v2
    */
   if (repairData.phase === 'WIPE_OLD_V1') {
     const q = query(collection(db, 'league_tables_v1'), limit(DELETE_BATCH_SIZE));
@@ -44,10 +43,10 @@ export async function runGlobalEmergencyRepair() {
       const batch = writeBatch(db);
       snap.docs.forEach(d => batch.delete(d.ref));
       await batch.commit();
-      return { status: 'WIPING_OLD_TABLES', deleted: snap.size };
+      return { status: 'WIPING_OLD_TABLES_V1', deleted: snap.size };
     }
     await setDoc(repairStatusRef, { phase: 'WIPE_MATCHES_V1' }, { merge: true });
-    return { status: 'OLD_TABLES_CLEARED', next: 'WIPE_MATCHES_V1' };
+    return { status: 'OLD_TABLES_V1_CLEARED', next: 'WIPE_MATCHES_V1' };
   }
 
   if (repairData.phase === 'WIPE_MATCHES_V1') {
@@ -57,14 +56,40 @@ export async function runGlobalEmergencyRepair() {
       const batch = writeBatch(db);
       snap.docs.forEach(d => batch.delete(d.ref));
       await batch.commit();
-      return { status: 'WIPING_OLD_MATCHES', deleted: snap.size };
+      return { status: 'WIPING_OLD_MATCHES_V1', deleted: snap.size };
+    }
+    await setDoc(repairStatusRef, { phase: 'WIPE_TABLES_V2_TEMP' }, { merge: true });
+    return { status: 'OLD_MATCHES_V1_CLEARED', next: 'WIPE_TABLES_V2_TEMP' };
+  }
+
+  if (repairData.phase === 'WIPE_TABLES_V2_TEMP') {
+    const q = query(collection(db, 'league_tables_v2'), limit(DELETE_BATCH_SIZE));
+    const snap = await getDocs(q);
+    if (!snap.empty) {
+      const batch = writeBatch(db);
+      snap.docs.forEach(d => batch.delete(d.ref));
+      await batch.commit();
+      return { status: 'WIPING_TEMP_TABLES_V2', deleted: snap.size };
+    }
+    await setDoc(repairStatusRef, { phase: 'WIPE_MATCHES_V2_TEMP' }, { merge: true });
+    return { status: 'TEMP_TABLES_V2_CLEARED', next: 'WIPE_MATCHES_V2_TEMP' };
+  }
+
+  if (repairData.phase === 'WIPE_MATCHES_V2_TEMP') {
+    const q = query(collection(db, 'matches_v2'), limit(DELETE_BATCH_SIZE));
+    const snap = await getDocs(q);
+    if (!snap.empty) {
+      const batch = writeBatch(db);
+      snap.docs.forEach(d => batch.delete(d.ref));
+      await batch.commit();
+      return { status: 'WIPING_TEMP_MATCHES_V2', deleted: snap.size };
     }
     await setDoc(repairStatusRef, { phase: 'WIPE_PLAYERS_ALL' }, { merge: true });
-    return { status: 'OLD_MATCHES_CLEARED', next: 'WIPE_PLAYERS_ALL' };
+    return { status: 'TEMP_MATCHES_V2_CLEARED', next: 'WIPE_PLAYERS_ALL' };
   }
 
   /**
-   * ЭТАП 2: Удаление ВСЕХ игроков (v10, v11, v12)
+   * ЭТАП 2: Удаление ВСЕХ игроков
    */
   if (repairData.phase === 'WIPE_PLAYERS_ALL') {
     const collections = ['players_v12', 'players_v11', 'players_v10'];
@@ -83,22 +108,17 @@ export async function runGlobalEmergencyRepair() {
   }
 
   /**
-   * ЭТАП 3: Очистка социальных данных
+   * ЭТАП 3: Очистка системных флагов
    */
   if (repairData.phase === 'WIPE_SOCIAL') {
-    const socialColls = ['global_chat_v2', 'friend_requests_v4', 'market_v7', 'notifications_v7', 'private_messages_v3'];
-    for (const collName of socialColls) {
-      const q = query(collection(db, collName), limit(DELETE_BATCH_SIZE));
-      const snap = await getDocs(q);
-      if (!snap.empty) {
-        const batch = writeBatch(db);
-        snap.docs.forEach(d => batch.delete(d.ref));
-        await batch.commit();
-        return { status: `WIPING_${collName}`, deleted: snap.size };
-      }
+    const sysRefs = [
+      doc(db, 'system_v1', `init_S${seasonNum}_L${leagueId}`)
+    ];
+    for (const r of sysRefs) {
+      await deleteDoc(r).catch(() => {});
     }
     await setDoc(repairStatusRef, { phase: 'INIT_WORLD_V2' }, { merge: true });
-    return { status: 'SOCIAL_CLEARED', next: 'INIT_WORLD_V2' };
+    return { status: 'SYSTEM_FLAGS_CLEARED', next: 'INIT_WORLD_V2' };
   }
 
   /**
