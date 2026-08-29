@@ -1,3 +1,4 @@
+
 /**
  * @fileOverview Ядро времени v128 (Universal Sync - Season 1 Start). 
  * Обеспечивает единство отсчета для всех групп лиги.

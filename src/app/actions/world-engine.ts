@@ -2,12 +2,11 @@
 'use server';
 
 /**
- * Глобальный двигатель заполнения мира v115 (Atomic v12 Support).
+ * Глобальный двигатель заполнения мира v116 (Atomic Bot-Only Support).
  * Особенности:
- * 1. Исправлен баг Batch Limit (500): КАЖДАЯ группа коммитится своим отдельным батчем (~58 операций).
- * 2. Атомарный прогресс: currentIndex сохраняется СРАЗУ после каждой группы.
- * 3. Агрессивный ремонт: Группы с < 8 командами считаются битыми.
- * 4. Версия 115 для синхронизации с Absolute Reset.
+ * 1. Одна группа = один коммит батча (58 операций).
+ * 2. Создает только ботов (8 на группу).
+ * 3. Использует версию 116 для чистого старта.
  */
 
 import { 
@@ -73,7 +72,7 @@ function injectGroupData(
     id: tableId, leagueId, level: tier, group, season: seasonNum,
     stats: initialStats,
     createdAt: serverTimestamp(),
-    version: 115
+    version: 116
   });
 
   const calendar = generateSeasonCalendar(teamsForCalendar, seasonNum, leagueId);
@@ -84,7 +83,7 @@ function injectGroupData(
       id: mId,
       leagueId, level: tier, groupId: group, season: seasonNum,
       isFinished: false, scoreA: 0, scoreB: 0,
-      version: 115
+      version: 116
     });
   }
 }
@@ -118,27 +117,28 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
     const tableRef = doc(db, 'league_tables_v1', tableId);
     
     const checkSnap = await getDoc(tableRef);
-    let needsRepair = true;
+    let needsCreate = true;
     
     if (checkSnap.exists()) {
       const data = checkSnap.data();
-      if (data?.stats && Object.keys(data.stats).length >= 8 && data.version === 115) {
-        needsRepair = false; 
+      if (data?.stats && Object.keys(data.stats).length >= 8 && data.version === 116) {
+        needsCreate = false; 
       }
     }
 
-    if (needsRepair) {
+    if (needsCreate) {
       const groupBatch = writeBatch(db);
       injectGroupData(groupBatch, db, leagueId, coords.tier, coords.group, seasonNum);
       await groupBatch.commit();
       createdInThisCall++;
     }
 
+    // Сохраняем прогресс сразу после каждой группы
     await setDoc(statusRef, {
       currentIndex,
       status: currentIndex >= TOTAL_GROUPS ? 'completed' : 'processing',
       updatedAt: serverTimestamp(),
-      version: 115
+      version: 116
     }, { merge: true });
   }
 
@@ -148,16 +148,4 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
     currentIndex, 
     isComplete
   };
-}
-
-export async function createGroupStructure(
-  db: any, 
-  leagueId: string, 
-  tier: number, 
-  group: number, 
-  seasonNum: number
-) {
-  const batch = writeBatch(db);
-  injectGroupData(batch, db, leagueId, tier, group, seasonNum);
-  await batch.commit();
 }
