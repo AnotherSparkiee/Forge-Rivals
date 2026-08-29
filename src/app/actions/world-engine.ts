@@ -1,13 +1,12 @@
-
 'use server';
 
 /**
- * Глобальный двигатель заполнения мира v120 (High-Speed Build).
+ * Глобальный двигатель заполнения мира v120 (Universe Architect).
  * Особенности:
  * 1. Использует новые коллекции v2 для мгновенной изоляции от старых данных.
- * 2. Одна группа = один коммит батча (58 операций).
+ * 2. Одна группа = один коммит батча (таблица + 56 матчей).
  * 3. Создает только ботов (8 на группу).
- * 4. Оптимизирован для максимально быстрой постройки 511 групп.
+ * 4. Оптимизирован для постройки 511 групп за минимальное количество вызовов.
  */
 
 import { 
@@ -24,7 +23,7 @@ import {
 } from '@/app/lib/leagues-data';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 
-const GROUPS_TO_CREATE_PER_CALL = 100; // Увеличено для максимальной скорости
+const GROUPS_TO_CREATE_PER_CALL = 100; // По 100 групп за цикл для скорости
 
 function getGroupCoordinates(index: number) {
   if (index < 1) return { tier: 1, group: 1 };
@@ -104,6 +103,9 @@ export async function createGroupStructure(
   await batch.commit();
 }
 
+/**
+ * Инициализация мира. Проходит по всем 511 группам.
+ */
 export async function initializeLeagueWorld(leagueId: string, targetSeason?: number) {
   const { firestore: db } = initializeFirebase();
   const info = getGlobalSeasonInfo();
@@ -133,6 +135,7 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
     const checkSnap = await getDoc(tableRef);
     let needsCreate = true;
     
+    // Проверка целостности: группа должна иметь 8 команд и версию 120
     if (checkSnap.exists()) {
       const data = checkSnap.data();
       if (data?.stats && Object.keys(data.stats).length === 8 && data.version === 120) {
@@ -141,7 +144,9 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
     }
 
     if (needsCreate) {
-      await createGroupStructure(db, leagueId, coords.tier, coords.group, seasonNum);
+      const batch = writeBatch(db);
+      injectGroupData(batch, db, leagueId, coords.tier, coords.group, seasonNum);
+      await batch.commit();
       createdInThisCall++;
     }
 

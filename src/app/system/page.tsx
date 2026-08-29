@@ -8,18 +8,22 @@ import {
   ChevronLeft, Settings, Users, ShieldCheck, 
   Info, Loader2, Package, Gift,
   ChevronRight, Sparkles, Database, Sword,
-  RefreshCw, Globe, ShieldAlert, AlertTriangle, Construction
+  RefreshCw, Globe, ShieldAlert, AlertTriangle, Construction, Zap
 } from 'lucide-react';
 import Link from 'next/link';
 import { useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
 import { collection, query, doc } from 'firebase/firestore';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { TOTAL_GROUPS } from '../lib/leagues-data';
+import { runGlobalEmergencyRepair } from '../actions/fix-calendar';
+import { useToast } from '@/hooks/use-toast';
 
 export default function SystemPage() {
   const { language, seasonNumber, selectedLeagueId } = useGameState();
   const db = useFirestore();
+  const { toast } = useToast();
+  const [isBuilding, setIsBuilding] = useState(false);
 
   // Запрос всех актуальных игроков v12 для подсчета статистики
   const playersQuery = useMemoFirebase(() => {
@@ -27,7 +31,7 @@ export default function SystemPage() {
     return query(collection(db, 'players_v12'));
   }, [db]);
   
-  const { data: players, isLoading } = useCollection(playersQuery);
+  const { data: players, isLoading: isPlayersLoading } = useCollection(playersQuery);
 
   // Запрос статуса инициализации мира
   const initStatusRef = useMemoFirebase(() => {
@@ -37,28 +41,34 @@ export default function SystemPage() {
 
   const { data: initStatus } = useDoc(initStatusRef);
 
+  // Запрос статуса ремонта
+  const repairStatusRef = useMemoFirebase(() => {
+    if (!db || !selectedLeagueId) return null;
+    return doc(db, 'system_v1', `repair_v120_S${seasonNumber}_L${selectedLeagueId}`);
+  }, [db, selectedLeagueId, seasonNumber]);
+
+  const { data: repairStatus } = useDoc(repairStatusRef);
+
   const stats = useMemo(() => {
     if (!players) return { total: 0, online: 0 };
-    
     const now = Date.now();
     const fiveMinutesAgo = now - 5 * 60 * 1000;
-
     const total = players.length;
     const onlineCount = players.filter(p => {
       const lastLogin = p.lastLoginDate ? new Date(p.lastLoginDate).getTime() : 0;
       return lastLogin > fiveMinutesAgo;
     }).length;
-
     return { total: Math.max(total, 0), online: Math.max(onlineCount, 0) };
   }, [players]);
 
   const worldProgress = initStatus?.currentIndex || 0;
   const isWorldReady = initStatus?.status === 'completed';
+  const currentPhase = repairStatus?.phase || 'INITIALIZING';
 
   const t = {
     ru: { 
       title: "СИСТЕМА", 
-      subtitle: "Параметры и сетевая статистика (v12)",
+      subtitle: "Параметры и сетевая статистика (v120)",
       status: "Статус сети",
       online: "Игроков онлайн",
       registered: "Зарегистрировано",
@@ -75,11 +85,13 @@ export default function SystemPage() {
       hostId: "ID хоста",
       worldStatus: "Состояние мира",
       building: "Постройка пирамиды...",
-      ready: "Мир v120 полностью готов"
+      ready: "Мир v120 полностью готов",
+      forceBuild: "ФОРСИРОВАТЬ ПОСТРОЙКУ МИРА",
+      forceDesc: "Нажмите для ускорения создания 511 групп"
     },
     en: { 
       title: "SYSTEM", 
-      subtitle: "Parameters and network metrics (v12)",
+      subtitle: "Parameters and network metrics (v120)",
       status: "Network Status",
       online: "Online Managers",
       registered: "Total Registered",
@@ -96,9 +108,27 @@ export default function SystemPage() {
       hostId: "Host ID",
       worldStatus: "World Integrity",
       building: "Building Pyramid...",
-      ready: "World v120 Ready"
+      ready: "World v120 Ready",
+      forceBuild: "FORCE WORLD BUILD",
+      forceDesc: "Click to accelerate creation of 511 groups"
     }
   }[language === 'ru' ? 'ru' : 'en'];
+
+  const handleForceBuild = async () => {
+    if (isBuilding) return;
+    setIsBuilding(true);
+    try {
+      const res = await runGlobalEmergencyRepair();
+      toast({ 
+        title: language === 'ru' ? "Цикл постройки запущен" : "Build Cycle Initiated",
+        description: `Status: ${res.status} | Progress: ${res.progress || 'N/A'}`
+      });
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsBuilding(false);
+    }
+  };
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-32">
@@ -132,7 +162,7 @@ export default function SystemPage() {
                    </div>
                    <div>
                      <p className="text-xs font-bold uppercase text-white">{isWorldReady ? t.ready : t.building}</p>
-                     <p className="text-[8px] text-muted-foreground uppercase font-black">Universe Build v120</p>
+                     <p className="text-[8px] text-muted-foreground uppercase font-black tracking-widest">Phase: {currentPhase}</p>
                    </div>
                  </div>
                  <div className="text-right">
@@ -145,6 +175,20 @@ export default function SystemPage() {
                     style={{ width: `${(worldProgress / TOTAL_GROUPS) * 100}%` }}
                   />
                </div>
+
+               {!isWorldReady && (
+                 <div className="mt-6 pt-4 border-t border-white/5">
+                   <Button 
+                    className="w-full h-12 hero-gradient font-black text-[10px] uppercase tracking-widest shadow-xl"
+                    onClick={handleForceBuild}
+                    disabled={isBuilding}
+                   >
+                     {isBuilding ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Zap className="w-4 h-4 mr-2" />}
+                     {t.forceBuild}
+                   </Button>
+                   <p className="text-[8px] text-center text-muted-foreground uppercase font-bold mt-2">{t.forceDesc}</p>
+                 </div>
+               )}
             </CardContent>
           </Card>
         </section>
@@ -156,7 +200,7 @@ export default function SystemPage() {
               <CardContent className="p-4 text-center">
                 <Users className="w-5 h-5 text-primary mx-auto mb-2" />
                 <p className="text-[8px] font-black text-muted-foreground uppercase">{t.online}</p>
-                {isLoading ? (
+                {isPlayersLoading ? (
                   <div className="flex justify-center mt-2">
                     <Loader2 className="w-4 h-4 animate-spin text-primary opacity-50" />
                   </div>
@@ -169,7 +213,7 @@ export default function SystemPage() {
               <CardContent className="p-4 text-center">
                 <ShieldCheck className="w-5 h-5 text-green-400 mx-auto mb-2" />
                 <p className="text-[8px] font-black text-muted-foreground uppercase">{t.registered}</p>
-                {isLoading ? (
+                {isPlayersLoading ? (
                   <div className="flex justify-center mt-2">
                     <Loader2 className="w-4 h-4 animate-spin text-green-400 opacity-50" />
                   </div>
@@ -231,8 +275,8 @@ export default function SystemPage() {
 
         <div className="p-6 bg-primary/5 rounded-2xl border border-dashed border-white/10 text-center opacity-30">
           <Info className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
-          <p className="text-[8px] font-black uppercase tracking-widest">{t.hostId}: v12-NUCLEAR-REBUILD</p>
-          <p className="text-[7px] uppercase font-bold text-muted-foreground mt-1">Версия реестра: 12.1.0</p>
+          <p className="text-[8px] font-black uppercase tracking-widest">{t.hostId}: v120-UNIVERSE-ARCHITECT</p>
+          <p className="text-[7px] uppercase font-bold text-muted-foreground mt-1">Версия реестра: 12.1.1</p>
           <Badge variant="outline" className="text-[8px] border-green-500/30 text-green-400 font-black uppercase tracking-widest mt-2">AUTONOMOUS_CYCLE_ACTIVE</Badge>
         </div>
       </div>

@@ -1,8 +1,8 @@
 'use server';
 
 /**
- * @fileOverview Скрипт Абсолютного Сброса v120 (Total Isolation Mode).
- * Переключает мир на коллекции v2 для гарантированного удаления старых игроков.
+ * @fileOverview Скрипт Абсолютного Сброса v120 (Total Purge & Rebuild).
+ * Удаляет всё из v1 и v2, затем строит 511 чистых групп.
  */
 
 import { 
@@ -25,104 +25,47 @@ export async function runGlobalEmergencyRepair() {
   // Документ состояния ремонта v120
   const repairStatusRef = doc(db, 'system_v1', `repair_v120_S${seasonNum}_L${leagueId}`);
   const repairSnap = await getDoc(repairStatusRef);
-  const repairData = repairSnap.exists() ? repairSnap.data() : { phase: 'WIPE_OLD_V1' };
+  const repairData = repairSnap.exists() ? repairSnap.data() : { phase: 'TOTAL_PURGE_V1' };
 
   if (repairData.phase === 'COMPLETED') {
-    return { status: 'ALL_READY', msg: 'Season 1 v120 initialized. World v2 is empty and ready.' };
+    return { status: 'ALL_READY', msg: 'Season 1 world fully built and ready.' };
   }
 
-  console.log(`[TOTAL PURGE] v120, Phase: ${repairData.phase}`);
+  console.log(`[WORLD ARCHITECT] v120, Phase: ${repairData.phase}`);
 
   /**
-   * ЭТАП 1: Очистка старых коллекций v1 и ошибочных v2
+   * ЭТАП 1: Тотальная очистка (Wipe everything)
    */
-  if (repairData.phase === 'WIPE_OLD_V1') {
-    const q = query(collection(db, 'league_tables_v1'), limit(DELETE_BATCH_SIZE));
-    const snap = await getDocs(q);
-    if (!snap.empty) {
-      const batch = writeBatch(db);
-      snap.docs.forEach(d => batch.delete(d.ref));
-      await batch.commit();
-      return { status: 'WIPING_OLD_TABLES_V1', deleted: snap.size };
-    }
-    await setDoc(repairStatusRef, { phase: 'WIPE_MATCHES_V1' }, { merge: true });
-    return { status: 'OLD_TABLES_V1_CLEARED', next: 'WIPE_MATCHES_V1' };
-  }
+  const WIPE_PHASES = [
+    { phase: 'TOTAL_PURGE_V1', colls: ['league_tables_v1', 'matches_v1'], next: 'TOTAL_PURGE_V2' },
+    { phase: 'TOTAL_PURGE_V2', colls: ['league_tables_v2', 'matches_v2'], next: 'TOTAL_PURGE_PLAYERS' },
+    { phase: 'TOTAL_PURGE_PLAYERS', colls: ['players_v12', 'players_v11', 'players_v10'], next: 'WIPE_SOCIAL' },
+    { phase: 'WIPE_SOCIAL', colls: ['global_chat_v2', 'friend_requests_v4', 'market_v7', 'notifications_v7'], next: 'INIT_WORLD_V2' }
+  ];
 
-  if (repairData.phase === 'WIPE_MATCHES_V1') {
-    const q = query(collection(db, 'matches_v1'), limit(DELETE_BATCH_SIZE));
-    const snap = await getDocs(q);
-    if (!snap.empty) {
-      const batch = writeBatch(db);
-      snap.docs.forEach(d => batch.delete(d.ref));
-      await batch.commit();
-      return { status: 'WIPING_OLD_MATCHES_V1', deleted: snap.size };
-    }
-    await setDoc(repairStatusRef, { phase: 'WIPE_TABLES_V2_TEMP' }, { merge: true });
-    return { status: 'OLD_MATCHES_V1_CLEARED', next: 'WIPE_TABLES_V2_TEMP' };
-  }
-
-  if (repairData.phase === 'WIPE_TABLES_V2_TEMP') {
-    const q = query(collection(db, 'league_tables_v2'), limit(DELETE_BATCH_SIZE));
-    const snap = await getDocs(q);
-    if (!snap.empty) {
-      const batch = writeBatch(db);
-      snap.docs.forEach(d => batch.delete(d.ref));
-      await batch.commit();
-      return { status: 'WIPING_TEMP_TABLES_V2', deleted: snap.size };
-    }
-    await setDoc(repairStatusRef, { phase: 'WIPE_MATCHES_V2_TEMP' }, { merge: true });
-    return { status: 'TEMP_TABLES_V2_CLEARED', next: 'WIPE_MATCHES_V2_TEMP' };
-  }
-
-  if (repairData.phase === 'WIPE_MATCHES_V2_TEMP') {
-    const q = query(collection(db, 'matches_v2'), limit(DELETE_BATCH_SIZE));
-    const snap = await getDocs(q);
-    if (!snap.empty) {
-      const batch = writeBatch(db);
-      snap.docs.forEach(d => batch.delete(d.ref));
-      await batch.commit();
-      return { status: 'WIPING_TEMP_MATCHES_V2', deleted: snap.size };
-    }
-    await setDoc(repairStatusRef, { phase: 'WIPE_PLAYERS_ALL' }, { merge: true });
-    return { status: 'TEMP_MATCHES_V2_CLEARED', next: 'WIPE_PLAYERS_ALL' };
-  }
-
-  /**
-   * ЭТАП 2: Удаление ВСЕХ игроков
-   */
-  if (repairData.phase === 'WIPE_PLAYERS_ALL') {
-    const collections = ['players_v12', 'players_v11', 'players_v10'];
-    for (const collName of collections) {
-      const q = query(collection(db, collName), limit(DELETE_BATCH_SIZE));
+  const currentWipe = WIPE_PHASES.find(p => p.phase === repairData.phase);
+  if (currentWipe) {
+    for (const coll of currentWipe.colls) {
+      const q = query(collection(db, coll), limit(DELETE_BATCH_SIZE));
       const snap = await getDocs(q);
       if (!snap.empty) {
         const batch = writeBatch(db);
         snap.docs.forEach(d => batch.delete(d.ref));
         await batch.commit();
-        return { status: `WIPING_${collName}`, deleted: snap.size };
+        return { status: `WIPING_${coll.toUpperCase()}`, deleted: snap.size };
       }
     }
-    await setDoc(repairStatusRef, { phase: 'WIPE_SOCIAL' }, { merge: true });
-    return { status: 'PLAYERS_CLEARED', next: 'WIPE_SOCIAL' };
-  }
-
-  /**
-   * ЭТАП 3: Очистка системных флагов
-   */
-  if (repairData.phase === 'WIPE_SOCIAL') {
-    const sysRefs = [
-      doc(db, 'system_v1', `init_S${seasonNum}_L${leagueId}`)
-    ];
-    for (const r of sysRefs) {
-      await deleteDoc(r).catch(() => {});
+    // Если все коллекции в текущей фазе пусты
+    if (repairData.phase === 'WIPE_SOCIAL') {
+      // Удаляем флаги инициализации перед постройкой
+      await deleteDoc(doc(db, 'system_v1', `init_S${seasonNum}_L${leagueId}`)).catch(() => {});
     }
-    await setDoc(repairStatusRef, { phase: 'INIT_WORLD_V2' }, { merge: true });
-    return { status: 'SYSTEM_FLAGS_CLEARED', next: 'INIT_WORLD_V2' };
+    await setDoc(repairStatusRef, { phase: currentWipe.next }, { merge: true });
+    return { status: `${repairData.phase}_CLEARED`, next: currentWipe.next };
   }
 
   /**
-   * ЭТАП 4: Постройка нового мира в v2
+   * ЭТАП 2: Постройка нового мира в v2 (511 групп)
    */
   if (repairData.phase === 'INIT_WORLD_V2') {
     const worldRes = await initializeLeagueWorld(leagueId, seasonNum);
@@ -132,7 +75,7 @@ export async function runGlobalEmergencyRepair() {
         status: 'completed',
         finishedAt: serverTimestamp()
       }, { merge: true });
-      return { status: 'ALL_COMPLETE', msg: "Universe v120 built in V2 collections. No old records visible." };
+      return { status: 'ALL_COMPLETE', msg: "Universe v120 built. 511 groups ready." };
     }
     return { 
       status: 'BUILDING_WORLD_V2', 
