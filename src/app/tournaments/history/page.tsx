@@ -19,9 +19,10 @@ export default function TournamentHistoryPage() {
   const db = useFirestore();
   const { language, isLoaded } = useGameState();
 
+  // Updated to strictly use players_v13
   const userRef = useMemoFirebase(() => {
     if (!db || !user) return null;
-    return doc(db, 'players_v12', user.uid);
+    return doc(db, 'players_v13', user.uid);
   }, [db, user]);
   
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
@@ -106,7 +107,7 @@ export default function TournamentHistoryPage() {
                          (record.tournamentId === 'iron-brick' ? '/tournaments/iron-brick' : '#');
             
             return (
-              <Link key={`${record.tournamentId}-${idx}`} href={href} className="block group">
+              <Link key={`${record.tournamentId}-${idx}`} href={isActive ? href : '#'}>
                 <Card className={cn(
                   "glass-card border-white/5 overflow-hidden transition-all group-hover:bg-white/5",
                   isDQ ? "border-red-500/20 bg-red-500/5" : (isActive ? "border-primary/40 bg-primary/10 shadow-[0_0_15px_rgba(var(--primary),0.1)]" : "border-primary/20 bg-primary/5")

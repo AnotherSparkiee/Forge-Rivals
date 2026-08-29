@@ -49,8 +49,8 @@ export default function ContractsPage() {
     return () => clearInterval(timer);
   }, []);
 
-  // Updated to strictly use players_v12
-  const userRef = useMemoFirebase(() => (user?.uid ? doc(db, 'players_v12', user.uid) : null), [db, user?.uid]);
+  // Use players_v13 for active profile
+  const userRef = useMemoFirebase(() => (user?.uid ? doc(db, 'players_v13', user.uid) : null), [db, user?.uid]);
   const { data: profile } = useDoc(userRef);
 
   if (!isLoaded) return <LoadingScreen />;
@@ -209,7 +209,7 @@ export default function ContractsPage() {
                 </h3>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]">
-                     <span className="text-[9px] font-bold text-muted-foreground uppercase">{t.age}</span>
+                     <span className="text-[9px] font-bold text-muted-foreground uppercase">{language === 'ru' ? 'Возраст' : 'Age'}</span>
                      <span className="text-[10px] font-bold">{liveAge.display} {t.years}</span>
                   </div>
                   <div className="flex items-center justify-between p-3 bg-secondary/10 rounded-xl border border-white/5 min-h-[64px]">

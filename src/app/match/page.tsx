@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview ОФИЦИАЛЬНЫЙ ПЛЕЕР МАТЧЕЙ v120 (V2 COLLECTIONS).
- * Работает с матчами из matches_v2.
+ * @fileOverview ОФИЦИАЛЬНЫЙ ПЛЕЕР МАТЧЕЙ v130 (V2 COLLECTIONS).
+ * Работает с матчами из matches_v2 и игроками v13.
  */
 
 import { useState, useEffect, useMemo, Suspense, useRef } from 'react';
@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
-  ChevronLeft, Check, Swords, Activity, ArrowRight, 
+  ChevronLeft, Swords, Activity, ArrowRight, 
   ShieldCheck, Zap, Target, Trophy, 
   User, ShieldAlert, Info, Users,
   Timer, ChevronRight, Crown,
@@ -49,7 +49,7 @@ function MatchContent() {
 
   const groupPlayersQuery = useMemoFirebase(() => {
     if (!db || !selectedLeagueId) return null;
-    return query(collection(db, 'players_v12'), 
+    return query(collection(db, 'players_v13'), 
       where('selectedLeagueId', '==', selectedLeagueId),
       where('leagueLevel', '==', leagueLevel),
       where('groupId', '==', groupId)

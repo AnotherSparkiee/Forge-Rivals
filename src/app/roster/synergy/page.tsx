@@ -22,8 +22,8 @@ export default function SynergyPage() {
   const db = useFirestore();
   const { matchHistory, language, isLoaded, lineup, ownedPlayers } = useGameState();
 
-  // Updated to strictly use players_v12
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v12', user.uid) : null, [db, user]);
+  // Strictly use players_v13
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v13', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
   // Расчет общей статистики матчей для сыгранности

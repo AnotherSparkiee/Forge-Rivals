@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -70,7 +69,7 @@ export default function AssociationPage() {
 
   const userRef = useMemoFirebase(() => {
     if (!db || !user) return null;
-    return doc(db, 'players_v11', user.uid);
+    return doc(db, 'players_v13', user.uid);
   }, [db, user]);
   
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
@@ -166,7 +165,7 @@ export default function AssociationPage() {
       removeDeputy: "Remove from Position", removeDeputyDesc: "Demotes deputy back to regular member", kickPlayer: "Kick from Association", kickDesc: "Removes player from alliance immediately",
       disband: "Disband Association", disbandDesc: "Complete alliance liquidation", disbandConfirmTitle: "DESTRUCTIVE PROTOCOL", disbandConfirmDesc: "This action will permanently delete the association and remove all members. This cannot be undone.", disbandBtn: "DISBAND ALLIANCE", alreadyMember: "You are already a member of an association",
       lockedJoin: "B-Tier License Required", lockedCreate: "S-Tier License Required",
-      offline: "OFFLINE MODE: Alliance terminal restricted.",
+      offline: "OFFLINE: Alliance terminal restricted.",
       tabs: {
         my_assoc: { label: "My Association", desc: "Manage your current alliance", icon: ShieldCheck, color: "text-primary" },
         news: { label: "News Feed", desc: "Recent alliance events", icon: Newspaper, color: "text-accent" },
@@ -302,7 +301,7 @@ export default function AssociationPage() {
           requests: arrayRemove(applicant),
           news: arrayUnion({ type: 'join', userName: applicant.name, timestamp: nowIso })
         });
-        updateDocumentNonBlocking(doc(db, 'players_v11', applicant.uid), { 
+        updateDocumentNonBlocking(doc(db, 'players_v13', applicant.uid), { 
           associationId: myAssoc.id,
           lastJoinedAssocAt: nowIso
         });
@@ -352,7 +351,7 @@ export default function AssociationPage() {
         news: arrayUnion({ type: 'kick', userName: selectedPlayer.name, timestamp: nowIso }),
         ...(myAssoc.deputyId === selectedPlayer.id ? { deputyId: null } : {})
       });
-      updateDocumentNonBlocking(doc(db, 'players_v11', selectedPlayer.id), { associationId: null });
+      updateDocumentNonBlocking(doc(db, 'players_v13', selectedPlayer.id), { associationId: null });
       toast({ title: language === 'ru' ? "Игрок исключен" : "Player Kicked" });
       setSelectedUser(null);
     } finally {
@@ -409,7 +408,7 @@ export default function AssociationPage() {
       const batch = writeBatch(db);
       const members = myAssoc.members || [];
       members.forEach((uid: string) => {
-        batch.update(doc(db, 'players_v11', uid), { associationId: null });
+        batch.update(doc(db, 'players_v13', uid), { associationId: null });
       });
       batch.delete(doc(db, 'associations_v4', myAssoc.id));
       await batch.commit();

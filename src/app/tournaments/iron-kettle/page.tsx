@@ -46,10 +46,10 @@ export default function IronKettlePage() {
   const simLockRef = useRef<Set<string>>(new Set());
   const rewardClaimedRef = useRef<string | null>(null);
 
-  // Strictly use players_v12
+  // Strictly use players_v13
   const userRef = useMemoFirebase(() => {
     if (!db || !user) return null;
-    return doc(db, 'players_v12', user.uid);
+    return doc(db, 'players_v13', user.uid);
   }, [db, user]);
   
   const { data: profile } = useDoc(userRef);
@@ -70,7 +70,7 @@ export default function IronKettlePage() {
 
   const participantsQuery = useMemoFirebase(() => {
     if (!db) return null;
-    return query(collection(db, 'players_v12'), where('tournaments', 'array-contains', tournamentInstanceId));
+    return query(collection(db, 'players_v13'), where('tournaments', 'array-contains', tournamentInstanceId));
   }, [db, tournamentInstanceId]);
 
   const { data: participants, isLoading: isParticipantsLoading } = useCollection(participantsQuery);
@@ -169,7 +169,7 @@ export default function IronKettlePage() {
       if (!opponent) return;
 
       const matchId = `match_${tourKey}_u${user.uid}`;
-      const matchRef = doc(db, 'matches_v1', matchId);
+      const matchRef = doc(db, 'matches_v2', matchId);
       const snap = await getDoc(matchRef);
 
       if (!snap.exists()) {
@@ -182,7 +182,6 @@ export default function IronKettlePage() {
 
           const clubIdent = profile?.clubName || profile?.displayName || "My Club";
 
-          // Ослабляем турнирного бота до OVR 12
           const simulation = await simulateMobaMatch({
             teamA: { 
               name: clubIdent, 
@@ -205,7 +204,7 @@ export default function IronKettlePage() {
             simulation,
             type: 'tournament',
             playedAt: now.toISOString(),
-            version: 76
+            version: 130
           };
 
           await setDoc(matchRef, matchRecord);

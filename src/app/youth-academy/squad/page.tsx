@@ -43,8 +43,8 @@ export default function YouthSquadPage() {
     return () => clearInterval(timer);
   }, []);
 
-  // Updated to use players_v11
-  const userRef = useMemoFirebase(() => (user?.uid ? doc(db, 'players_v11', user.uid) : null), [db, user?.uid]);
+  // Use players_v13 for active profile
+  const userRef = useMemoFirebase(() => (user?.uid ? doc(db, 'players_v13', user.uid) : null), [db, user?.uid]);
   const { data: profile } = useDoc(userRef);
 
   const rolesRu: Record<string, string> = {
@@ -201,7 +201,7 @@ export default function YouthSquadPage() {
                         <div className="flex justify-between items-center px-0.5">
                           <div className="flex items-center gap-2">
                             <Icon className="w-4 h-4 text-muted-foreground/60" />
-                            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span>
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{(t.proStatsLabels as any)[key]}</span>
                           </div>
                           <div className="flex items-center gap-1.5">
                             <span className="text-[10px] font-mono font-bold text-white">{displayValue}</span>
@@ -229,7 +229,7 @@ export default function YouthSquadPage() {
                         <div className="flex justify-between items-center px-0.5">
                           <div className="flex items-center gap-2">
                             <Icon className="w-4 h-4 text-accent/50" />
-                            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t.proStatsLabels[key as keyof typeof t.proStatsLabels]}</span>
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{(t.proStatsLabels as any)[key]}</span>
                           </div>
                           <div className="flex items-center gap-3">
                              {renderStars(talentLimit)}

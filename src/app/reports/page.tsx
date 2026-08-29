@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview ЦЕНТР ОТЧЕТОВ МАТЧЕЙ v1.6.
- * Обновлен для работы с игроками v12.
+ * @fileOverview ЦЕНТР ОТЧЕТОВ МАТЧЕЙ v130.
+ * Обновлен для работы с игроками v13 и коллекциями v2.
  */
 
 import { useGameState } from '@/app/lib/store';
@@ -38,10 +38,10 @@ export default function ReportsPage() {
     if (!isUserLoading && !user) router.push('/auth/login');
   }, [user, isUserLoading, router]);
 
-  // Загрузка участников группы для разрешения имен (v12)
+  // Загрузка участников группы для разрешения имен (v13)
   const groupPlayersQuery = useMemoFirebase(() => {
     if (!db || !selectedLeagueId) return null;
-    return query(collection(db, 'players_v12'), 
+    return query(collection(db, 'players_v13'), 
       where('selectedLeagueId', '==', selectedLeagueId),
       where('leagueLevel', '==', leagueLevel),
       where('groupId', '==', groupId)
@@ -73,7 +73,7 @@ export default function ReportsPage() {
       source: 'history'
     }));
 
-    // 2. Из текущего сезона лиги
+    // 2. Из текущего сезона лиги (v2)
     const leagueReports = (allSeasonMatches || [])
       .filter(m => (Number(m.homeRank) === rank || Number(m.awayRank) === rank) && m.isFinished)
       .map(m => {

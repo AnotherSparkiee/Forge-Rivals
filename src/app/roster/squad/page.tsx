@@ -66,8 +66,8 @@ export default function SquadPage() {
     return () => clearInterval(timer);
   }, []);
 
-  // Updated to use players_v11
-  const userRef = useMemoFirebase(() => (user?.uid ? doc(db, 'players_v11', user.uid) : null), [db, user?.uid]);
+  // Use players_v13 for active profile
+  const userRef = useMemoFirebase(() => (user?.uid ? doc(db, 'players_v13', user.uid) : null), [db, user?.uid]);
   const { data: profile } = useDoc(userRef);
 
   const squadLimit = useMemo(() => {
@@ -265,7 +265,7 @@ export default function SquadPage() {
                 </div>
                 <div className="flex flex-col items-center min-w-[28px]">
                   <p className="text-[6px] font-black text-primary uppercase tracking-widest mb-0.5">{t.metrics.overall}</p>
-                  <span className="text-lg font-headline font-bold text-accent italic leading-none">{player.overallRating}</span>
+                  <span className="text-lg font-headline font-bold text-accent italic leading-none">{teamOvr}</span>
                 </div>
               </div>
             )}
@@ -408,7 +408,7 @@ export default function SquadPage() {
                 <section className="grid grid-cols-2 gap-3">
                   <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-1">
                     <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{language === 'ru' ? 'ВЛАДЕЛЕЦ' : 'OWNER'}</p>
-                    <div className="flex items-center gap-2"><ShieldCheck className="w-3 h-3 text-primary" /><p className="text-[10px] font-bold uppercase truncate">{displayName || "Manager"}</p></div>
+                    <div className="flex items-center gap-2"><ShieldCheck className="w-3 h-3 text-primary" /><p className="text-[10px] font-bold uppercase truncate">{profile?.clubName || displayName || "Manager"}</p></div>
                   </div>
                   <div className="bg-secondary/20 p-3 rounded-xl border border-white/5 space-y-1">
                     <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">{language === 'ru' ? 'ПРОДАЖА' : 'SALE'}</p>
