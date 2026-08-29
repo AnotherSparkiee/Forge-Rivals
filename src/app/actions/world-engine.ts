@@ -1,4 +1,3 @@
-
 'use server';
 
 /**
@@ -19,11 +18,11 @@ import {
   getBotId, 
   getBotName,
   TEAMS_PER_GROUP, 
-  generateSeasonCalendar 
+  generateSeasonCalendar,
+  TOTAL_GROUPS
 } from '@/app/lib/leagues-data';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 
-export const TOTAL_GROUPS = 511; 
 const GROUPS_TO_CREATE_PER_CALL = 40; // Увеличено для скорости
 
 function getGroupCoordinates(index: number) {

@@ -12,6 +12,7 @@ export interface LeagueOption {
 
 export const MAX_LEVELS = 9;
 export const TEAMS_PER_GROUP = 8;
+export const TOTAL_GROUPS = 511; 
 export const SEASON_DURATION_DAYS = 14;
 
 export const LEAGUES: LeagueOption[] = [

@@ -1,4 +1,3 @@
-
 'use server';
 
 /**
@@ -12,7 +11,8 @@ import {
 } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
-import { initializeLeagueWorld, TOTAL_GROUPS } from './world-engine';
+import { initializeLeagueWorld } from './world-engine';
+import { TOTAL_GROUPS } from '@/app/lib/leagues-data';
 
 const DELETE_BATCH_SIZE = 500; 
 
