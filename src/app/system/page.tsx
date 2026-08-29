@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useGameState } from '../lib/store';
@@ -103,7 +102,7 @@ export default function SystemPage() {
     }
   }[language === 'ru' ? 'ru' : 'en'];
 
-  // Логика автопилота
+  // Логика автопилота: работает рекурсивно и не выключается при ошибках
   useEffect(() => {
     if (autoPilot && !isWorldReady && !isProcessing && !isBuilding) {
       const timer = setTimeout(() => {
@@ -118,7 +117,6 @@ export default function SystemPage() {
   }, [autoPilot, isWorldReady, isProcessing, isBuilding]);
 
   const handleAction = async (action: string) => {
-    // Предотвращаем слишком частые клики
     const now = Date.now();
     if (now - lastActionTimeRef.current < 2000 && action !== 'forceBuild') return;
     lastActionTimeRef.current = now;
@@ -134,7 +132,7 @@ export default function SystemPage() {
       let res: any;
       if (action === 'nuclear') {
         res = await totalNuclearResetV131();
-        setAutoPilot(false); // Выключаем автопилот при сбросе
+        setAutoPilot(false); 
       }
       else if (action === 'resolve') res = await resolveDailyMatches();
       else if (action === 'cup') res = await generatePyramidCup(seasonNumber);
@@ -153,6 +151,7 @@ export default function SystemPage() {
       }
     } catch (e: any) {
       console.warn("[SYSTEM ACTION ERROR]", e.message);
+      // Если автопилот включен, мы не показываем ошибку "занят", а просто пробуем снова через useEffect
       if (!autoPilot) {
         toast({ 
           variant: "destructive", 
@@ -181,7 +180,7 @@ export default function SystemPage() {
         <section className="space-y-3">
           <div className="flex items-center justify-between px-1">
             <h2 className="text-[10px] font-black uppercase tracking-widest text-accent">{t.worldStatus}</h2>
-            {autoPilot && <Badge className="bg-primary animate-pulse text-[8px] font-black uppercase">AUTO-MODE ON</Badge>}
+            {autoPilot && <Badge className="bg-primary animate-pulse text-[8px] font-black uppercase shadow-[0_0_10px_rgba(var(--primary),0.4)]">AUTO-MODE ON</Badge>}
           </div>
           <Card className={cn("glass-card border-white/5 bg-secondary/10 overflow-hidden", (!isWorldReady || autoPilot) && "border-primary/30")}>
             <CardContent className="p-4">
@@ -200,13 +199,13 @@ export default function SystemPage() {
                
                <Button 
                 className={cn(
-                  "w-full h-11 font-black text-[10px] uppercase mt-4 shadow-xl transition-all",
-                  autoPilot ? "bg-primary/20 text-primary border border-primary/30 hover:bg-primary/30" : "hero-gradient"
+                  "w-full h-14 font-black text-xs uppercase mt-4 shadow-xl transition-all tracking-widest",
+                  autoPilot ? "bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20" : "hero-gradient"
                 )} 
                 onClick={() => autoPilot ? setAutoPilot(false) : handleAction('forceBuild')} 
                 disabled={isProcessing && !autoPilot}
                >
-                  {isBuilding || autoPilot ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Zap className="w-4 h-4 mr-2" />} 
+                  {isBuilding || autoPilot ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Zap className="w-5 h-5 mr-2" />} 
                   {autoPilot ? (language === 'ru' ? 'ОСТАНОВИТЬ АВТОПИЛОТ' : 'STOP AUTOPILOT') : t.forceBuild}
                </Button>
             </CardContent>

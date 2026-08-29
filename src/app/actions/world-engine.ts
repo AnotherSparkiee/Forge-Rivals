@@ -7,7 +7,7 @@
 
 import { 
   doc, getDoc, writeBatch, 
-  Firestore, serverTimestamp, setDoc
+  Firestore, serverTimestamp 
 } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import { 
@@ -19,7 +19,7 @@ import {
 } from '@/app/lib/leagues-data';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 
-const GROUPS_TO_CREATE_PER_CALL = 5; // Снижено до 5 для гарантии < 500 операций (5 * 58 = 290)
+const GROUPS_TO_CREATE_PER_CALL = 5; 
 
 function getGroupCoordinates(index: number) {
   if (index < 1) return { tier: 1, group: 1 };
@@ -50,7 +50,6 @@ function injectGroupData(
   const initialStats: any = {};
   const teamsForCalendar = [];
 
-  // ГАРАНТИЯ: всегда ровно 8 ботов
   for (let r = 1; r <= TEAMS_PER_GROUP; r++) {
     const bId = getBotId(leagueId, tier, group, r);
     const bName = getBotName(tier, group, r);
@@ -117,20 +116,32 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
     const nextIndex = currentIndex + 1;
     const coords = getGroupCoordinates(nextIndex);
     
-    const batch = writeBatch(db);
+    // Проверка существования (защита от дубликатов)
+    const tableId = `table_v131_S${seasonNum}_L${leagueId}_V${coords.tier}_G${coords.group}`;
+    const tableSnap = await getDoc(doc(db, 'league_tables_v2', tableId));
     
-    // Инъекция данных группы (57 операций)
-    injectGroupData(batch, db, leagueId, coords.tier, coords.group, seasonNum);
-    
-    // Обновление прогресса в ТОМ ЖЕ батче (1 операция)
-    batch.set(statusRef, {
-      currentIndex: nextIndex,
-      status: nextIndex >= TOTAL_GROUPS ? 'completed' : 'processing',
-      updatedAt: serverTimestamp(),
-      version: 131
-    }, { merge: true });
+    if (!tableSnap.exists()) {
+      const batch = writeBatch(db);
+      injectGroupData(batch, db, leagueId, coords.tier, coords.group, seasonNum);
+      
+      batch.set(statusRef, {
+        currentIndex: nextIndex,
+        status: nextIndex >= TOTAL_GROUPS ? 'completed' : 'processing',
+        updatedAt: serverTimestamp(),
+        version: 131
+      }, { merge: true });
 
-    await batch.commit();
+      await batch.commit();
+    } else {
+      // Если группа уже есть, просто обновляем прогресс
+      await setDoc(statusRef, {
+        currentIndex: nextIndex,
+        status: nextIndex >= TOTAL_GROUPS ? 'completed' : 'processing',
+        updatedAt: serverTimestamp(),
+        version: 131
+      }, { merge: true });
+    }
+
     currentIndex = nextIndex;
     processedInThisCall++;
   }
