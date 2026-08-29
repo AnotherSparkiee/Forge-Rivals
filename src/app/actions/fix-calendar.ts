@@ -15,6 +15,7 @@ import { initializeLeagueWorld } from './world-engine';
 import { TOTAL_GROUPS } from '@/app/lib/leagues-data';
 
 const DELETE_BATCH_SIZE = 500; 
+const WIPE_LOOPS_PER_CALL = 10; // Удаляем до 5000 доков за один клик
 
 export async function runGlobalEmergencyRepair() {
   const { firestore: db } = initializeFirebase();
@@ -28,7 +29,7 @@ export async function runGlobalEmergencyRepair() {
   const repairData = repairSnap.exists() ? repairSnap.data() : { phase: 'TOTAL_PURGE_V2' };
 
   if (repairData.phase === 'COMPLETED') {
-    return { status: 'ALL_READY', msg: 'Season 1 v131 world fully built and ready.' };
+    return { status: 'ALL_READY', msg: 'Season 1 v131 world fully built and ready.', progress: '100%' };
   }
 
   console.log(`[WORLD ARCHITECT v131] Phase: ${repairData.phase}`);
@@ -45,20 +46,37 @@ export async function runGlobalEmergencyRepair() {
 
   const currentWipe = WIPE_PHASES.find(p => p.phase === repairData.phase);
   if (currentWipe) {
-    for (const coll of currentWipe.colls) {
-      // БЕЗУСЛОВНОЕ удаление любых документов
-      const q = query(collection(db, coll), limit(DELETE_BATCH_SIZE));
-      const snap = await getDocs(q);
-      if (!snap.empty) {
-        const batch = writeBatch(db);
-        snap.docs.forEach(d => batch.delete(d.ref));
-        await batch.commit();
-        return { status: `WIPING_${coll.toUpperCase()}`, deleted: snap.size, phase: repairData.phase };
+    let totalDeleted = 0;
+    
+    // Внутренний цикл для ускорения очистки
+    for (let i = 0; i < WIPE_LOOPS_PER_CALL; i++) {
+      let loopDeleted = 0;
+      for (const coll of currentWipe.colls) {
+        const q = query(collection(db, coll), limit(DELETE_BATCH_SIZE));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          const batch = writeBatch(db);
+          snap.docs.forEach(d => batch.delete(d.ref));
+          await batch.commit();
+          loopDeleted += snap.size;
+        }
       }
+      totalDeleted += loopDeleted;
+      if (loopDeleted === 0) break; // Если во всех коллекциях фазы пусто - выходим
+    }
+
+    if (totalDeleted > 0) {
+      return { 
+        status: `WIPING_${repairData.phase}`, 
+        deleted: totalDeleted, 
+        phase: repairData.phase,
+        progress: 'Preparing...' 
+      };
     }
     
+    // Переход к следующей фазе, если текущие коллекции пусты
     await setDoc(repairStatusRef, { phase: currentWipe.next }, { merge: true });
-    return { status: `${repairData.phase}_CLEARED`, next: currentWipe.next };
+    return { status: `${repairData.phase}_CLEARED`, next: currentWipe.next, progress: 'Switching phase...' };
   }
 
   /**
@@ -66,6 +84,8 @@ export async function runGlobalEmergencyRepair() {
    */
   if (repairData.phase === 'INIT_WORLD_V131') {
     const worldRes = await initializeLeagueWorld(leagueId, seasonNum);
+    const progressVal = Math.round((worldRes.currentIndex / TOTAL_GROUPS) * 100);
+    
     if (worldRes.isComplete) {
       await setDoc(repairStatusRef, { 
         phase: 'COMPLETED', 
@@ -73,15 +93,16 @@ export async function runGlobalEmergencyRepair() {
         finishedAt: serverTimestamp(),
         version: 131
       }, { merge: true });
-      return { status: 'ALL_COMPLETE', msg: "Universe v131 built. 511 groups ready." };
+      return { status: 'ALL_COMPLETE', msg: "Universe v131 built. 511 groups ready.", progress: '100%' };
     }
+    
     return { 
       status: 'BUILDING_WORLD_V131', 
       currentIndex: worldRes.currentIndex,
       total: TOTAL_GROUPS,
-      progress: `${Math.round((worldRes.currentIndex / TOTAL_GROUPS) * 100)}%`
+      progress: `${progressVal}%`
     };
   }
 
-  return { status: 'UNKNOWN' };
+  return { status: 'UNKNOWN', progress: '0%' };
 }

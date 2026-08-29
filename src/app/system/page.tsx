@@ -120,12 +120,16 @@ export default function SystemPage() {
     try {
       const res = await runGlobalEmergencyRepair();
       toast({ 
-        title: language === 'ru' ? "Монолитный цикл запущен" : "Monolithic Cycle Initiated",
-        description: `Status: ${res.status} | Progress: ${res.progress || 'N/A'}`
+        title: language === 'ru' ? "Цикл постройки обновлен" : "Build Cycle Updated",
+        description: `Status: ${res.status} | Progress: ${res.progress || 'In Progress'}`
       });
     } catch (e) {
       console.error(e);
-      toast({ variant: "destructive", title: "Build Error", description: "Request timed out or failed. Check console." });
+      toast({ 
+        variant: "destructive", 
+        title: "Build Error", 
+        description: language === 'ru' ? "Таймаут или ошибка. Проверьте консоль." : "Request timed out or failed. Check console." 
+      });
     } finally {
       setIsBuilding(false);
     }
