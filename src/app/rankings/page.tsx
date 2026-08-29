@@ -36,7 +36,7 @@ export default function RankingsPage() {
 
   const userProfileRef = useMemoFirebase(() => {
     if (!db || !user?.uid) return null;
-    return doc(db, 'players_v11', user.uid);
+    return doc(db, 'players_v12', user.uid);
   }, [db, user?.uid]);
 
   const { data: profile, isLoading: isProfileLoading } = useDoc(userProfileRef);
@@ -55,7 +55,7 @@ export default function RankingsPage() {
 
   const groupPlayersQuery = useMemoFirebase(() => {
     if (!db) return null;
-    return query(collection(db, 'players_v11'), 
+    return query(collection(db, 'players_v12'), 
       where('selectedLeagueId', '==', contextLeagueId),
       where('leagueLevel', '==', contextLevel),
       where('groupId', '==', contextGroup)

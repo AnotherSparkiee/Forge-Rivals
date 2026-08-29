@@ -1,4 +1,3 @@
-
 'use server';
 
 /**
@@ -23,7 +22,7 @@ import {
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 
 const TOTAL_GROUPS = 511; 
-const GROUPS_TO_CREATE_PER_CALL = 15; 
+const GROUPS_TO_CREATE_PER_CALL = 20; 
 const MAX_SCAN_LIMIT = 511; 
 
 function getGroupCoordinates(index: number) {
@@ -55,8 +54,6 @@ function injectGroupData(
   const tableId = `table_S${seasonNum}_L${leagueId}_V${tier}_G${group}`;
   const tableRef = doc(db, 'league_tables_v1', tableId);
   
-  batch.delete(tableRef);
-
   const initialStats: any = {};
   const teamsForCalendar = [];
 
@@ -139,7 +136,8 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
     
     if (checkSnap.exists()) {
       const data = checkSnap.data();
-      if (data?.stats && Object.keys(data.stats).length >= 8 && data.version === 116) {
+      // Если в группе уже есть 8 команд и версия 116, пропускаем
+      if (data?.stats && Object.keys(data.stats).length === 8 && data.version === 116) {
         needsCreate = false; 
       }
     }
@@ -149,7 +147,7 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
       createdInThisCall++;
     }
 
-    // Сохраняем прогресс сразу после каждой группы
+    // Сохраняем прогресс сразу после каждой группы (Атомно)
     await setDoc(statusRef, {
       currentIndex,
       status: currentIndex >= TOTAL_GROUPS ? 'completed' : 'processing',

@@ -38,10 +38,10 @@ export default function MatchesPage() {
     return () => clearInterval(timer);
   }, []);
 
-  // 1. Загрузка участников группы
+  // 1. Загрузка участников группы из v12
   const groupPlayersQuery = useMemoFirebase(() => {
     if (!db) return null;
-    return query(collection(db, 'players_v11'), 
+    return query(collection(db, 'players_v12'), 
       where('selectedLeagueId', '==', selectedLeagueId),
       where('leagueLevel', '==', leagueLevel),
       where('groupId', '==', groupId)
