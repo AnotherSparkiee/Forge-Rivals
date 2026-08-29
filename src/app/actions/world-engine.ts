@@ -1,11 +1,13 @@
+
 'use server';
 
 /**
- * Глобальный двигатель заполнения мира v111 (Atomic Per-Group Commits).
+ * Глобальный двигатель заполнения мира v115 (Atomic v12 Support).
  * Особенности:
- * 1. Исправлен баг Batch Limit (500): Теперь КАЖДАЯ группа коммитится своим отдельным батчем (~58 операций).
- * 2. Атомарный прогресс: currentIndex сохраняется СРАЗУ после успешного создания каждой группы.
- * 3. Агрессивный ремонт: Группы с < 8 командами считаются битыми и пересоздаются.
+ * 1. Исправлен баг Batch Limit (500): КАЖДАЯ группа коммитится своим отдельным батчем (~58 операций).
+ * 2. Атомарный прогресс: currentIndex сохраняется СРАЗУ после каждой группы.
+ * 3. Агрессивный ремонт: Группы с < 8 командами считаются битыми.
+ * 4. Версия 115 для синхронизации с Absolute Reset.
  */
 
 import { 
@@ -22,12 +24,9 @@ import {
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 
 const TOTAL_GROUPS = 511; 
-const GROUPS_TO_CREATE_PER_CALL = 15; // Уменьшено для стабильности HTTP-запроса
+const GROUPS_TO_CREATE_PER_CALL = 15; 
 const MAX_SCAN_LIMIT = 511; 
 
-/**
- * Математически точный расчет координат бинарной пирамиды.
- */
 function getGroupCoordinates(index: number) {
   if (index < 1) return { tier: 1, group: 1 };
   let tier = 1;
@@ -43,10 +42,6 @@ function getGroupCoordinates(index: number) {
   return { tier: 9, group: 256 };
 }
 
-/**
- * Наполняет батч операциями для создания ОДНОЙ группы.
- * ~58 операций записи.
- */
 function injectGroupData(
   batch: any, 
   db: Firestore, 
@@ -58,7 +53,6 @@ function injectGroupData(
   const tableId = `table_S${seasonNum}_L${leagueId}_V${tier}_G${group}`;
   const tableRef = doc(db, 'league_tables_v1', tableId);
   
-  // Принудительно удаляем старый документ для чистой перезаписи
   batch.delete(tableRef);
 
   const initialStats: any = {};
@@ -79,7 +73,7 @@ function injectGroupData(
     id: tableId, leagueId, level: tier, group, season: seasonNum,
     stats: initialStats,
     createdAt: serverTimestamp(),
-    version: 111
+    version: 115
   });
 
   const calendar = generateSeasonCalendar(teamsForCalendar, seasonNum, leagueId);
@@ -90,7 +84,7 @@ function injectGroupData(
       id: mId,
       leagueId, level: tier, groupId: group, season: seasonNum,
       isFinished: false, scoreA: 0, scoreB: 0,
-      version: 111
+      version: 115
     });
   }
 }
@@ -115,8 +109,6 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
   let createdInThisCall = 0;
   let scannedInThisCall = 0;
 
-  console.log(`[WORLD ENGINE v111] Starting pyramid scan from index ${currentIndex}...`);
-
   while (createdInThisCall < GROUPS_TO_CREATE_PER_CALL && currentIndex < TOTAL_GROUPS && scannedInThisCall < MAX_SCAN_LIMIT) {
     currentIndex++;
     scannedInThisCall++;
@@ -130,40 +122,30 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
     
     if (checkSnap.exists()) {
       const data = checkSnap.data();
-      if (data?.stats && Object.keys(data.stats).length >= 8) {
+      if (data?.stats && Object.keys(data.stats).length >= 8 && data.version === 115) {
         needsRepair = false; 
       }
     }
 
     if (needsRepair) {
-      console.log(`[WORLD ENGINE] Building Group ${currentIndex}: Div ${coords.tier} G${coords.group}`);
-      
-      // КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: Новый батч на КАЖДУЮ группу
       const groupBatch = writeBatch(db);
       injectGroupData(groupBatch, db, leagueId, coords.tier, coords.group, seasonNum);
-      
-      // Коммитим данные ОДНОЙ группы
       await groupBatch.commit();
       createdInThisCall++;
     }
 
-    // Сохраняем currentIndex СРАЗУ после каждой итерации
-    // Даже если группа была пропущена, мы должны зафиксировать, что этот индекс проверен
     await setDoc(statusRef, {
       currentIndex,
       status: currentIndex >= TOTAL_GROUPS ? 'completed' : 'processing',
       updatedAt: serverTimestamp(),
-      version: 111
+      version: 115
     }, { merge: true });
   }
 
   const isComplete = currentIndex >= TOTAL_GROUPS;
-
   return { 
     status: isComplete ? 'FINISHED' : 'IN_PROGRESS', 
     currentIndex, 
-    created: createdInThisCall,
-    scanned: scannedInThisCall,
     isComplete
   };
 }

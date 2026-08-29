@@ -2,8 +2,8 @@
 'use client';
 
 /**
- * Глобальное локальное хранилище v227 (V12 Support).
- * Теперь приложение работает с коллекцией players_v12.
+ * Глобальное локальное хранилище v228 (Absolute Reset Support).
+ * Принудительная очистка клиента при переходе на чистый Сезон 1.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useMemo } from 'react';
@@ -125,7 +125,7 @@ interface GameState {
   saveToLocal: (state: Partial<GameState>) => void;
 }
 
-const STORAGE_KEY = 'lote_game_state_v227';
+const STORAGE_KEY = 'lote_game_state_v228';
 
 const DEFAULT_STATE: GameState = {
   credits: 1000000, crystals: 50, experiencePoints: 0, managerLevel: 1,
@@ -145,7 +145,7 @@ const DEFAULT_STATE: GameState = {
   arena: { capacity: 5000 }, hq: {}, bootcamp: {}, academy: {}, medical: {},
   country: null, isPremium: false, premiumUntil: null, activeSeasonNumber: 1, seasonNumber: 1, seasonDay: 1, isSyncing: false, language: 'ru',
   isDataReady: false, allSeasonMatches: [], nextMatch: null, isMatchesLoading: true,
-  lastProcessedSeason: 0, trophies: [], version: 227,
+  lastProcessedSeason: 0, trophies: [], version: 228,
   availableGiftsToSend: [], receivedGifts: [], lastGiftGenDate: null,
   addCrystals: () => {}, addCredits: () => {}, updatePlayer: () => {}, removePlayer: () => {}, assignToRole: () => {}, updateLineup: () => {}, updateTactics: () => {},
   claimReward: () => {}, setLanguage: () => {}, purchaseLicense: () => false, purchasePremium: () => false,
@@ -188,11 +188,11 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (parsed.version < 227) {
-          parsed.matchHistory = [];
-          parsed.lastSeenMatchDay = 0;
-          parsed.trophies = [];
-          parsed.version = 227;
+        // Сброс при изменении мажорной версии (Absolute Reset v12)
+        if (parsed.version < 228) {
+          localStorage.removeItem(STORAGE_KEY);
+          window.location.reload();
+          return;
         }
         if (user && parsed.id && parsed.id !== user.uid) {
           setState(prev => ({ ...DEFAULT_STATE, id: user.uid, isLoaded: true, language: parsed.language || 'ru' }));

@@ -2,7 +2,7 @@
 'use server';
 
 /**
- * @fileOverview ГЛОБАЛЬНЫЙ АВТОНОМНЫЙ ДВИГАТЕЛЬ ЛИГИ v2.3 (V12).
+ * @fileOverview ГЛОБАЛЬНЫЙ АВТОНОМНЫЙ ДВИГАТЕЛЬ ЛИГИ v2.5 (V12 RESET).
  * Обрабатывает матчи и смену сезона. Целевая коллекция: players_v12.
  */
 
@@ -46,12 +46,13 @@ export async function resolveDailyMatches() {
   const info = getGlobalSeasonInfo();
   const currentSeason = info.activeSeasonNumber;
   
-  const repairStatusRef = doc(db, 'system_v1', `repair_v114_S${currentSeason}_LALPHA`);
+  // Проверяем готовность мира по протоколу v115
+  const repairStatusRef = doc(db, 'system_v1', `repair_v115_S${currentSeason}_LALPHA`);
   const repairSnap = await getDoc(repairStatusRef);
   const isRepairComplete = repairSnap.exists() && repairSnap.data().phase === 'COMPLETED';
 
   if (!isRepairComplete) {
-    console.log(`[HEARTBEAT] World v12 not ready for S${currentSeason}. Running emergency repair.`);
+    console.log(`[HEARTBEAT] World v12 not ready for S${currentSeason}. Running reset v115.`);
     const repairResult = await runGlobalEmergencyRepair();
     return { success: true, status: "REPAIRING", progress: repairResult.status };
   }
@@ -132,7 +133,7 @@ export async function performSeasonTransition() {
   const batcher = new FirestoreBatcher(db);
 
   for (let i = startIdx + 1; i <= endIdx; i++) {
-    const coords = getGroupCoords(i);
+    const coords = getGroupCoordinates(i);
     const tableId = `table_S${currentSeason}_LALPHA_V${coords.tier}_G${coords.group}`;
     const tableSnap = await getDoc(doc(db, 'league_tables_v1', tableId));
 
@@ -181,7 +182,7 @@ export async function performSeasonTransition() {
   return { status: isFinished ? "COMPLETED" : "PROCESSING", processed: endIdx };
 }
 
-function getGroupCoords(index: number) {
+function getGroupCoordinates(index: number) {
   let tier = 1;
   let runningTotal = 0;
   while (tier <= 9) {
