@@ -1,8 +1,8 @@
 'use server';
 
 /**
- * Скрипт-синхронизатор v107 (Autonomous Global Reseeder).
- * Теперь использует протокол v107 для гарантированного закрытия дыр в дивизионах.
+ * Скрипт-синхронизатор v108 (Autonomous Global Reseeder).
+ * Теперь включает Фазу NUCLEAR_WIPE для порционного удаления старого мира.
  */
 
 import { 
@@ -22,8 +22,8 @@ export async function runGlobalEmergencyRepair() {
   const seasonNum = info.activeSeasonNumber;
   const leagueId = "ALPHA";
 
-  // ПЕРЕХОД НА v107
-  const repairStatusRef = doc(db, 'system_v1', `repair_v107_S${seasonNum}_L${leagueId}`);
+  // ПЕРЕХОД НА v108 (Wipe & Restart)
+  const repairStatusRef = doc(db, 'system_v1', `repair_v108_S${seasonNum}_L${leagueId}`);
   const repairSnap = await getDoc(repairStatusRef);
   const repairData = repairSnap.exists() ? repairSnap.data() : { phase: 'NUCLEAR_WIPE', status: 'processing' };
 
@@ -31,10 +31,47 @@ export async function runGlobalEmergencyRepair() {
     return { status: 'ALL_READY', msg: 'World is fully initialized.' };
   }
 
-  console.log(`[AUTONOMOUS REPAIR] v107, Phase: ${repairData.phase}`);
+  console.log(`[AUTONOMOUS REPAIR] v108, Phase: ${repairData.phase}`);
 
   if (repairData.phase === 'NUCLEAR_WIPE') {
-    // Сброс старого прогресса постройки, чтобы world-engine прошел все 511 групп еще раз
+    // 1. Порционное удаление таблиц (по 50)
+    const tablesQ = query(collection(db, 'league_tables_v1'), where('season', '==', 1), limit(50));
+    const tSnap = await getDocs(tablesQ);
+    if (!tSnap.empty) {
+      const batch = writeBatch(db);
+      tSnap.docs.forEach(d => batch.delete(d.ref));
+      await batch.commit();
+      return { status: 'WIPING_TABLES', count: tSnap.size };
+    }
+
+    // 2. Порционное удаление матчей (по 400)
+    const matchesQ = query(collection(db, 'matches_v1'), where('season', '==', 1), limit(400));
+    const mSnap = await getDocs(matchesQ);
+    if (!mSnap.empty) {
+      const batch = writeBatch(db);
+      mSnap.docs.forEach(d => batch.delete(d.ref));
+      await batch.commit();
+      return { status: 'WIPING_MATCHES', count: mSnap.size };
+    }
+
+    // 3. Порционный сброс игроков (по 100)
+    const playersQ = query(collection(db, 'players_v11'), where('lastProcessedSeason', '!=', 0), limit(100));
+    const pSnap = await getDocs(playersQ);
+    if (!pSnap.empty) {
+      const batch = writeBatch(db);
+      pSnap.docs.forEach(d => {
+        batch.update(d.ref, {
+          leagueLevel: null,
+          groupId: null,
+          rank: null,
+          lastProcessedSeason: 0
+        });
+      });
+      await batch.commit();
+      return { status: 'RESETTING_PLAYERS', count: pSnap.size };
+    }
+
+    // 4. Очистка системных флагов и переход в INIT_WORLD
     await deleteDoc(doc(db, 'system_v1', `init_S${seasonNum}_L${leagueId}`)).catch(() => {});
     
     await setDoc(repairStatusRef, { 

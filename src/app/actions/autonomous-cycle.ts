@@ -1,7 +1,7 @@
 'use server';
 
 /**
- * @fileOverview ГЛОБАЛЬНЫЙ АВТОНОМНЫЙ ДВИГАТЕЛЬ ЛИГИ v2.1 (Endless Cycle).
+ * @fileOverview ГЛОБАЛЬНЫЙ АВТОНОМНЫЙ ДВИГАТЕЛЬ ЛИГИ v2.2 (Endless Cycle).
  * Обрабатывает матчи и смену сезона.
  */
 
@@ -48,13 +48,13 @@ export async function resolveDailyMatches() {
   const info = getGlobalSeasonInfo();
   const currentSeason = info.activeSeasonNumber;
   
-  // Синхронизация с актуальной версией ремонта v106
-  const repairStatusRef = doc(db, 'system_v1', `repair_v106_S${currentSeason}_LALPHA`);
+  // Синхронизация с актуальной версией ремонта v108
+  const repairStatusRef = doc(db, 'system_v1', `repair_v108_S${currentSeason}_LALPHA`);
   const repairSnap = await getDoc(repairStatusRef);
   const isRepairComplete = repairSnap.exists() && repairSnap.data().phase === 'COMPLETED';
 
   if (!isRepairComplete) {
-    console.log(`[HEARTBEAT] World not ready for S${currentSeason}. Matches suspended.`);
+    console.log(`[HEARTBEAT] World not ready for S${currentSeason}. Running emergency repair.`);
     const repairResult = await runGlobalEmergencyRepair();
     return { success: true, status: "REPAIRING", progress: repairResult.status };
   }
@@ -117,7 +117,6 @@ export async function resolveDailyMatches() {
 
 /**
  * СМЕНА СЕЗОНА (Migration Engine v101).
- * Порционная обработка групп для расчета повышений/понижений.
  */
 export async function performSeasonTransition() {
   const { firestore: db } = initializeFirebase();
@@ -152,12 +151,10 @@ export async function performSeasonTransition() {
         return b.diff - a.diff;
       });
 
-      // Обработка каждого участника в таблице
       for (let rank = 1; rank <= standings.length; rank++) {
         const team: any = standings[rank - 1];
         if (!team.id || team.isBot) continue;
 
-        // Расчет нового места на сезон N+1
         let nextLvl = coords.tier;
         let nextGrp = coords.group;
         let nextRank = rank;
@@ -166,21 +163,20 @@ export async function performSeasonTransition() {
           const promo = getPromotionTarget(coords.tier, coords.group);
           nextLvl = promo.level; 
           nextGrp = promo.group;
-          nextRank = 8; // Повышенные встают в хвост (условно)
+          nextRank = 8; 
         } else if (rank >= 7) {
           const releg = getRelegationTarget(coords.tier, coords.group, rank);
           nextLvl = releg.level; 
           nextGrp = releg.group;
-          nextRank = 1; // Пониженные встают в начало (условно)
+          nextRank = 1; 
         }
 
-        // Записываем игроку его "целевые" координаты на новый сезон
         const playerRef = doc(db, 'players_v11', team.id);
         await batcher.update(playerRef, {
           targetLevel: nextLvl,
           targetGroup: nextGrp,
           targetRank: nextRank,
-          lastProcessedSeason: 0 // Сброс для фазы RESEED в новом сезоне
+          lastProcessedSeason: 0 
         });
       }
     }
