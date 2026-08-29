@@ -1,13 +1,12 @@
 'use server';
 
 /**
- * @fileOverview Скрипт Абсолютного Сброса v118 (Nuclear Global Reset).
+ * @fileOverview Скрипт Абсолютного Сброса v119 (Total Database Purge).
  * Последовательность: 
- * 1. Удаление ВСЕХ таблиц.
- * 2. Удаление ВСЕХ матчей.
- * 3. Полное удаление ВСЕХ профилей игроков v10, v11, v12 (Тотальная зачистка).
- * 4. Удаление старых системных флагов.
- * 5. Создание чистого мира (511 групп с ботами).
+ * 1. Удаление ВСЕХ таблиц и матчей.
+ * 2. Полное удаление ВСЕХ профилей игроков (v10, v11, v12).
+ * 3. Очистка чатов, друзей, рынка и уведомлений (Удаление всех упоминаний старых игроков).
+ * 4. Создание чистого мира (511 групп с ботами).
  */
 
 import { 
@@ -26,19 +25,19 @@ export async function runGlobalEmergencyRepair() {
   const seasonNum = info.activeSeasonNumber;
   const leagueId = "ALPHA";
 
-  // Документ состояния ремонта v118 (Абсолютный сброс v12)
-  const repairStatusRef = doc(db, 'system_v1', `repair_v118_S${seasonNum}_L${leagueId}`);
+  // Документ состояния ремонта v119 (Тотальная очистка v12)
+  const repairStatusRef = doc(db, 'system_v1', `repair_v119_S${seasonNum}_L${leagueId}`);
   const repairSnap = await getDoc(repairStatusRef);
   const repairData = repairSnap.exists() ? repairSnap.data() : { phase: 'WIPE_TABLES' };
 
   if (repairData.phase === 'COMPLETED') {
-    return { status: 'ALL_READY', msg: 'Season 1 initialized. 511 bot groups created. Players can join now.' };
+    return { status: 'ALL_READY', msg: 'Season 1 initialized. World is empty and ready for new managers.' };
   }
 
-  console.log(`[AUTONOMOUS RESET] v118, Phase: ${repairData.phase}`);
+  console.log(`[TOTAL PURGE] v119, Phase: ${repairData.phase}`);
 
   /**
-   * ЭТАП 1: Очистка таблиц
+   * ЭТАП 1: Очистка таблиц и матчей
    */
   if (repairData.phase === 'WIPE_TABLES') {
     const q = query(collection(db, 'league_tables_v1'), limit(DELETE_BATCH_SIZE));
@@ -53,9 +52,6 @@ export async function runGlobalEmergencyRepair() {
     return { status: 'TABLES_CLEARED', next: 'WIPE_MATCHES' };
   }
 
-  /**
-   * ЭТАП 2: Очистка календаря
-   */
   if (repairData.phase === 'WIPE_MATCHES') {
     const q = query(collection(db, 'matches_v1'), limit(DELETE_BATCH_SIZE));
     const snap = await getDocs(q);
@@ -65,64 +61,88 @@ export async function runGlobalEmergencyRepair() {
       await batch.commit();
       return { status: 'WIPING_MATCHES', deleted: snap.size };
     }
-    await setDoc(repairStatusRef, { phase: 'WIPE_PLAYERS_V10' }, { merge: true });
-    return { status: 'MATCHES_CLEARED', next: 'WIPE_PLAYERS_V10' };
+    await setDoc(repairStatusRef, { phase: 'WIPE_PLAYERS_ALL' }, { merge: true });
+    return { status: 'MATCHES_CLEARED', next: 'WIPE_PLAYERS_ALL' };
   }
 
   /**
-   * ЭТАП 3.1: Удаление старых игроков v10
+   * ЭТАП 2: Удаление ВСЕХ игроков (v10, v11, v12)
    */
-  if (repairData.phase === 'WIPE_PLAYERS_V10') {
-    const q = query(collection(db, 'players_v10'), limit(DELETE_BATCH_SIZE));
-    const snap = await getDocs(q);
-    if (!snap.empty) {
+  if (repairData.phase === 'WIPE_PLAYERS_ALL') {
+    // Чистим v12
+    const q12 = query(collection(db, 'players_v12'), limit(DELETE_BATCH_SIZE));
+    const s12 = await getDocs(q12);
+    if (!s12.empty) {
       const batch = writeBatch(db);
-      snap.docs.forEach(d => batch.delete(d.ref));
+      s12.docs.forEach(d => batch.delete(d.ref));
       await batch.commit();
-      return { status: 'WIPING_PLAYERS_V10', deleted: snap.size };
+      return { status: 'WIPING_PLAYERS_V12', deleted: s12.size };
     }
-    await setDoc(repairStatusRef, { phase: 'WIPE_PLAYERS_V11' }, { merge: true });
-    return { status: 'PLAYERS_V10_CLEARED', next: 'WIPE_PLAYERS_V11' };
+    // Чистим v11
+    const q11 = query(collection(db, 'players_v11'), limit(DELETE_BATCH_SIZE));
+    const s11 = await getDocs(q11);
+    if (!s11.empty) {
+      const batch = writeBatch(db);
+      s11.docs.forEach(d => batch.delete(d.ref));
+      await batch.commit();
+      return { status: 'WIPING_PLAYERS_V11', deleted: s11.size };
+    }
+    await setDoc(repairStatusRef, { phase: 'WIPE_SOCIAL' }, { merge: true });
+    return { status: 'PLAYERS_CLEARED', next: 'WIPE_SOCIAL' };
   }
 
   /**
-   * ЭТАП 3.2: Удаление старых игроков v11
+   * ЭТАП 3: Очистка социальных данных (Чаты, Друзья, Рынок)
    */
-  if (repairData.phase === 'WIPE_PLAYERS_V11') {
-    const q = query(collection(db, 'players_v11'), limit(DELETE_BATCH_SIZE));
-    const snap = await getDocs(q);
-    if (!snap.empty) {
+  if (repairData.phase === 'WIPE_SOCIAL') {
+    // 1. Чаты
+    const qChat = query(collection(db, 'global_chat_v2'), limit(DELETE_BATCH_SIZE));
+    const sChat = await getDocs(qChat);
+    if (!sChat.empty) {
       const batch = writeBatch(db);
-      snap.docs.forEach(d => batch.delete(d.ref));
+      sChat.docs.forEach(d => batch.delete(d.ref));
       await batch.commit();
-      return { status: 'WIPING_PLAYERS_V11', deleted: snap.size };
+      return { status: 'WIPING_CHATS', deleted: sChat.size };
     }
-    await setDoc(repairStatusRef, { phase: 'WIPE_PLAYERS_V12' }, { merge: true });
-    return { status: 'PLAYERS_V11_CLEARED', next: 'WIPE_PLAYERS_V12' };
-  }
+    // 2. Друзья
+    const qFriends = query(collection(db, 'friend_requests_v4'), limit(DELETE_BATCH_SIZE));
+    const sFriends = await getDocs(qFriends);
+    if (!sFriends.empty) {
+      const batch = writeBatch(db);
+      sFriends.docs.forEach(d => batch.delete(d.ref));
+      await batch.commit();
+      return { status: 'WIPING_FRIENDS', deleted: sFriends.size };
+    }
+    // 3. Рынок
+    const qMarket = query(collection(db, 'market_v7'), limit(DELETE_BATCH_SIZE));
+    const sMarket = await getDocs(qMarket);
+    if (!sMarket.empty) {
+      const batch = writeBatch(db);
+      sMarket.docs.forEach(d => batch.delete(d.ref));
+      await batch.commit();
+      return { status: 'WIPING_MARKET', deleted: sMarket.size };
+    }
+    // 4. Уведомления
+    const qNotifs = query(collection(db, 'notifications_v7'), limit(DELETE_BATCH_SIZE));
+    const sNotifs = await getDocs(qNotifs);
+    if (!sNotifs.empty) {
+      const batch = writeBatch(db);
+      sNotifs.docs.forEach(d => batch.delete(d.ref));
+      await batch.commit();
+      return { status: 'WIPING_NOTIFICATIONS', deleted: sNotifs.size };
+    }
 
-  /**
-   * ЭТАП 3.3: Удаление старых игроков v12 (Полная зачистка)
-   */
-  if (repairData.phase === 'WIPE_PLAYERS_V12') {
-    const q = query(collection(db, 'players_v12'), limit(DELETE_BATCH_SIZE));
-    const snap = await getDocs(q);
-    if (!snap.empty) {
-      const batch = writeBatch(db);
-      snap.docs.forEach(d => batch.delete(d.ref));
-      await batch.commit();
-      return { status: 'WIPING_PLAYERS_V12', deleted: snap.size };
-    }
-    await setDoc(repairStatusRef, { phase: 'WIPE_SYSTEM' }, { merge: true });
-    return { status: 'PLAYERS_V12_CLEARED', next: 'WIPE_SYSTEM' };
+    await setDoc(repairStatusRef, { phase: 'WIPE_SYSTEM_FLAGS' }, { merge: true });
+    return { status: 'SOCIAL_CLEARED', next: 'WIPE_SYSTEM_FLAGS' };
   }
 
   /**
    * ЭТАП 4: Удаление системных флагов
    */
-  if (repairData.phase === 'WIPE_SYSTEM') {
+  if (repairData.phase === 'WIPE_SYSTEM_FLAGS') {
     const sysRefs = [
       doc(db, 'system_v1', `init_S${seasonNum}_L${leagueId}`),
+      doc(db, 'system_v1', `repair_v118_S${seasonNum}_L${leagueId}`),
       doc(db, 'system_v1', `repair_v117_S${seasonNum}_L${leagueId}`),
       doc(db, 'system_v1', `repair_v116_S${seasonNum}_L${leagueId}`),
       doc(db, 'system_v1', `repair_v115_S${seasonNum}_L${leagueId}`)
@@ -144,7 +164,7 @@ export async function runGlobalEmergencyRepair() {
         status: 'completed',
         finishedAt: serverTimestamp()
       }, { merge: true });
-      return { status: 'ALL_COMPLETE', msg: "Pyramid v118 built: 511 bot-only groups ready." };
+      return { status: 'ALL_COMPLETE', msg: "Universe v119 built: 511 bot-only groups ready. No old players remain." };
     }
     return { status: 'BUILDING_WORLD', currentIndex: worldRes.currentIndex };
   }
