@@ -5,7 +5,7 @@
  * Особенности:
  * 1. Атомарность: Группа + Прогресс сохраняются в ОДНОМ батче. Исключает дыры.
  * 2. Надежность: Чтение по прямому ID без фильтров (не требует индексов).
- * 3. Скорость: Порционная обработка до 100 групп за вызов (через индивидуальные коммиты).
+ * 3. Скорость: Порционная обработка до 100 групп за вызов.
  */
 
 import { 
@@ -41,6 +41,7 @@ function getGroupCoordinates(index: number) {
 
 /**
  * Внутренняя функция инъекции данных группы в батч.
+ * ГАРАНТИЯ: Ровно 8 ботов.
  */
 function injectGroupData(
   batch: any, 
@@ -62,7 +63,7 @@ function injectGroupData(
     initialStats[bId] = {
       id: bId, name: bName, rank: r,
       matchesPlayed: 0, wins: 0, draws: 0, losses: 0, points: 0, diff: 0,
-      isBot: true
+      isBot: true, clubLogo: null
     };
     teamsForCalendar.push({ id: bId, name: bName, rank: r });
   }
@@ -125,30 +126,18 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
 
   let processedInThisCall = 0;
 
-  // Цикл создания групп с индивидуальными коммитами
+  // Цикл создания групп с ИНДИВИДУАЛЬНЫМИ коммитами для каждой группы
   while (processedInThisCall < GROUPS_TO_CREATE_PER_CALL && currentIndex < TOTAL_GROUPS) {
     const nextIndex = currentIndex + 1;
     const coords = getGroupCoordinates(nextIndex);
     const tableId = `table_S${seasonNum}_L${leagueId}_V${coords.tier}_G${coords.group}`;
     const tableRef = doc(db, 'league_tables_v2', tableId);
     
-    const checkSnap = await getDoc(tableRef);
-    let needsCreation = true;
-    
-    if (checkSnap.exists()) {
-      const data = checkSnap.data();
-      // Проверка на корректную версию и состав
-      if (data?.stats && Object.keys(data.stats).length === 8 && data.version === 130) {
-        needsCreation = false; 
-      }
-    }
-
     // Атомный батч: Группа + Продвижение Чекпойнта
     const batch = writeBatch(db);
     
-    if (needsCreation) {
-      injectGroupData(batch, db, leagueId, coords.tier, coords.group, seasonNum);
-    }
+    // Всегда пересоздаем группу, если мы на этом индексе, чтобы гарантировать 8 ботов
+    injectGroupData(batch, db, leagueId, coords.tier, coords.group, seasonNum);
 
     // Обновляем прогресс В ЭТОМ ЖЕ БАТЧЕ
     batch.set(statusRef, {

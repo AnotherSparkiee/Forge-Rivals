@@ -1,8 +1,8 @@
 'use server';
 
 /**
- * @fileOverview Скрипт Абсолютного Сброса v130 (V13 Transition).
- * Удаляет всё из v1 и v2, вычищает игроков v12, затем строит 511 групп v13.
+ * @fileOverview Скрипт Абсолютного Сброса v130 (Final Clean).
+ * Очищает ВСЕ коллекции и запускает постройку чистой пирамиды 511 групп.
  */
 
 import { 
@@ -35,13 +35,13 @@ export async function runGlobalEmergencyRepair() {
 
   /**
    * ЭТАП 1: Тотальная очистка (Wipe everything)
-   * Используем безусловную очистку пачками по 500.
+   * Удаляем v2 (где могли застрять бажные группы) и v1.
    */
   const WIPE_PHASES = [
     { phase: 'TOTAL_PURGE_V2', colls: ['league_tables_v2', 'matches_v2'], next: 'TOTAL_PURGE_V1' },
     { phase: 'TOTAL_PURGE_V1', colls: ['league_tables_v1', 'matches_v1'], next: 'TOTAL_PURGE_V12' },
-    { phase: 'TOTAL_PURGE_V12', colls: ['players_v12', 'players_v11', 'players_v10'], next: 'WIPE_SOCIAL' },
-    { phase: 'WIPE_SOCIAL', colls: ['global_chat_v2', 'friend_requests_v4', 'market_v7', 'notifications_v7', 'cw_basket_v2', 'friendly_lobbies_v3'], next: 'INIT_WORLD_V130' }
+    { phase: 'TOTAL_PURGE_V12', colls: ['players_v13', 'players_v12', 'players_v11', 'players_v10'], next: 'WIPE_SOCIAL' },
+    { phase: 'WIPE_SOCIAL', colls: ['global_chat_v2', 'friend_requests_v4', 'market_v7', 'notifications_v7'], next: 'INIT_WORLD_V130' }
   ];
 
   const currentWipe = WIPE_PHASES.find(p => p.phase === repairData.phase);
@@ -53,14 +53,15 @@ export async function runGlobalEmergencyRepair() {
         const batch = writeBatch(db);
         snap.docs.forEach(d => batch.delete(d.ref));
         await batch.commit();
-        return { status: `WIPING_${coll.toUpperCase()}`, deleted: snap.size };
+        return { status: `WIPING_${coll.toUpperCase()}`, deleted: snap.size, phase: repairData.phase };
       }
     }
-    // Если все коллекции в текущей фазе пусты
+    
+    // Если все коллекции фазы очищены, сбрасываем флаг инициализации и идем дальше
     if (repairData.phase === 'WIPE_SOCIAL') {
-      // Удаляем старые флаги инициализации
       await deleteDoc(doc(db, 'system_v1', `init_S${seasonNum}_L${leagueId}`)).catch(() => {});
     }
+    
     await setDoc(repairStatusRef, { phase: currentWipe.next }, { merge: true });
     return { status: `${repairData.phase}_CLEARED`, next: currentWipe.next };
   }
