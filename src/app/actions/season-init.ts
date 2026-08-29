@@ -44,7 +44,7 @@ export async function findStrategicPlacement(leagueId: string) {
     for (let tier = 1; tier <= 9; tier++) {
       const groupsInTier = getGroupsCountInLevel(tier);
       for (let group = 1; group <= groupsInTier; group++) {
-        for (let rank = 1; group <= 8; rank++) {
+        for (let rank = 1; rank <= 8; rank++) {
           const key = `${tier}_${group}_${rank}`;
           if (!occupiedSlots.has(key)) {
             return { tier, group, rank };

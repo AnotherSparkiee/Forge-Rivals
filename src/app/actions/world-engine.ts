@@ -41,6 +41,9 @@ function getGroupCoordinates(index: number) {
   return { tier: 9, group: 256 };
 }
 
+/**
+ * Внутренняя функция инъекции данных группы в батч.
+ */
 function injectGroupData(
   batch: any, 
   db: Firestore, 
@@ -88,6 +91,21 @@ function injectGroupData(
   }
 }
 
+/**
+ * Публичная функция для атомарного создания структуры группы (JIT).
+ */
+export async function createGroupStructure(
+  db: Firestore, 
+  leagueId: string, 
+  tier: number, 
+  group: number, 
+  seasonNum: number
+) {
+  const batch = writeBatch(db);
+  injectGroupData(batch, db, leagueId, tier, group, seasonNum);
+  await batch.commit();
+}
+
 export async function initializeLeagueWorld(leagueId: string, targetSeason?: number) {
   const { firestore: db } = initializeFirebase();
   const info = getGlobalSeasonInfo();
@@ -127,9 +145,7 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
     }
 
     if (needsCreate) {
-      const groupBatch = writeBatch(db);
-      injectGroupData(groupBatch, db, leagueId, coords.tier, coords.group, seasonNum);
-      await groupBatch.commit();
+      await createGroupStructure(db, leagueId, coords.tier, coords.group, seasonNum);
       createdInThisCall++;
     }
 
