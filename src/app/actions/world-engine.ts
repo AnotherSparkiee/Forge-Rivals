@@ -50,6 +50,7 @@ function injectGroupData(
   const initialStats: any = {};
   const teamsForCalendar = [];
 
+  // ГАРАНТИЯ: всегда ровно 8 ботов
   for (let r = 1; r <= TEAMS_PER_GROUP; r++) {
     const bId = getBotId(leagueId, tier, group, r);
     const bName = getBotName(tier, group, r);
@@ -116,30 +117,21 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
     const nextIndex = currentIndex + 1;
     const coords = getGroupCoordinates(nextIndex);
     
-    const tableId = `table_v131_S${seasonNum}_L${leagueId}_V${coords.tier}_G${coords.group}`;
-    const tableSnap = await getDoc(doc(db, 'league_tables_v2', tableId));
+    const tableId = `table_v131_S${seasonNum}_L${coords.tier}_G${coords.group}`;
+    const batch = writeBatch(db);
     
-    if (!tableSnap.exists()) {
-      const batch = writeBatch(db);
-      injectGroupData(batch, db, leagueId, coords.tier, coords.group, seasonNum);
-      
-      batch.set(statusRef, {
-        currentIndex: nextIndex,
-        status: nextIndex >= TOTAL_GROUPS ? 'completed' : 'processing',
-        updatedAt: serverTimestamp(),
-        version: 131
-      }, { merge: true });
+    // Инъекция данных группы
+    injectGroupData(batch, db, leagueId, coords.tier, coords.group, seasonNum);
+    
+    // Обновление прогресса в ТОМ ЖЕ батче
+    batch.set(statusRef, {
+      currentIndex: nextIndex,
+      status: nextIndex >= TOTAL_GROUPS ? 'completed' : 'processing',
+      updatedAt: serverTimestamp(),
+      version: 131
+    }, { merge: true });
 
-      await batch.commit();
-    } else {
-      await setDoc(statusRef, {
-        currentIndex: nextIndex,
-        status: nextIndex >= TOTAL_GROUPS ? 'completed' : 'processing',
-        updatedAt: serverTimestamp(),
-        version: 131
-      }, { merge: true });
-    }
-
+    await batch.commit();
     currentIndex = nextIndex;
     processedInThisCall++;
   }
@@ -148,6 +140,7 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
   return { 
     status: isComplete ? 'FINISHED' : 'IN_PROGRESS', 
     currentIndex, 
-    isComplete
+    isComplete,
+    progress: `Built: ${currentIndex}/${TOTAL_GROUPS}`
   };
 }

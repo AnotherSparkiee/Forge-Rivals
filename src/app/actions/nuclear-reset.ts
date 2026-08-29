@@ -7,7 +7,7 @@
 
 import { 
   collection, getDocs, query, limit, 
-  writeBatch 
+  writeBatch, doc, deleteDoc 
 } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 
@@ -18,7 +18,28 @@ export async function totalNuclearResetV131() {
   const { firestore: db } = initializeFirebase();
   console.log("[NUCLEAR v131] Starting Safety Purge...");
 
-  const colls = ['league_tables_v2', 'matches_v2', 'players_v13', 'global_chat_v2', 'market_v7'];
+  // Очистка системных флагов для возможности повторной инициализации
+  const systemDocs = [
+    'repair_v131_S1_LALPHA',
+    'init_v131_S1_LALPHA',
+    'repair_v130_S1_LALPHA',
+    'init_v130_S1_LALPHA'
+  ];
+
+  for (const sId of systemDocs) {
+    await deleteDoc(doc(db, 'system_v1', sId)).catch(() => {});
+  }
+
+  const colls = [
+    'league_tables_v2', 
+    'matches_v2', 
+    'players_v13', 
+    'global_chat_v2', 
+    'market_v7', 
+    'friend_requests_v4', 
+    'private_messages_v3'
+  ];
+  
   let totalDeleted = 0;
   const results: any = {};
 

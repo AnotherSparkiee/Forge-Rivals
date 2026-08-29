@@ -66,7 +66,6 @@ export async function initializeClubV13(userId: string, data: any) {
   const { tier, group, rank, clubName, clubLogo } = data;
   const leagueId = data.selectedLeagueId || "ALPHA";
   
-  // КЛЮЧЕВОЕ ИЗМЕНЕНИЕ v131: префикс в ID таблицы
   const tableId = `table_v131_S${seasonNum}_L${leagueId}_V${tier}_G${group}`;
   const tableRef = doc(db, 'league_tables_v2', tableId);
   
@@ -81,7 +80,7 @@ export async function initializeClubV13(userId: string, data: any) {
   const tableData = tableSnap.data();
   const stats = { ...tableData!.stats };
 
-  // Логика захвата слота: ищем конкретного бота
+  // ГАРАНТИЯ 8/8: Всегда заменяем бота. Ищем бота на указанном ранге или любого первого попавшегося бота.
   const targetBotId = getBotId(leagueId, tier, group, rank);
   let botToReplaceId = null;
 
@@ -91,51 +90,58 @@ export async function initializeClubV13(userId: string, data: any) {
     botToReplaceId = Object.keys(stats).find(id => stats[id].isBot === true) || null;
   }
 
+  // Если ботов нет, а игрока в таблице тоже нет - значит группа полная реальными игроками (крайне маловероятно)
   if (!botToReplaceId && !stats[userId]) {
-    console.error(`[OVERFLOW v131] Group ${tier}.${group} is full!`);
+    console.error(`[OVERFLOW v131] Group ${tier}.${group} is full of real players!`);
     return { success: false, error: "GROUP_FULL" };
   }
 
   const batch = writeBatch(db);
 
-  if (botToReplaceId || !stats[userId]) {
-    const baseStats = botToReplaceId ? stats[botToReplaceId] : { matchesPlayed: 0, wins: 0, draws: 0, losses: 0, points: 0, diff: 0 };
+  // Выполняем замену бота на игрока
+  if (botToReplaceId) {
+    const baseStats = stats[botToReplaceId];
     
     stats[userId] = {
       ...baseStats,
       id: userId,
       name: clubName || data.displayName || "Manager",
       clubLogo: clubLogo || data.clubLogo || null,
-      rank: rank,
+      rank: baseStats.rank, // Сохраняем ранг бота
       isBot: false
     };
 
-    if (botToReplaceId && botToReplaceId !== userId) {
-      delete stats[botToReplaceId];
-    }
-    
+    delete stats[botToReplaceId];
     batch.update(tableRef, { stats, updatedAt: serverTimestamp() });
+
+    // Обновляем календарь (заменяем ID бота на ID игрока во всех матчах группы)
+    const matchesQ = query(collection(db, 'matches_v2'), 
+      where('leagueId', '==', leagueId),
+      where('level', '==', tier),
+      where('groupId', '==', group),
+      where('season', '==', seasonNum),
+      where('version', '==', 131)
+    );
+    const matchesSnap = await getDocs(matchesQ);
+
+    matchesSnap.forEach(mDoc => {
+      const mData = mDoc.data();
+      const updates: any = {};
+      if (mData.homeId === botToReplaceId) { 
+        updates.homeId = userId; 
+        updates.homeName = clubName; 
+        updates.homeLogo = clubLogo; 
+      }
+      if (mData.awayId === botToReplaceId) { 
+        updates.awayId = userId; 
+        updates.awayName = clubName; 
+        updates.awayLogo = clubLogo; 
+      }
+      if (Object.keys(updates).length > 0) batch.update(mDoc.ref, updates);
+    });
   }
 
-  // Обновляем календарь (matches_v2 с префиксом v131)
-  const matchesQ = query(collection(db, 'matches_v2'), 
-    where('leagueId', '==', leagueId),
-    where('level', '==', tier),
-    where('groupId', '==', group),
-    where('season', '==', seasonNum),
-    where('version', '==', 131)
-  );
-  const matchesSnap = await getDocs(matchesQ);
-
-  matchesSnap.forEach(mDoc => {
-    const mData = mDoc.data();
-    const updates: any = {};
-    if (mData.homeId === botToReplaceId) { updates.homeId = userId; updates.homeName = clubName; updates.homeLogo = clubLogo; }
-    if (mData.awayId === botToReplaceId) { updates.awayId = userId; updates.awayName = clubName; updates.awayLogo = clubLogo; }
-    if (Object.keys(updates).length > 0) batch.update(mDoc.ref, updates);
-  });
-
-  // Создаем профиль в v13
+  // Создаем/обновляем профиль в v13
   const playerRef = doc(db, 'players_v13', userId);
   batch.set(playerRef, {
     ...data,
