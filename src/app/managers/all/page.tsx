@@ -55,7 +55,7 @@ export default function AllManagersPage() {
 
   const userRef = useMemoFirebase(() => {
     if (!db || !user) return null;
-    return doc(db, 'players_v12', user.uid);
+    return doc(db, 'players_v13', user.uid);
   }, [db, user]);
   
   const { data: profile } = useDoc(userRef);
@@ -63,7 +63,7 @@ export default function AllManagersPage() {
   const managersQuery = useMemoFirebase(() => {
     if (!db) return null;
     return query(
-      collection(db, 'players_v12'),
+      collection(db, 'players_v13'),
       limit(100)
     );
   }, [db]);
@@ -254,7 +254,7 @@ export default function AllManagersPage() {
   if (!db) {
     return (
       <div className="max-w-md mx-auto px-4 pt-8 text-center">
-        <header className="mb-6 flex items-center gap-4">
+        <header className="mb-6 flex items-center gap-4 text-left">
           <Link href="/managers"><Button variant="ghost" size="icon" className="rounded-full"><ChevronLeft className="w-6 h-6" /></Button></Link>
           <div><h1 className="text-2xl font-headline font-bold uppercase">{t.title}</h1></div>
         </header>

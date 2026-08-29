@@ -107,10 +107,10 @@ export default function SetupPage() {
         lineup: initialLineup,
         isDataReady: true,
         isTeamLoaded: true,
-        version: 120
+        version: 130
       });
 
-      toast({ title: language === 'ru' ? "Клуб v120 инициализирован!" : "Club v120 Initialized!" });
+      toast({ title: language === 'ru' ? "Клуб v130 инициализирован!" : "Club v130 Initialized!" });
       router.replace('/');
     } catch (e: any) {
       console.error("[SETUP ERROR]:", e);

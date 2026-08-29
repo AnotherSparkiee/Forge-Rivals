@@ -1,16 +1,16 @@
 'use server';
 
 /**
- * Глобальный двигатель заполнения мира v120 (Universe Architect).
+ * Глобальный двигатель заполнения мира v130 (Universe Architect).
  * Особенности:
- * 1. Одна группа = один коммит батча (таблица + 56 матчей + обновление прогресса).
- * 2. Атомарное сохранение чекпойнта гарантирует отсутствие пропусков групп.
- * 3. Использует новые коллекции v2 для мгновенной изоляции.
+ * 1. Атомарность: Группа + Прогресс сохраняются в ОДНОМ батче. Исключает дыры.
+ * 2. Надежность: Чтение по прямому ID без фильтров (не требует индексов).
+ * 3. Скорость: Порционная обработка до 100 групп за вызов (через индивидуальные коммиты).
  */
 
 import { 
   doc, getDoc, writeBatch, 
-  Firestore, serverTimestamp, setDoc
+  Firestore, serverTimestamp
 } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import { 
@@ -71,7 +71,7 @@ function injectGroupData(
     id: tableId, leagueId, level: tier, group, season: seasonNum,
     stats: initialStats,
     createdAt: serverTimestamp(),
-    version: 120
+    version: 130
   });
 
   const calendar = generateSeasonCalendar(teamsForCalendar, seasonNum, leagueId);
@@ -82,7 +82,7 @@ function injectGroupData(
       id: mId,
       leagueId, level: tier, groupId: group, season: seasonNum,
       isFinished: false, scoreA: 0, scoreB: 0,
-      version: 120
+      version: 130
     });
   }
 }
@@ -110,13 +110,14 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
   const info = getGlobalSeasonInfo();
   const seasonNum = targetSeason || info.activeSeasonNumber;
 
+  // Документ прогресса (версия 130)
   const statusRef = doc(db, 'system_v1', `init_S${seasonNum}_L${leagueId}`);
   const statusSnap = await getDoc(statusRef);
   
   let currentIndex = 0;
   if (statusSnap.exists()) {
     const data = statusSnap.data();
-    if (data.status === 'completed' && data.version === 120) {
+    if (data.status === 'completed' && data.version === 130) {
       return { status: 'COMPLETE', isComplete: true, currentIndex: TOTAL_GROUPS };
     }
     currentIndex = data.currentIndex || 0;
@@ -124,9 +125,10 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
 
   let processedInThisCall = 0;
 
+  // Цикл создания групп с индивидуальными коммитами
   while (processedInThisCall < GROUPS_TO_CREATE_PER_CALL && currentIndex < TOTAL_GROUPS) {
-    currentIndex++;
-    const coords = getGroupCoordinates(currentIndex);
+    const nextIndex = currentIndex + 1;
+    const coords = getGroupCoordinates(nextIndex);
     const tableId = `table_S${seasonNum}_L${leagueId}_V${coords.tier}_G${coords.group}`;
     const tableRef = doc(db, 'league_tables_v2', tableId);
     
@@ -135,12 +137,13 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
     
     if (checkSnap.exists()) {
       const data = checkSnap.data();
-      if (data?.stats && Object.keys(data.stats).length === 8 && data.version === 120) {
+      // Проверка на корректную версию и состав
+      if (data?.stats && Object.keys(data.stats).length === 8 && data.version === 130) {
         needsCreation = false; 
       }
     }
 
-    // Атомный батч: Группа + Чекпойнт
+    // Атомный батч: Группа + Продвижение Чекпойнта
     const batch = writeBatch(db);
     
     if (needsCreation) {
@@ -149,13 +152,14 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
 
     // Обновляем прогресс В ЭТОМ ЖЕ БАТЧЕ
     batch.set(statusRef, {
-      currentIndex,
-      status: currentIndex >= TOTAL_GROUPS ? 'completed' : 'processing',
+      currentIndex: nextIndex,
+      status: nextIndex >= TOTAL_GROUPS ? 'completed' : 'processing',
       updatedAt: serverTimestamp(),
-      version: 120
+      version: 130
     }, { merge: true });
 
     await batch.commit();
+    currentIndex = nextIndex;
     processedInThisCall++;
   }
 

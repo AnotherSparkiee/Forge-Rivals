@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * Глобальное локальное хранилище v234 (Total Reset Synchronization).
- * Повышена версия хранилища для принудительной очистки кэша после сброса сезона.
+ * Глобальное локальное хранилище v235 (V13 TOTAL RESET).
+ * Повышена версия хранилища для принудительной очистки кэша после перехода на v13.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useMemo } from 'react';
@@ -124,7 +124,7 @@ interface GameState {
   saveToLocal: (state: Partial<GameState>) => void;
 }
 
-const STORAGE_KEY = 'lote_game_state_v234';
+const STORAGE_KEY = 'lote_game_state_v235';
 
 const DEFAULT_STATE: GameState = {
   credits: 1000000, crystals: 50, experiencePoints: 0, managerLevel: 1,
@@ -144,7 +144,7 @@ const DEFAULT_STATE: GameState = {
   arena: { capacity: 5000 }, hq: {}, bootcamp: {}, academy: {}, medical: {},
   country: null, isPremium: false, premiumUntil: null, activeSeasonNumber: 1, seasonNumber: 1, seasonDay: 1, isSyncing: false, language: 'ru',
   isDataReady: false, allSeasonMatches: [], nextMatch: null, isMatchesLoading: true,
-  lastProcessedSeason: 0, trophies: [], version: 234,
+  lastProcessedSeason: 0, trophies: [], version: 235,
   availableGiftsToSend: [], receivedGifts: [], lastGiftGenDate: null,
   addCrystals: () => {}, addCredits: () => {}, updatePlayer: () => {}, removePlayer: () => {}, assignToRole: () => {}, updateLineup: () => {}, updateTactics: () => {},
   claimReward: () => {}, setLanguage: () => {}, purchaseLicense: () => false, purchasePremium: () => false,
@@ -187,7 +187,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (parsed.version < 234) {
+        if (parsed.version < 235) {
           localStorage.removeItem(STORAGE_KEY);
           window.location.reload();
           return;
@@ -212,7 +212,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!user?.uid || !state.isLoaded) return;
     const { firestore: db } = initializeFirebase();
-    const playerRef = doc(db, 'players_v12', user.uid);
+    const playerRef = doc(db, 'players_v13', user.uid);
     const unsubscribe = onSnapshot(playerRef, (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.data();

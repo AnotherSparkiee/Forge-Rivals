@@ -39,7 +39,7 @@ export default function GlobalChatPage() {
 
   const userRef = useMemoFirebase(() => {
     if (!db || !user) return null;
-    return doc(db, 'players_v12', user.uid);
+    return doc(db, 'players_v13', user.uid);
   }, [db, user]);
   
   const { data: profile } = useDoc(userRef);

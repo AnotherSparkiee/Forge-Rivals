@@ -1,8 +1,8 @@
 'use server';
 
 /**
- * @fileOverview ГЛОБАЛЬНЫЙ АВТОНОМНЫЙ ДВИГАТЕЛЬ ЛИГИ v120 (V2 COLLECTIONS).
- * Обрабатывает матчи в новых коллекциях v2.
+ * @fileOverview ГЛОБАЛЬНЫЙ АВТОНОМНЫЙ ДВИГАТЕЛЬ ЛИГИ v130 (V2 COLLECTIONS).
+ * Обрабатывает матчи версии 130.
  */
 
 import { 
@@ -45,12 +45,12 @@ export async function resolveDailyMatches() {
   const info = getGlobalSeasonInfo();
   const currentSeason = info.activeSeasonNumber;
   
-  const repairStatusRef = doc(db, 'system_v1', `repair_v120_S${currentSeason}_LALPHA`);
+  const repairStatusRef = doc(db, 'system_v1', `repair_v130_S${currentSeason}_LALPHA`);
   const repairSnap = await getDoc(repairStatusRef);
   const isRepairComplete = repairSnap.exists() && repairSnap.data().phase === 'COMPLETED';
 
   if (!isRepairComplete) {
-    console.log(`[HEARTBEAT] World v2 not ready for S${currentSeason}. Running reset v120.`);
+    console.log(`[HEARTBEAT] World v130 not ready for S${currentSeason}. Running reset v130.`);
     const repairResult = await runGlobalEmergencyRepair();
     return { success: true, status: "INITIALIZING_WORLD", details: repairResult.status };
   }
@@ -62,6 +62,7 @@ export async function resolveDailyMatches() {
     where('season', '==', currentSeason),
     where('tour', '==', info.dayOfCycle),
     where('isFinished', '==', false),
+    where('version', '==', 130),
     limit(100) 
   );
 
@@ -79,7 +80,7 @@ export async function resolveDailyMatches() {
     await batcher.update(matchDoc.ref, {
       scoreA: sA, scoreB: sB, winnerId,
       status: 'finished', isFinished: true,
-      resolvedAt: serverTimestamp(), version: 120
+      resolvedAt: serverTimestamp(), version: 130
     });
 
     const tableId = `table_S${currentSeason}_L${m.leagueId}_V${m.level}_G${m.groupId}`;

@@ -7,8 +7,8 @@ import { useGameState } from '@/app/lib/store';
 import { useUser } from '@/firebase';
 
 /**
- * ГАРД АВТОРИЗАЦИИ v3.0
- * Теперь использует реальный статус Firebase Auth.
+ * ГАРД АВТОРИЗАЦИИ v13.0
+ * Теперь использует реальный статус Firebase Auth и коллекцию v13.
  */
 export function AuthGuard({ children }: { children: ReactNode }) {
   const { isLoaded, isTeamLoaded } = useGameState();

@@ -1,8 +1,8 @@
 'use server';
 
 /**
- * @fileOverview Серверный модуль инициализации v120 (Absolute Isolation).
- * Использует коллекции v2 для исключения конфликтов со старыми данными.
+ * @fileOverview Серверный модуль инициализации v130 (Absolute Isolation).
+ * Использует коллекции v2 и профили v13 для исключения конфликтов.
  */
 
 import { collection, getDocs, query, where, doc, getDoc, writeBatch, serverTimestamp } from 'firebase/firestore';
@@ -16,14 +16,14 @@ import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 import { createGroupStructure } from './world-engine';
 
 /**
- * Находит свободное место в текущем сезоне v12.
+ * Находит свободное место в текущем сезоне v13.
  */
 export async function findStrategicPlacement(leagueId: string) {
   const { firestore: db } = initializeFirebase();
 
   try {
     const q = query(
-      collection(db, 'players_v12'), 
+      collection(db, 'players_v13'), 
       where('selectedLeagueId', '==', leagueId)
     );
     const snap = await getDocs(q);
@@ -56,7 +56,7 @@ export async function findStrategicPlacement(leagueId: string) {
 }
 
 /**
- * Атомарная инициализация клуба v120 в коллекциях v2.
+ * Атомарная инициализация клуба v130 в коллекциях v2.
  */
 export async function initializeClubV12(userId: string, data: any) {
   const { firestore: db } = initializeFirebase();
@@ -80,12 +80,14 @@ export async function initializeClubV12(userId: string, data: any) {
   const tableData = tableSnap.data();
   const stats = { ...tableData!.stats };
 
+  // Логика захвата слота: ищем конкретного бота
   const targetBotId = getBotId(leagueId, tier, group, rank);
   let botToReplaceId = null;
 
   if (stats[targetBotId] && stats[targetBotId].isBot === true) {
     botToReplaceId = targetBotId;
   } else {
+    // Если бот на этом ранге уже занят (гонка условий), берем любого другого бота
     botToReplaceId = Object.keys(stats).find(id => stats[id].isBot === true) || null;
   }
 
@@ -115,6 +117,7 @@ export async function initializeClubV12(userId: string, data: any) {
     batch.update(tableRef, { stats, updatedAt: serverTimestamp() });
   }
 
+  // Обновляем календарь для этого слота
   if (botToReplaceId) {
     const matchesQ = query(collection(db, 'matches_v2'), 
       where('leagueId', '==', leagueId),
@@ -133,7 +136,8 @@ export async function initializeClubV12(userId: string, data: any) {
     });
   }
 
-  const playerRef = doc(db, 'players_v12', userId);
+  // Создаем профиль в v13
+  const playerRef = doc(db, 'players_v13', userId);
   batch.set(playerRef, {
     ...data,
     id: userId,
@@ -145,7 +149,7 @@ export async function initializeClubV12(userId: string, data: any) {
     rank,
     lastProcessedSeason: seasonNum,
     lastLoginDate: new Date().toISOString(),
-    version: 120
+    version: 130
   }, { merge: true });
 
   await batch.commit();

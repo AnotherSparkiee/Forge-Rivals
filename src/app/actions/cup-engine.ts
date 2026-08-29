@@ -1,8 +1,7 @@
 'use server';
 
 /**
- * @fileOverview Ультимативный антикризисный двигатель Кубка v12.
- * Исправлена логика генерации при малом количестве игроков и типы данных.
+ * @fileOverview Ультимативный антикризисный двигатель Кубка v13.
  */
 
 import { 
@@ -37,10 +36,6 @@ class FirestoreBatcher {
   }
 }
 
-/**
- * ГЕНЕРАЦИЯ: Раунд 1 для всех 16 лиг.
- * Теперь генерирует сетку даже если в лиге 1 игрок.
- */
 export async function generatePyramidCup(targetSeasonNumber?: number) {
   const { firestore: db } = initializeFirebase();
   
@@ -48,10 +43,9 @@ export async function generatePyramidCup(targetSeasonNumber?: number) {
   const SEASON_ID = String(SEASON_NUM);
   const TIMESTAMP_NOW = Timestamp.now();
 
-  console.log(`[CUP ENGINE v12] Initializing Season ${SEASON_ID} Brackets...`);
+  console.log(`[CUP ENGINE v13] Initializing Season ${SEASON_ID} Brackets...`);
 
-  // Сбор всех игроков из актуальной коллекции v12
-  const playersSnap = await getDocs(collection(db, 'players_v12'));
+  const playersSnap = await getDocs(collection(db, 'players_v13'));
   const allGlobalPlayers = playersSnap.docs.map(d => ({ id: d.id, ...d.data() } as any));
 
   for (let i = 0; i < LEAGUES.length; i++) {
@@ -59,14 +53,12 @@ export async function generatePyramidCup(targetSeasonNumber?: number) {
     const leagueNum = i + 1;
     const batcher = new FirestoreBatcher(db);
     
-    // Фильтрация игроков данной лиги
     const leagueTeams = allGlobalPlayers.filter((p: any) => p.selectedLeagueId === league.id).map((p: any) => ({
       id: p.id,
       name: p.displayName || `Manager_${p.id.slice(0,4)}`,
       power: (Number(p.leagueLevel || 9) * 100) + Number(p.rank || 8),
     }));
 
-    // Находим ближайшую степень двойки для сетки (минимум 16 для визуальной красоты)
     let bracketSize = 16;
     while (bracketSize < leagueTeams.length) {
       bracketSize *= 2;
@@ -87,7 +79,6 @@ export async function generatePyramidCup(targetSeasonNumber?: number) {
       const home = slots[left];
       const away = slots[right];
 
-      // Если в лиге нет ни одного реального игрока - пропускаем лигу целиком
       if (leagueTeams.length === 0) break;
 
       const cupMatchId = `season_${SEASON_ID}_league_${league.id}_round_1_match_${matchNum}`;
@@ -110,7 +101,7 @@ export async function generatePyramidCup(targetSeasonNumber?: number) {
         isFinished: false,
         winnerId: null,
         createdAt: serverTimestamp(),
-        version: 12
+        version: 13
       });
 
       left++;

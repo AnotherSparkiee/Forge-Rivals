@@ -3,7 +3,7 @@
   "entities": {
     "PlayerProfile": {
       "title": "PlayerProfile",
-      "description": "Основной профиль менеджера в системе v12 (Global Reset)",
+      "description": "Основной профиль менеджера в системе v13 (Global Transition)",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
@@ -22,7 +22,7 @@
     },
     "MatchRecord": {
       "title": "MatchRecord",
-      "description": "Зафиксированный результат матча лиги v12",
+      "description": "Зафиксированный результат матча лиги v130",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
@@ -45,13 +45,16 @@
     "providers": ["anonymous", "email"]
   },
   "firestore": {
-    "/players_v12/{userId}": {
+    "/players_v13/{userId}": {
       "schema": "#/backend/entities/PlayerProfile",
-      "description": "Глобальный реестр участников лиги v12"
+      "description": "Глобальный реестр участников лиги v13"
     },
-    "/matches_v1/{matchId}": {
+    "/league_tables_v2/{tableId}": {
+      "description": "Турнирные таблицы версии 130"
+    },
+    "/matches_v2/{matchId}": {
       "schema": "#/backend/entities/MatchRecord",
-      "description": "Архив зафиксированных результатов лиги v12"
+      "description": "Архив зафиксированных результатов лиги v130"
     }
   }
 }
