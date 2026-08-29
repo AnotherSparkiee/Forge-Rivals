@@ -2,12 +2,12 @@
 
 /**
  * Глобальный двигатель заполнения мира v131 (Universe Architect).
- * Оптимизирован для предотвращения таймаутов и лимитов Firestore (5 групп за вызов).
+ * Оптимизирован для предотвращения таймаутов (5 групп за вызов).
  */
 
 import { 
   doc, getDoc, writeBatch, 
-  Firestore, serverTimestamp 
+  Firestore, serverTimestamp, setDoc 
 } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import { 
@@ -116,7 +116,6 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
     const nextIndex = currentIndex + 1;
     const coords = getGroupCoordinates(nextIndex);
     
-    // Проверка существования (защита от дубликатов)
     const tableId = `table_v131_S${seasonNum}_L${leagueId}_V${coords.tier}_G${coords.group}`;
     const tableSnap = await getDoc(doc(db, 'league_tables_v2', tableId));
     
@@ -133,7 +132,7 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
 
       await batch.commit();
     } else {
-      // Если группа уже есть, просто обновляем прогресс
+      // Если группа уже есть, просто обновляем прогресс в документе статуса
       await setDoc(statusRef, {
         currentIndex: nextIndex,
         status: nextIndex >= TOTAL_GROUPS ? 'completed' : 'processing',

@@ -2,7 +2,7 @@
 
 /**
  * Скрипт "Ядерной очистки" v131.
- * Оптимизирован для предотвращения таймаутов (макс 1500 доков за вызов).
+ * Оптимизирован для предотвращения таймаутов (макс 1000 доков за вызов).
  */
 
 import { 
@@ -11,23 +11,27 @@ import {
 } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 
-const WIPE_BATCH_SIZE = 500;
-const LIMIT_PER_CALL = 1500;
+const WIPE_BATCH_SIZE = 400;
+const LIMIT_PER_CALL = 1000;
 
 export async function totalNuclearResetV131() {
   const { firestore: db } = initializeFirebase();
-  console.log("[NUCLEAR v131] Starting Safety Purge...");
+  console.log("[NUCLEAR v131] Starting Force Purge...");
 
-  // Очистка системных флагов для возможности повторной инициализации
+  // ПРИНУДИТЕЛЬНОЕ УДАЛЕНИЕ ФЛАГОВ БЛОКИРОВКИ
   const systemDocs = [
     'repair_v131_S1_LALPHA',
     'init_v131_S1_LALPHA',
     'repair_v130_S1_LALPHA',
-    'init_v130_S1_LALPHA'
+    'init_v130_S1_LALPHA',
+    'repair_v131_S2_LALPHA',
+    'init_v131_S2_LALPHA'
   ];
 
   for (const sId of systemDocs) {
-    await deleteDoc(doc(db, 'system_v1', sId)).catch(() => {});
+    try {
+      await deleteDoc(doc(db, 'system_v1', sId));
+    } catch (e) {}
   }
 
   const colls = [
@@ -64,6 +68,6 @@ export async function totalNuclearResetV131() {
   return { 
     success: true, 
     details: results, 
-    msg: totalDeleted > 0 ? `Wiping in progress... (${totalDeleted} deleted)` : "System Purged" 
+    msg: totalDeleted > 0 ? `Wiping: ${totalDeleted} docs removed...` : "System Fully Purged" 
   };
 }

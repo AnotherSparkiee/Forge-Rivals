@@ -83,7 +83,7 @@ export default function SystemPage() {
       transition: "СМЕНА СЕЗОНА", transitionDesc: "Запустить переход в следующий сезон (Transition)",
       confirmNuclear: "ВЫ УВЕРЕНЫ?", confirmNuclearDesc: "Это действие необратимо. Все игроки будут удалены.",
       btnConfirm: "ПОДТВЕРДИТЬ", btnCancel: "ОТМЕНА",
-      error: "Сервер занят. Автопилот попробует снова через 5 сек."
+      error: "Сервер занят. Автопилот пробует снова..."
     },
     en: { 
       title: "SYSTEM", subtitle: "Parameters and network metrics (v131)",
@@ -98,28 +98,25 @@ export default function SystemPage() {
       transition: "SEASON TRANSITION", transitionDesc: "Trigger promotion/relegation logic",
       confirmNuclear: "ARE YOU SURE?", confirmNuclearDesc: "This action is irreversible. All players will be wiped.",
       btnConfirm: "CONFIRM", btnCancel: "CANCEL",
-      error: "Server busy. Autopilot retrying in 5s."
+      error: "Server busy. Retrying..."
     }
   }[language === 'ru' ? 'ru' : 'en'];
 
-  // Логика автопилота: работает рекурсивно и не выключается при ошибках
   useEffect(() => {
     if (autoPilot && !isWorldReady && !isProcessing && !isBuilding) {
       const timer = setTimeout(() => {
         handleAction('forceBuild');
-      }, 3000);
+      }, 2000);
       return () => clearTimeout(timer);
     }
     if (isWorldReady && autoPilot) {
       setAutoPilot(false);
-      toast({ title: "Construction Complete", description: "World v131 is fully colonized." });
+      toast({ title: "Universe Ready", description: "All 511 sectors colonized." });
     }
   }, [autoPilot, isWorldReady, isProcessing, isBuilding]);
 
   const handleAction = async (action: string) => {
-    const now = Date.now();
-    if (now - lastActionTimeRef.current < 2000 && action !== 'forceBuild') return;
-    lastActionTimeRef.current = now;
+    if (isProcessing && action !== 'forceBuild') return;
 
     if (action === 'forceBuild') {
       setIsBuilding(true);
@@ -139,26 +136,25 @@ export default function SystemPage() {
       else if (action === 'transition') res = await performSeasonTransition();
       else if (action === 'forceBuild') res = await runGlobalEmergencyRepair();
       
-      if (action !== 'forceBuild' || !autoPilot) {
+      if (!autoPilot || action !== 'forceBuild') {
         toast({ 
-          title: res?.status || "Action Complete", 
-          description: res?.progress || res?.msg || "System updated" 
+          title: res?.status || "Success", 
+          description: res?.progress || res?.msg || "Action executed" 
         });
       }
 
       if (action === 'nuclear' && res?.success) {
-        setTimeout(() => window.location.reload(), 1500);
+        window.location.reload();
       }
     } catch (e: any) {
-      console.warn("[SYSTEM ACTION ERROR]", e.message);
-      // Если автопилот включен, мы не показываем ошибку "занят", а просто пробуем снова через useEffect
       if (!autoPilot) {
         toast({ 
           variant: "destructive", 
-          title: "Connection Issue", 
+          title: "Network Latency", 
           description: t.error 
         });
       }
+      // В режиме автопилота просто игнорируем ошибку и продолжаем цикл через useEffect
     } finally {
       setIsProcessing(false);
       setIsBuilding(false);
@@ -180,7 +176,7 @@ export default function SystemPage() {
         <section className="space-y-3">
           <div className="flex items-center justify-between px-1">
             <h2 className="text-[10px] font-black uppercase tracking-widest text-accent">{t.worldStatus}</h2>
-            {autoPilot && <Badge className="bg-primary animate-pulse text-[8px] font-black uppercase shadow-[0_0_10px_rgba(var(--primary),0.4)]">AUTO-MODE ON</Badge>}
+            {autoPilot && <Badge className="bg-primary animate-pulse text-[8px] font-black uppercase shadow-[0_0_10px_rgba(var(--primary),0.4)]">AUTOPILOT ON</Badge>}
           </div>
           <Card className={cn("glass-card border-white/5 bg-secondary/10 overflow-hidden", (!isWorldReady || autoPilot) && "border-primary/30")}>
             <CardContent className="p-4">
