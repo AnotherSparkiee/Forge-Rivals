@@ -1,9 +1,9 @@
+
 'use client';
 
 /**
- * Глобальное локальное хранилище v226 (Absolute Reset Support).
- * Теперь при смене версии (NUCLEAR RESET) локальная история матчей 
- * автоматически очищается.
+ * Глобальное локальное хранилище v227 (V12 Support).
+ * Теперь приложение работает с коллекцией players_v12.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useMemo } from 'react';
@@ -125,7 +125,7 @@ interface GameState {
   saveToLocal: (state: Partial<GameState>) => void;
 }
 
-const STORAGE_KEY = 'lote_game_state_v226';
+const STORAGE_KEY = 'lote_game_state_v227';
 
 const DEFAULT_STATE: GameState = {
   credits: 1000000, crystals: 50, experiencePoints: 0, managerLevel: 1,
@@ -145,7 +145,7 @@ const DEFAULT_STATE: GameState = {
   arena: { capacity: 5000 }, hq: {}, bootcamp: {}, academy: {}, medical: {},
   country: null, isPremium: false, premiumUntil: null, activeSeasonNumber: 1, seasonNumber: 1, seasonDay: 1, isSyncing: false, language: 'ru',
   isDataReady: false, allSeasonMatches: [], nextMatch: null, isMatchesLoading: true,
-  lastProcessedSeason: 0, trophies: [], version: 226,
+  lastProcessedSeason: 0, trophies: [], version: 227,
   availableGiftsToSend: [], receivedGifts: [], lastGiftGenDate: null,
   addCrystals: () => {}, addCredits: () => {}, updatePlayer: () => {}, removePlayer: () => {}, assignToRole: () => {}, updateLineup: () => {}, updateTactics: () => {},
   claimReward: () => {}, setLanguage: () => {}, purchaseLicense: () => false, purchasePremium: () => false,
@@ -181,7 +181,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  // 1. Первичная загрузка из локального хранилища
   useEffect(() => {
     if (isUserLoading) return;
 
@@ -189,26 +188,16 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        
-        // NUCLEAR RESET: Если версия в сторе ниже 226, очищаем историю матчей
-        if (parsed.version < 226) {
+        if (parsed.version < 227) {
           parsed.matchHistory = [];
           parsed.lastSeenMatchDay = 0;
           parsed.trophies = [];
-          parsed.version = 226;
+          parsed.version = 227;
         }
-
-        // Принудительный сброс если ID не совпадает с UID Firebase
         if (user && parsed.id && parsed.id !== user.uid) {
-          setState(prev => ({
-            ...DEFAULT_STATE,
-            id: user.uid,
-            isLoaded: true,
-            language: parsed.language || 'ru'
-          }));
+          setState(prev => ({ ...DEFAULT_STATE, id: user.uid, isLoaded: true, language: parsed.language || 'ru' }));
           return;
         }
-
         setState(prev => ({
           ...DEFAULT_STATE,
           ...parsed,
@@ -218,330 +207,123 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
           seasonNumber: staticSeasonInfo.seasonNumber,
           seasonDay: staticSeasonInfo.seasonDay
         }));
-      } catch (e) {
-        setState(prev => ({ ...prev, isLoaded: true }));
-      }
-    } else {
-      setState(prev => ({ ...prev, id: user?.uid || '', isLoaded: true }));
-    }
+      } catch (e) { setState(prev => ({ ...prev, isLoaded: true })); }
+    } else { setState(prev => ({ ...prev, id: user?.uid || '', isLoaded: true })); }
   }, [isUserLoading, user, staticSeasonInfo]);
 
-  // 2. СИНХРОНИЗАЦИЯ С FIRESTORE (players_v11)
   useEffect(() => {
     if (!user?.uid || !state.isLoaded) return;
-
     const { firestore: db } = initializeFirebase();
-    const playerRef = doc(db, 'players_v11', user.uid);
-
+    const playerRef = doc(db, 'players_v12', user.uid);
     const unsubscribe = onSnapshot(playerRef, (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.data();
-        
         saveToLocal({
-          clubName: data.clubName,
-          clubLogo: data.clubLogo,
-          country: data.country,
-          selectedLeagueId: data.selectedLeagueId,
-          leagueLevel: Number(data.leagueLevel),
-          groupId: Number(data.groupId),
-          rank: Number(data.rank),
-          isTeamLoaded: true,
-          managerLevel: data.managerLevel || state.managerLevel,
-          experiencePoints: data.experiencePoints || state.experiencePoints
+          clubName: data.clubName, clubLogo: data.clubLogo, country: data.country,
+          selectedLeagueId: data.selectedLeagueId, leagueLevel: Number(data.leagueLevel),
+          groupId: Number(data.groupId), rank: Number(data.rank), isTeamLoaded: true,
+          managerLevel: data.managerLevel || state.managerLevel, experiencePoints: data.experiencePoints || state.experiencePoints
         });
-      } else {
-        setState(prev => ({ ...prev, isTeamLoaded: false }));
-      }
+      } else { setState(prev => ({ ...prev, isTeamLoaded: false })); }
     });
-
     return () => unsubscribe();
   }, [user?.uid, state.isLoaded, saveToLocal]);
 
-  // 3. Следим за сменой пользователя
-  useEffect(() => {
-    if (user && state.id && state.id !== user.uid) {
-      localStorage.removeItem(STORAGE_KEY);
-      setState({ ...DEFAULT_STATE, id: user.uid, isLoaded: true });
-    }
-  }, [user, state.id]);
-
-  useEffect(() => {
-    if (state.allSeasonMatches && state.allSeasonMatches.length > 0 && state.rank) {
-      const myMatches = state.allSeasonMatches
-        .filter(m => (Number(m.homeRank) === state.rank || Number(m.awayRank) === state.rank) && !m.isFinished)
-        .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
-      
-      const foundNext = myMatches[0];
-      if (foundNext) {
-        const isHome = Number(foundNext.homeRank) === state.rank;
-        setState(prev => ({
-          ...prev,
-          nextMatch: {
-            match: foundNext,
-            opponentName: isHome ? foundNext.awayName : foundNext.homeName,
-            opponentLogo: isHome ? foundNext.awayLogo : foundNext.homeLogo,
-            opponentRank: isHome ? Number(foundNext.awayRank) : Number(foundNext.homeRank)
-          }
-        }));
-      } else {
-        setState(prev => ({ ...prev, nextMatch: null }));
-      }
-    }
-  }, [state.allSeasonMatches, state.rank]);
-
   const addCrystals = useCallback((amount: number) => saveToLocal({ crystals: (state.crystals || 0) + amount }), [state.crystals, saveToLocal]);
   const addCredits = useCallback((amount: number) => saveToLocal({ credits: (state.credits || 0) + amount }), [state.credits, saveToLocal]);
-
-  const updatePlayer = useCallback((id: string, data: Partial<Player>, costCredits = 0, costCrystals = 0) => {
+  const updatePlayer = useCallback((id: string, data: Partial<Player>, costCr = 0, costCry = 0) => {
     const newOwned = state.ownedPlayers.map(p => p.id === id ? { ...p, ...data } : p);
     const newYouth = state.youthAcademyPlayers.map(p => p.id === id ? { ...p, ...data } : p);
-    saveToLocal({
-      ownedPlayers: newOwned,
-      youthAcademyPlayers: newYouth,
-      credits: (state.credits || 0) - costCredits,
-      crystals: (state.crystals || 0) - costCrystals
-    });
+    saveToLocal({ ownedPlayers: newOwned, youthAcademyPlayers: newYouth, credits: (state.credits || 0) - costCr, crystals: (state.crystals || 0) - costCry });
   }, [state.ownedPlayers, state.youthAcademyPlayers, state.credits, state.crystals, saveToLocal]);
-
   const removePlayer = useCallback((id: string, refund: number) => {
-    saveToLocal({
-      ownedPlayers: state.ownedPlayers.filter(p => p.id !== id),
-      youthAcademyPlayers: state.youthAcademyPlayers.filter(p => p.id !== id),
-      credits: (state.credits || 0) + refund
-    });
+    saveToLocal({ ownedPlayers: state.ownedPlayers.filter(p => p.id !== id), youthAcademyPlayers: state.youthAcademyPlayers.filter(p => p.id !== id), credits: (state.credits || 0) + refund });
   }, [state.ownedPlayers, state.youthAcademyPlayers, state.credits, saveToLocal]);
-
-  const assignToRole = useCallback((role: LineupSlot, playerId: string | null) => {
-    saveToLocal({ lineup: { ...state.lineup, [role]: playerId } });
-  }, [state.lineup, saveToLocal]);
-
-  const updateLineup = useCallback((updates: Partial<Record<LineupSlot, string | null>>) => {
-    saveToLocal({ lineup: { ...state.lineup, ...updates } });
-  }, [state.lineup, saveToLocal]);
-
-  const updateTactics = useCallback((strategy: string, lineSettings: any) => {
-    saveToLocal({ strategy, lineSettings });
-  }, [saveToLocal]);
-
+  const assignToRole = useCallback((role: LineupSlot, pId: string | null) => saveToLocal({ lineup: { ...state.lineup, [role]: pId } }), [state.lineup, saveToLocal]);
+  const updateLineup = useCallback((updates: Partial<Record<LineupSlot, string | null>>) => saveToLocal({ lineup: { ...state.lineup, ...updates } }), [state.lineup, saveToLocal]);
+  const updateTactics = useCallback((strategy: string, lineSettings: any) => saveToLocal({ strategy, lineSettings }), [saveToLocal]);
   const claimReward = useCallback((cr: number, cry: number) => {
-    const crystalGain = state.isPremium ? cry + 50 : cry;
-    saveToLocal({
-      credits: (state.credits || 0) + cr,
-      crystals: (state.crystals || 0) + crystalGain,
-      lastRewardClaimDate: getMoscowDateString(),
-      rewardDay: ((state.rewardDay || 1) % 30) + 1
-    });
+    const cryGain = state.isPremium ? cry + 50 : cry;
+    saveToLocal({ credits: (state.credits || 0) + cr, crystals: (state.crystals || 0) + cryGain, lastRewardClaimDate: getMoscowDateString(), rewardDay: ((state.rewardDay || 1) % 30) + 1 });
   }, [state.isPremium, state.credits, state.crystals, state.rewardDay, saveToLocal]);
-
   const setLanguage = useCallback((lang: string) => saveToLocal({ language: lang }), [saveToLocal]);
-
   const purchaseLicense = useCallback((t: number, c: number) => {
     if ((state.crystals || 0) < c) return false;
-    saveToLocal({ crystals: state.crystals - c, activeLicenseTier: t });
-    return true;
+    saveToLocal({ crystals: state.crystals - c, activeLicenseTier: t }); return true;
   }, [state.crystals, saveToLocal]);
-
   const purchasePremium = useCallback(() => {
     if ((state.crystals || 0) < 5000) return false;
     const exp = new Date(getMoscowTime().getTime() + 30 * 24 * 60 * 60 * 1000);
-    saveToLocal({ crystals: state.crystals - 5000, premiumUntil: exp.toISOString(), isPremium: true });
-    return true;
+    saveToLocal({ crystals: state.crystals - 5000, premiumUntil: exp.toISOString(), isPremium: true }); return true;
   }, [state.crystals, saveToLocal]);
-
-  const setTrainingFocus = useCallback((playerId: string, focus: string | null) => {
-    updatePlayer(playerId, { trainingFocus: focus });
-  }, [updatePlayer]);
-
-  const startDailyPlayerTraining = useCallback((playerId: string, focus: string) => {
-    updatePlayer(playerId, { 
-      dailyTrainingFocus: focus, 
-      dailyTrainingFinishTime: new Date(getMoscowTime().getTime() + 24 * 3600000).toISOString() 
-    });
-  }, [updatePlayer]);
-
-  const claimDailyPlayerTraining = useCallback((playerId: string) => {
-    updatePlayer(playerId, { dailyTrainingFocus: null, dailyTrainingFinishTime: null });
-  }, [updatePlayer]);
-
+  const setTrainingFocus = useCallback((pId: string, focus: string | null) => updatePlayer(pId, { trainingFocus: focus }), [updatePlayer]);
+  const startDailyPlayerTraining = useCallback((pId: string, focus: string) => updatePlayer(pId, { dailyTrainingFocus: focus, dailyTrainingFinishTime: new Date(getMoscowTime().getTime() + 24 * 3600000).toISOString() }), [updatePlayer]);
+  const claimDailyPlayerTraining = useCallback((pId: string) => updatePlayer(pId, { dailyTrainingFocus: null, dailyTrainingFinishTime: null }), [updatePlayer]);
   const recoverAllFatigue = useCallback((type: 'credits' | 'crystals') => {
-    const cost = type === 'credits' ? 75000 : 150;
-    const balance = type === 'credits' ? state.credits : state.crystals;
-    if (balance < cost) return false;
-    saveToLocal({
-      ownedPlayers: state.ownedPlayers.map(p => ({ ...p, fatigue: 100 })),
-      [type]: balance - cost
-    });
-    return true;
+    const cost = type === 'credits' ? 75000 : 150; const bal = type === 'credits' ? state.credits : state.crystals;
+    if (bal < cost) return false;
+    saveToLocal({ ownedPlayers: state.ownedPlayers.map(p => ({ ...p, fatigue: 100 })), [type]: bal - cost }); return true;
   }, [state.credits, state.crystals, state.ownedPlayers, saveToLocal]);
-
-  const hireStaffMember = useCallback((member: StaffMember) => {
-    saveToLocal({ staff: { ...state.staff, [member.role]: member }, credits: (state.credits || 0) - (member.salary / 2) });
-  }, [state.staff, state.credits, saveToLocal]);
-
-  const trainStaffSkill = useCallback((role: StaffRole, skillKey: 'primary' | 'secondary', cost: number) => {
+  const hireStaffMember = useCallback((m: StaffMember) => saveToLocal({ staff: { ...state.staff, [m.role]: m }, credits: (state.credits || 0) - (m.salary / 2) }), [state.staff, state.credits, saveToLocal]);
+  const trainStaffSkill = useCallback((r: StaffRole, sk: 'primary' | 'secondary', cost: number) => {
     if ((state.crystals || 0) < cost) return false;
-    const member = state.staff[role];
-    if (!member) return false;
-    const updatedMember = { ...member, skills: { ...member.skills, [skillKey]: (member.skills[skillKey] || 0) + 1 } };
-    saveToLocal({ staff: { ...state.staff, [role]: updatedMember }, crystals: state.crystals - cost });
-    return true;
+    const mem = state.staff[r]; if (!mem) return false;
+    const upMem = { ...mem, skills: { ...mem.skills, [sk]: (mem.skills[sk] || 0) + 1 } };
+    saveToLocal({ staff: { ...state.staff, [r]: upMem }, crystals: state.crystals - cost }); return true;
   }, [state.staff, state.crystals, saveToLocal]);
-
-  const trainHeroSkill = useCallback(async (heroId: string, skillKey: string, amount: number) => {
-    const player = state.ownedPlayers.find(p => p.id === heroId);
-    if (!player) return false;
-    const newStats = { ...player.proStats, [skillKey]: (player.proStats as any)[skillKey] + amount };
-    updatePlayer(heroId, { proStats: newStats as any });
-    return true;
+  const trainHeroSkill = useCallback(async (hId: string, sk: string, amt: number) => {
+    const p = state.ownedPlayers.find(pl => pl.id === hId); if (!p) return false;
+    updatePlayer(hId, { proStats: { ...p.proStats, [sk]: (p.proStats as any)[sk] + amt } as any }); return true;
   }, [state.ownedPlayers, updatePlayer]);
-
-  const addPlayerDirectly = useCallback((player: Player) => saveToLocal({ ownedPlayers: [...state.ownedPlayers, player] }), [state.ownedPlayers, saveToLocal]);
-  const addYouthPlayerDirectly = useCallback((player: Player) => saveToLocal({ youthAcademyPlayers: [...state.youthAcademyPlayers, { ...player, isYouth: true }] }), [state.youthAcademyPlayers, saveToLocal]);
-
-  const promoteYouthPlayer = useCallback((playerId: string) => {
-    const player = state.youthAcademyPlayers.find(p => p.id === playerId);
-    if (!player) return;
-    saveToLocal({
-      youthAcademyPlayers: state.youthAcademyPlayers.filter(p => p.id !== playerId),
-      ownedPlayers: [...state.ownedPlayers, { ...player, isYouth: false }]
-    });
+  const addPlayerDirectly = useCallback((p: Player) => saveToLocal({ ownedPlayers: [...state.ownedPlayers, p] }), [state.ownedPlayers, saveToLocal]);
+  const addYouthPlayerDirectly = useCallback((p: Player) => saveToLocal({ youthAcademyPlayers: [...state.youthAcademyPlayers, { ...p, isYouth: true }] }), [state.youthAcademyPlayers, saveToLocal]);
+  const promoteYouthPlayer = useCallback((pId: string) => {
+    const p = state.youthAcademyPlayers.find(pl => pl.id === pId); if (!p) return;
+    saveToLocal({ youthAcademyPlayers: state.youthAcademyPlayers.filter(pl => pl.id !== pId), ownedPlayers: [...state.ownedPlayers, { ...p, isYouth: false }] });
   }, [state.youthAcademyPlayers, state.ownedPlayers, saveToLocal]);
-
-  const updateProfileName = useCallback((name: string) => saveToLocal({ clubName: name, displayName: name }), [saveToLocal]);
-  const updateProfileCountry = useCallback((country: string) => saveToLocal({ country }), [saveToLocal]);
-  const healPlayer = useCallback((playerId: string, type: 'credits' | 'crystals', cost: number) => {
-    updatePlayer(playerId, { isInjured: false, injuredUntil: null });
-    saveToLocal({ [type]: (state as any)[type] - cost });
-  }, [state.credits, state.crystals, updatePlayer, saveToLocal]);
-
-  const launchFanCampaign = useCallback((type: string, cost: number, fans: number, loyalty: number) => {
-    saveToLocal({
-      credits: (state.credits || 0) - cost,
-      arena: { ...state.arena, fanCount: (state.arena.fanCount || 5000) + fans, loyalty: (state.arena.loyalty || 30) + loyalty }
-    });
-  }, [state.credits, state.arena, saveToLocal]);
-
-  const resetProfile = useCallback(async () => {
-    localStorage.removeItem(STORAGE_KEY);
-    setState({ ...DEFAULT_STATE, id: user?.uid || '', isLoaded: true });
-  }, [user?.uid]);
-
+  const updateProfileName = useCallback((n: string) => saveToLocal({ clubName: n, displayName: n }), [saveToLocal]);
+  const updateProfileCountry = useCallback((c: string) => saveToLocal({ country: c }), [saveToLocal]);
+  const healPlayer = useCallback((pId: string, t: 'credits' | 'crystals', c: number) => { updatePlayer(pId, { isInjured: false, injuredUntil: null }); saveToLocal({ [t]: (state as any)[t] - c }); }, [state.credits, state.crystals, updatePlayer, saveToLocal]);
+  const launchFanCampaign = useCallback((t: string, c: number, f: number, l: number) => saveToLocal({ credits: (state.credits || 0) - c, arena: { ...state.arena, fanCount: (state.arena.fanCount || 5000) + f, loyalty: (state.arena.loyalty || 30) + l } }), [state.credits, state.arena, saveToLocal]);
+  const resetProfile = useCallback(async () => { localStorage.removeItem(STORAGE_KEY); setState({ ...DEFAULT_STATE, id: user?.uid || '', isLoaded: true }); }, [user?.uid]);
   const recordMatch = useCallback((w: string, res: any, rew: number, opp: string, t: string, p: string, mId?: string, extra?: any) => {
-    const id = mId || `match_${Date.now()}`;
-    let newLevel = state.managerLevel; 
-    let newTotalXp = state.experiencePoints + (t === 'league' ? 200 : 50);
-    const threshold = getLevelThreshold(newLevel);
-    if (newTotalXp >= threshold) { newLevel++; newTotalXp -= threshold; }
-    
+    const id = mId || `match_${Date.now()}`; let newLvl = state.managerLevel; let newXp = state.experiencePoints + (t === 'league' ? 200 : 50);
+    const thr = getLevelThreshold(newLvl); if (newXp >= thr) { newLvl++; newXp -= thr; }
     const entry = { id, winner: w, scoreA: res.scoreA, scoreB: res.scoreB, opponentName: opp, type: t, playedAt: p, simulation: res, seen: false, ...extra };
-    saveToLocal({ credits: (state.credits || 0) + rew, experiencePoints: newTotalXp, managerLevel: newLevel, matchHistory: [...state.matchHistory, entry] });
+    saveToLocal({ credits: (state.credits || 0) + rew, experiencePoints: newXp, managerLevel: newLvl, matchHistory: [...state.matchHistory, entry] });
   }, [state.experiencePoints, state.managerLevel, state.credits, state.matchHistory, saveToLocal]);
-
   const markMatchIdAsSeen = useCallback((id: string) => {
-    const matchInHistory = state.matchHistory.find(m => m.id === id);
-    let updates: Partial<GameState> = {};
-    
-    if (matchInHistory) {
-      const newHistory = state.matchHistory.map(m => m.id === id ? { ...m, seen: true } : m);
-      updates.matchHistory = newHistory;
-    }
-
-    const leagueMatch = (state.allSeasonMatches || []).find(m => m.id === id);
-    if (leagueMatch && Number(leagueMatch.day) > (state.lastSeenMatchDay || 0)) {
-      updates.lastSeenMatchDay = Number(leagueMatch.day);
-    }
-
-    if (Object.keys(updates).length > 0) {
-      saveToLocal(updates);
-    }
+    const mHistory = state.matchHistory.find(m => m.id === id); let updates: Partial<GameState> = {};
+    if (mHistory) updates.matchHistory = state.matchHistory.map(m => m.id === id ? { ...m, seen: true } : m);
+    const lMatch = (state.allSeasonMatches || []).find(m => m.id === id);
+    if (lMatch && Number(lMatch.day) > (state.lastSeenMatchDay || 0)) updates.lastSeenMatchDay = Number(lMatch.day);
+    if (Object.keys(updates).length > 0) saveToLocal(updates);
   }, [state.matchHistory, state.allSeasonMatches, state.lastSeenMatchDay, saveToLocal]);
-
-  const deleteMatchHistoryEntry = useCallback((id: string) => {
-    saveToLocal({ matchHistory: state.matchHistory.filter(m => m.id !== id) });
-  }, [state.matchHistory, saveToLocal]);
-
-  const clearMatchHistory = useCallback(() => {
-    saveToLocal({ matchHistory: [] });
-  }, [saveToLocal]);
-
+  const deleteMatchHistoryEntry = useCallback((id: string) => saveToLocal({ matchHistory: state.matchHistory.filter(m => m.id !== id) }), [state.matchHistory, saveToLocal]);
+  const clearMatchHistory = useCallback(() => saveToLocal({ matchHistory: [] }), [saveToLocal]);
   const scoutCandidates = useCallback(() => {
-    const candidates = Array.from({ length: 3 }).map((_, i) => generateScoutedPlayer(i, Number(state.academy?.scoutsLevel || 0), `scout_${getMoscowTime().getTime()}_${i}`));
-    saveToLocal({ scoutingCandidates: candidates, lastScoutDate: getMoscowTime().toISOString() });
+    const cands = Array.from({ length: 3 }).map((_, i) => generateScoutedPlayer(i, Number(state.academy?.scoutsLevel || 0), `scout_${getMoscowTime().getTime()}_${i}`));
+    saveToLocal({ scoutingCandidates: cands, lastScoutDate: getMoscowTime().toISOString() });
   }, [state.academy?.scoutsLevel, saveToLocal]);
-
-  const recruitCandidate = useCallback((playerId: string) => {
-    const candidate = state.scoutingCandidates.find(c => c.id === playerId);
-    if (!candidate) return;
-    saveToLocal({ youthAcademyPlayers: [...state.youthAcademyPlayers, { ...candidate, isYouth: true }], scoutingCandidates: state.scoutingCandidates.filter(c => c.id !== playerId) });
+  const recruitCandidate = useCallback((pId: string) => {
+    const cand = state.scoutingCandidates.find(c => c.id === pId); if (!cand) return;
+    saveToLocal({ youthAcademyPlayers: [...state.youthAcademyPlayers, { ...cand, isYouth: true }], scoutingCandidates: state.scoutingCandidates.filter(c => c.id !== pId) });
   }, [state.scoutingCandidates, state.youthAcademyPlayers, saveToLocal]);
-
   const clearScoutingReport = useCallback(() => saveToLocal({ scoutingCandidates: [], lastScoutDate: null }), [saveToLocal]);
-  const upgradeManagerSkill = useCallback((key: keyof GameState['managerSkills']) => saveToLocal({ managerSkills: { ...state.managerSkills, [key]: (state.managerSkills[key] || 0) + 1 } }), [state.managerSkills, saveToLocal]);
-
-  const startArenaConstruction = useCallback((id: string, cost: number) => {
-    saveToLocal({
-      credits: (state.credits || 0) - cost,
-      arena: {
-        ...state.arena,
-        constructionStarts: { ...state.arena.constructionStarts, [id]: getMoscowTime().toISOString() },
-        constructionFinishes: { ...state.arena.constructionFinishes, [id]: new Date(getMoscowTime().getTime() + 4 * 3600000).toISOString() }
-      }
-    });
-    return true;
+  const upgradeManagerSkill = useCallback((k: keyof GameState['managerSkills']) => saveToLocal({ managerSkills: { ...state.managerSkills, [k]: (state.managerSkills[k] || 0) + 1 } }), [state.managerSkills, saveToLocal]);
+  const startArenaConstruction = useCallback((id: string, c: number) => {
+    saveToLocal({ credits: (state.credits || 0) - c, arena: { ...state.arena, constructionStarts: { ...state.arena.constructionStarts, [id]: getMoscowTime().toISOString() }, constructionFinishes: { ...state.arena.constructionFinishes, [id]: new Date(getMoscowTime().getTime() + 4 * 3600000).toISOString() } } }); return true;
   }, [state.credits, state.arena, saveToLocal]);
-
-  const setWorldReady = useCallback((ready: boolean) => setState(prev => ({ ...prev, isDataReady: ready })), []);
-
+  const setWorldReady = useCallback((r: boolean) => setState(prev => ({ ...prev, isDataReady: r })), []);
   const runTrialMatch = useCallback(async () => {
-    const activeSlots: LineupSlot[] = ['carry', 'mid', 'offlane', 'support', 'full_support'];
-    const squad = activeSlots.map(s => state.ownedPlayers.find(p => p.id === state.lineup[s])).filter(Boolean) as Player[];
-    
-    if (squad.length < 5) return null;
-
-    const clubName = state.clubName || "My Club";
-    const opponentName = "Training Bot";
-    const mId = `trial_${Date.now()}`;
-    const now = new Date().toISOString();
-
-    const simulation = {
-      winner: clubName,
-      seriesScore: "1-0",
-      games: [{
-        scoreA: 1, scoreB: 0,
-        duration: "32:00",
-        mvp: squad[0].name,
-        matchSummary: "Solid local trial victory.",
-        towersA: 11, towersB: 3,
-        objectivesA: 4, objectivesB: 1,
-        teamAOvr: Math.round(squad.reduce((a, p) => a + p.overallRating, 0) / 5),
-        teamBOvr: 25,
-        timeline: [
-          { time: "05:00", type: "kill", event: `${squad[0].name} gets first blood!`, score: "1:0" },
-          { time: "15:00", type: "tower", event: `${clubName} destroys mid tower!`, score: "1:0" },
-          { time: "32:00", type: "objective", event: "Final ancient destroyed!", score: "1:0" }
-        ],
-        scoreboard: [
-          ...squad.map(p => ({ name: p.name, team: clubName, role: p.role, kills: 2, deaths: 0, assists: 5, cs: 150, matchRating: 8.5, image: p.image })),
-          { name: "Bot1", team: opponentName, role: "Carry", kills: 0, deaths: 2, assists: 0, cs: 100, matchRating: 5.0 }
-        ],
-        teamComparison: {
-          farm: [70, 30], tactics: [60, 40], teamwork: [80, 20], reflexes: [75, 25]
-        }
-      }]
-    };
-
-    recordMatch(clubName, simulation, 0, opponentName, 'trial', now, mId);
-    return mId;
+    const squad = (['carry', 'mid', 'offlane', 'support', 'full_support'] as LineupSlot[]).map(s => state.ownedPlayers.find(pl => pl.id === state.lineup[s])).filter(Boolean) as Player[];
+    if (squad.length < 5) return null; const cName = state.clubName || "My Club"; const oName = "Training Bot"; const mId = `trial_${Date.now()}`;
+    const sim = { winner: cName, seriesScore: "1-0", games: [{ scoreA: 1, scoreB: 0, duration: "32:00", mvp: squad[0].name, matchSummary: "Solid local trial victory.", towersA: 11, towersB: 3, objectivesA: 4, objectivesB: 1, teamAOvr: Math.round(squad.reduce((a, p) => a + p.overallRating, 0) / 5), teamBOvr: 25, timeline: [{ time: "05:00", type: "kill", event: `${squad[0].name} gets first blood!`, score: "1:0" }], scoreboard: [...squad.map(p => ({ name: p.name, team: cName, role: p.role, kills: 2, deaths: 0, assists: 5, cs: 150, matchRating: 8.5, image: p.image }))], teamComparison: { farm: [70, 30], tactics: [60, 40], teamwork: [80, 20], reflexes: [75, 25] } }] };
+    recordMatch(cName, sim, 0, oName, 'trial', new Date().toISOString(), mId); return mId;
   }, [state, recordMatch]);
 
   const value = useMemo(() => ({
-    ...state,
-    addCrystals, addCredits, updatePlayer, removePlayer, assignToRole, updateLineup, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage, setTrainingFocus, startDailyPlayerTraining, claimDailyPlayerTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, trainHeroSkill, addPlayerDirectly, addYouthPlayerDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, healPlayer, launchFanCampaign, scoutCandidates, recruitCandidate, clearScoutingReport, upgradeManagerSkill, startArenaConstruction, resetProfile, setWorldReady,
-    markMatchIdAsSeen, deleteMatchHistoryEntry, clearMatchHistory,
-    generateDailyGifts: (gifts: Gift[]) => saveToLocal({ availableGiftsToSend: gifts, lastGiftGenDate: getMoscowDateString() }),
-    sendGift: async () => true, claimGift: async () => true,
-    runTrialMatch,
-    saveToLocal
+    ...state, addCrystals, addCredits, updatePlayer, removePlayer, assignToRole, updateLineup, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage, setTrainingFocus, startDailyPlayerTraining, claimDailyPlayerTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, trainHeroSkill, addPlayerDirectly, addYouthPlayerDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, healPlayer, launchFanCampaign, scoutCandidates, recruitCandidate, clearScoutingReport, upgradeManagerSkill, startArenaConstruction, resetProfile, setWorldReady, markMatchIdAsSeen, deleteMatchHistoryEntry, clearMatchHistory, generateDailyGifts: (g: Gift[]) => saveToLocal({ availableGiftsToSend: g, lastGiftGenDate: getMoscowDateString() }), sendGift: async () => true, claimGift: async () => true, runTrialMatch, saveToLocal
   }), [state, addCrystals, addCredits, updatePlayer, removePlayer, assignToRole, updateLineup, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage, setTrainingFocus, startDailyPlayerTraining, claimDailyPlayerTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, trainHeroSkill, addPlayerDirectly, addYouthPlayerDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, healPlayer, launchFanCampaign, scoutCandidates, recruitCandidate, clearScoutingReport, upgradeManagerSkill, startArenaConstruction, resetProfile, setWorldReady, markMatchIdAsSeen, deleteMatchHistoryEntry, clearMatchHistory, runTrialMatch, saveToLocal]);
 
   return <GameStateContext.Provider value={value}>{children}</GameStateContext.Provider>;

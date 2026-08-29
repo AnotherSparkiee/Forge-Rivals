@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -83,7 +84,7 @@ export default function SetupPage() {
 
       const finalClubName = teamName.trim();
 
-      // Вызываем серверный экшен для атомарной инициализации в БД
+      // Инициализация в players_v12
       await initializeClubV11(user.uid, {
         tier: placement.tier,
         group: placement.group,
@@ -94,7 +95,6 @@ export default function SetupPage() {
         selectedLeagueId: targetLeagueId
       });
 
-      // Сохраняем в локальный стор для мгновенного доступа
       saveToLocal({
         id: user.uid,
         selectedLeagueId: targetLeagueId,
@@ -108,10 +108,11 @@ export default function SetupPage() {
         ownedPlayers: startingSquad,
         lineup: initialLineup,
         isDataReady: true,
-        isTeamLoaded: true
+        isTeamLoaded: true,
+        version: 12
       });
 
-      toast({ title: language === 'ru' ? "Клуб инициализирован!" : "Club Initialized!" });
+      toast({ title: language === 'ru' ? "Клуб v12 инициализирован!" : "Club v12 Initialized!" });
       router.replace('/');
     } catch (e: any) {
       console.error("[SETUP ERROR]:", e);

@@ -3,7 +3,7 @@
   "entities": {
     "PlayerProfile": {
       "title": "PlayerProfile",
-      "description": "Основной профиль менеджера в системе v11",
+      "description": "Основной профиль менеджера в системе v12 (Global Reset)",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
@@ -22,7 +22,7 @@
     },
     "MatchRecord": {
       "title": "MatchRecord",
-      "description": "Зафиксированный результат матча лиги v11",
+      "description": "Зафиксированный результат матча лиги v12",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
@@ -45,13 +45,13 @@
     "providers": ["anonymous", "email"]
   },
   "firestore": {
-    "/players_v11/{userId}": {
+    "/players_v12/{userId}": {
       "schema": "#/backend/entities/PlayerProfile",
-      "description": "Глобальный реестр участников лиги v11"
+      "description": "Глобальный реестр участников лиги v12"
     },
-    "/matches_v11/{matchId}": {
+    "/matches_v1/{matchId}": {
       "schema": "#/backend/entities/MatchRecord",
-      "description": "Архив зафиксированных результатов лиги v11"
+      "description": "Архив зафиксированных результатов лиги v12"
     }
   }
 }

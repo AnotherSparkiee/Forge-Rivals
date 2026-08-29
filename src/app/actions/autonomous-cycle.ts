@@ -1,8 +1,9 @@
+
 'use server';
 
 /**
- * @fileOverview ГЛОБАЛЬНЫЙ АВТОНОМНЫЙ ДВИГАТЕЛЬ ЛИГИ v2.2 (Endless Cycle).
- * Обрабатывает матчи и смену сезона.
+ * @fileOverview ГЛОБАЛЬНЫЙ АВТОНОМНЫЙ ДВИГАТЕЛЬ ЛИГИ v2.3 (V12).
+ * Обрабатывает матчи и смену сезона. Целевая коллекция: players_v12.
  */
 
 import { 
@@ -40,21 +41,17 @@ class FirestoreBatcher {
   }
 }
 
-/**
- * РАСЧЕТ МАТЧЕЙ ТУРА.
- */
 export async function resolveDailyMatches() {
   const { firestore: db } = initializeFirebase();
   const info = getGlobalSeasonInfo();
   const currentSeason = info.activeSeasonNumber;
   
-  // Синхронизация с актуальной версией ремонта v113
-  const repairStatusRef = doc(db, 'system_v1', `repair_v113_S${currentSeason}_LALPHA`);
+  const repairStatusRef = doc(db, 'system_v1', `repair_v114_S${currentSeason}_LALPHA`);
   const repairSnap = await getDoc(repairStatusRef);
   const isRepairComplete = repairSnap.exists() && repairSnap.data().phase === 'COMPLETED';
 
   if (!isRepairComplete) {
-    console.log(`[HEARTBEAT] World not ready for S${currentSeason}. Running emergency repair.`);
+    console.log(`[HEARTBEAT] World v12 not ready for S${currentSeason}. Running emergency repair.`);
     const repairResult = await runGlobalEmergencyRepair();
     return { success: true, status: "REPAIRING", progress: repairResult.status };
   }
@@ -83,7 +80,7 @@ export async function resolveDailyMatches() {
     await batcher.update(matchDoc.ref, {
       scoreA: sA, scoreB: sB, winnerId,
       status: 'finished', isFinished: true,
-      resolvedAt: serverTimestamp(), version: 100
+      resolvedAt: serverTimestamp(), version: 12
     });
 
     const tableId = `table_S${currentSeason}_L${m.leagueId}_V${m.level}_G${m.groupId}`;
@@ -115,9 +112,6 @@ export async function resolveDailyMatches() {
   return { success: true, count };
 }
 
-/**
- * СМЕНА СЕЗОНА (Migration Engine v101).
- */
 export async function performSeasonTransition() {
   const { firestore: db } = initializeFirebase();
   const info = getGlobalSeasonInfo();
@@ -134,8 +128,6 @@ export async function performSeasonTransition() {
   const GROUPS_PER_CHUNK = 25;
   const startIdx = status.currentIndex || 0;
   const endIdx = Math.min(startIdx + GROUPS_PER_CHUNK, 511);
-
-  console.log(`[TRANSITION] Processing Season ${currentSeason} groups: ${startIdx} to ${endIdx}`);
 
   const batcher = new FirestoreBatcher(db);
 
@@ -161,17 +153,13 @@ export async function performSeasonTransition() {
         
         if (rank <= 2) {
           const promo = getPromotionTarget(coords.tier, coords.group);
-          nextLvl = promo.level; 
-          nextGrp = promo.group;
-          nextRank = 8; 
+          nextLvl = promo.level; nextGrp = promo.group; nextRank = 8; 
         } else if (rank >= 7) {
           const releg = getRelegationTarget(coords.tier, coords.group, rank);
-          nextLvl = releg.level; 
-          nextGrp = releg.group;
-          nextRank = 1; 
+          nextLvl = releg.level; nextGrp = releg.group; nextRank = 1; 
         }
 
-        const playerRef = doc(db, 'players_v11', team.id);
+        const playerRef = doc(db, 'players_v12', team.id);
         await batcher.update(playerRef, {
           targetLevel: nextLvl,
           targetGroup: nextGrp,
