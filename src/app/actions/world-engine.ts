@@ -1,11 +1,11 @@
 'use server';
 
 /**
- * Глобальный двигатель заполнения мира v107 (Full Pyramid Reconstruction).
+ * Глобальный двигатель заполнения мира v110 (Atomic Batch Per Group).
  * Особенности:
- * 1. Полный охват: За один вызов может просканировать всю пирамиду (511 групп).
- * 2. Надежность: currentIndex сохраняется всегда, даже если группы не создавались.
- * 3. Агрессивный ремонт: Любая группа < 8 команд считается дырой и пересоздается.
+ * 1. Исправлен баг Batch Limit (500): Теперь каждая группа коммитится отдельным батчем (~58 операций).
+ * 2. Атомарный прогресс: currentIndex сохраняется сразу после успешного создания группы.
+ * 3. Агрессивный ремонт: Группы с < 8 командами считаются битыми и пересоздаются.
  */
 
 import { 
@@ -27,7 +27,6 @@ const MAX_SCAN_LIMIT = 511;
 
 /**
  * Математически точный расчет координат бинарной пирамиды.
- * Индексы 1..511
  */
 function getGroupCoordinates(index: number) {
   if (index < 1) return { tier: 1, group: 1 };
@@ -44,7 +43,11 @@ function getGroupCoordinates(index: number) {
   return { tier: 9, group: 256 };
 }
 
-function injectGroupToBatch(
+/**
+ * Наполняет батч операциями для создания ОДНОЙ группы.
+ * ~58 операций записи.
+ */
+function injectGroupData(
   batch: any, 
   db: Firestore, 
   leagueId: string, 
@@ -76,7 +79,7 @@ function injectGroupToBatch(
     id: tableId, leagueId, level: tier, group, season: seasonNum,
     stats: initialStats,
     createdAt: serverTimestamp(),
-    version: 107
+    version: 110
   });
 
   const calendar = generateSeasonCalendar(teamsForCalendar, seasonNum, leagueId);
@@ -87,7 +90,7 @@ function injectGroupToBatch(
       id: mId,
       leagueId, level: tier, groupId: group, season: seasonNum,
       isFinished: false, scoreA: 0, scoreB: 0,
-      version: 107
+      version: 110
     });
   }
 }
@@ -111,9 +114,8 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
 
   let createdInThisCall = 0;
   let scannedInThisCall = 0;
-  const batch = writeBatch(db);
 
-  console.log(`[WORLD ENGINE v107] Starting pyramid scan from index ${currentIndex}...`);
+  console.log(`[WORLD ENGINE v110] Starting pyramid scan from index ${currentIndex}...`);
 
   while (createdInThisCall < GROUPS_TO_CREATE_PER_CALL && currentIndex < TOTAL_GROUPS && scannedInThisCall < MAX_SCAN_LIMIT) {
     currentIndex++;
@@ -123,7 +125,7 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
     const tableId = `table_S${seasonNum}_L${leagueId}_V${coords.tier}_G${coords.group}`;
     const tableRef = doc(db, 'league_tables_v1', tableId);
     
-    // ПРОВЕРКА ДЫР: Документа нет ИЛИ статистика пуста ИЛИ в ней меньше 8 команд
+    // ПРОВЕРКА ДЫР
     const checkSnap = await getDoc(tableRef);
     let needsRepair = true;
     
@@ -136,21 +138,27 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
 
     if (needsRepair) {
       console.log(`[WORLD ENGINE] Fixing Group index ${currentIndex}: Div ${coords.tier} Group ${coords.group}`);
-      injectGroupToBatch(batch, db, leagueId, coords.tier, coords.group, seasonNum);
+      
+      // Создаем ОТДЕЛЬНЫЙ батч для текущей группы (~58 операций)
+      const groupBatch = writeBatch(db);
+      injectGroupData(groupBatch, db, leagueId, coords.tier, coords.group, seasonNum);
+      
+      // Сразу коммитим данные группы
+      await groupBatch.commit();
       createdInThisCall++;
     }
+
+    // Сохраняем прогресс currentIndex ПОСЛЕ КАЖДОЙ итерации (даже если группа пропущена)
+    // Это гарантирует, что мы не будем сканировать одно и то же при таймауте или ошибке
+    await setDoc(statusRef, {
+      currentIndex,
+      status: currentIndex >= TOTAL_GROUPS ? 'completed' : 'processing',
+      updatedAt: serverTimestamp(),
+      version: 110
+    }, { merge: true });
   }
 
-  // ОБНОВЛЯЕМ ПРОГРЕСС ВСЕГДА В КОНЦЕ
   const isComplete = currentIndex >= TOTAL_GROUPS;
-  batch.set(statusRef, {
-    currentIndex,
-    status: isComplete ? 'completed' : 'processing',
-    updatedAt: serverTimestamp(),
-    version: 107
-  }, { merge: true });
-
-  await batch.commit();
 
   return { 
     status: isComplete ? 'FINISHED' : 'IN_PROGRESS', 
@@ -169,6 +177,6 @@ export async function createGroupStructure(
   seasonNum: number
 ) {
   const batch = writeBatch(db);
-  injectGroupToBatch(batch, db, leagueId, tier, group, seasonNum);
+  injectGroupData(batch, db, leagueId, tier, group, seasonNum);
   await batch.commit();
 }
