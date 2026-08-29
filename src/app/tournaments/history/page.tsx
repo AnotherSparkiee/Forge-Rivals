@@ -21,7 +21,7 @@ export default function TournamentHistoryPage() {
 
   const userRef = useMemoFirebase(() => {
     if (!db || !user) return null;
-    return doc(db, 'players_v10', user.uid);
+    return doc(db, 'players_v12', user.uid);
   }, [db, user]);
   
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);

@@ -1,10 +1,5 @@
 'use client';
 
-/**
- * @fileOverview ТУРНИР "CYBER ATHLETIC CUP" v3.9.
- * Исправлена передача фотографий игроков в ядро симуляции.
- */
-
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useGameState } from '@/app/lib/store';
 import { useUser, useFirestore, useDoc, useMemoFirebase, useCollection } from '@/firebase';
@@ -51,9 +46,10 @@ export default function IronKettlePage() {
   const simLockRef = useRef<Set<string>>(new Set());
   const rewardClaimedRef = useRef<string | null>(null);
 
+  // Strictly use players_v12
   const userRef = useMemoFirebase(() => {
     if (!db || !user) return null;
-    return doc(db, 'players_v10', user.uid);
+    return doc(db, 'players_v12', user.uid);
   }, [db, user]);
   
   const { data: profile } = useDoc(userRef);
@@ -74,7 +70,7 @@ export default function IronKettlePage() {
 
   const participantsQuery = useMemoFirebase(() => {
     if (!db) return null;
-    return query(collection(db, 'players_v10'), where('tournaments', 'array-contains', tournamentInstanceId));
+    return query(collection(db, 'players_v12'), where('tournaments', 'array-contains', tournamentInstanceId));
   }, [db, tournamentInstanceId]);
 
   const { data: participants, isLoading: isParticipantsLoading } = useCollection(participantsQuery);

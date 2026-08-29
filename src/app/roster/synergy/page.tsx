@@ -22,8 +22,8 @@ export default function SynergyPage() {
   const db = useFirestore();
   const { matchHistory, language, isLoaded, lineup, ownedPlayers } = useGameState();
 
-  // Updated to use players_v11
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v11', user.uid) : null, [db, user]);
+  // Updated to strictly use players_v12
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v12', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
   // Расчет общей статистики матчей для сыгранности
@@ -247,7 +247,7 @@ export default function SynergyPage() {
                 </CardContent>
               </Card>
             )) : (
-              <div className="py-10 text-center opacity-30 border border-dashed border-white/5 rounded-2xl flex flex-col items-center gap-4">
+              <div className="py-10 text-center opacity-30 border border-dashed border-white/10 rounded-2xl flex flex-col items-center gap-4">
                  <ShieldAlert className="w-8 h-8" />
                  <p className="text-[9px] font-bold uppercase tracking-widest">No units assigned to squad slots</p>
               </div>

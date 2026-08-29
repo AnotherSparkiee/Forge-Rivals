@@ -20,10 +20,10 @@ export default function SystemPage() {
   const { language } = useGameState();
   const db = useFirestore();
 
-  // Запрос всех игроков v11 для подсчета статистики
+  // Запрос всех актуальных игроков v12 для подсчета статистики
   const playersQuery = useMemoFirebase(() => {
     if (!db) return null;
-    return query(collection(db, 'players_v11'));
+    return query(collection(db, 'players_v12'));
   }, [db]);
   
   const { data: players, isLoading } = useCollection(playersQuery);
@@ -183,7 +183,7 @@ export default function SystemPage() {
         <div className="p-6 bg-primary/5 rounded-2xl border border-dashed border-white/10 text-center opacity-30">
           <Info className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
           <p className="text-[8px] font-black uppercase tracking-widest">{t.hostId}: v12-NUCLEAR-REBUILD</p>
-          <p className="text-[7px] uppercase font-bold text-muted-foreground mt-1">Версия реестра: 12.0.0</p>
+          <p className="text-[7px] uppercase font-bold text-muted-foreground mt-1">Версия реестра: 12.1.0</p>
           <Badge variant="outline" className="text-[8px] border-green-500/30 text-green-400 font-black uppercase tracking-widest mt-2">AUTONOMOUS_CYCLE_ACTIVE</Badge>
         </div>
       </div>

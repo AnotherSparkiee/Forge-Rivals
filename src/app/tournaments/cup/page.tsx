@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview Терминал Кубка v46.4. 
- * Добавлена защита от пустой базы данных.
+ * @fileOverview Терминал Кубка v46.5. 
+ * Обновлен для работы с игроками v12.
  */
 
 import { useState, useEffect } from 'react';

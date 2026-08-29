@@ -34,8 +34,8 @@ export async function nuclearResetS1() {
   ];
   for (const r of sysRefs) await deleteDoc(r).catch(() => {});
 
-  // 4. Сброс игроков
-  const playersSnap = await getDocs(collection(db, 'players_v11'));
+  // 4. Сброс игроков v12
+  const playersSnap = await getDocs(collection(db, 'players_v12'));
   const batch = writeBatch(db);
   playersSnap.forEach(p => {
     batch.update(p.ref, {

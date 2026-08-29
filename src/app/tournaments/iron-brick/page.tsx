@@ -44,14 +44,14 @@ export default function IronBrickPage() {
 
   const userRef = useMemoFirebase(() => {
     if (!db || !user) return null;
-    return doc(db, 'players_v10', user.uid);
+    return doc(db, 'players_v12', user.uid);
   }, [db, user]);
   
   const { data: profile } = useDoc(userRef);
 
   const participantsQuery = useMemoFirebase(() => {
     if (!db) return null;
-    return query(collection(db, 'players_v10'), where('tournaments', 'array-contains', TOUR_ID));
+    return query(collection(db, 'players_v12'), where('tournaments', 'array-contains', TOUR_ID));
   }, [db]);
 
   const { data: participants, isLoading: isParticipantsLoading } = useCollection(participantsQuery);

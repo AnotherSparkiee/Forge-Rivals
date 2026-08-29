@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview ОФИЦИАЛЬНЫЙ ПЛЕЕР МАТЧЕЙ v6.6.
- * Исправлены ошибки импортов и стилей.
+ * @fileOverview ОФИЦИАЛЬНЫЙ ПЛЕЕР МАТЧЕЙ v6.7.
+ * Обновлен для работы с игроками коллекции v12.
  */
 
 import { useState, useEffect, useMemo, Suspense, useRef } from 'react';
@@ -47,10 +47,10 @@ function MatchContent() {
   const [visibleEvents, setVisibleEvents] = useState<any[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Динамическое разрешение имен для актуальности
+  // Динамическое разрешение имен для актуальности (v12)
   const groupPlayersQuery = useMemoFirebase(() => {
     if (!db || !selectedLeagueId) return null;
-    return query(collection(db, 'players_v11'), 
+    return query(collection(db, 'players_v12'), 
       where('selectedLeagueId', '==', selectedLeagueId),
       where('leagueLevel', '==', leagueLevel),
       where('groupId', '==', groupId)

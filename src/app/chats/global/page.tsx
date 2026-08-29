@@ -39,7 +39,7 @@ export default function GlobalChatPage() {
 
   const userRef = useMemoFirebase(() => {
     if (!db || !user) return null;
-    return doc(db, 'players_v10', user.uid);
+    return doc(db, 'players_v12', user.uid);
   }, [db, user]);
   
   const { data: profile } = useDoc(userRef);
@@ -367,7 +367,7 @@ export default function GlobalChatPage() {
       </div>
 
       <Dialog open={!!selectedUser} onOpenChange={() => setSelectedUser(null)}>
-        <DialogContent className="max-w-md bg-background border-white/10 p-0 overflow-hidden">
+        <DialogContent className="max-w-md bg-background border-white/10 p-0 overflow-hidden shadow-2xl">
           <DialogHeader className="p-6 bg-gradient-to-br from-primary/10 to-transparent border-b border-white/5">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 rounded-lg bg-secondary/50 flex items-center justify-center border border-white/10 overflow-hidden">

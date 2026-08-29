@@ -21,8 +21,8 @@ export default function PlayerStatsPage() {
   const db = useFirestore();
   const { ownedPlayers, matchHistory, language, isLoaded } = useGameState();
 
-  // Updated to use players_v11
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v11', user.uid) : null, [db, user]);
+  // Updated to use players_v12
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v12', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
   const playerStats = useMemo(() => {

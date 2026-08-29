@@ -56,7 +56,7 @@ export default function ProfilePage() {
 
   const userRef = useMemoFirebase(() => {
     if (!db || !user?.uid) return null;
-    return doc(db, 'players_v11', user.uid);
+    return doc(db, 'players_v12', user.uid);
   }, [db, user?.uid]);
   
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);

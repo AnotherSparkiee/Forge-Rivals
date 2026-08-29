@@ -428,7 +428,7 @@ export default function YouthTransfersPage() {
   const { data: allAgents, isLoading: isMarketLoading } = useCollection(marketQuery);
   const userDocRef = useMemoFirebase(() => {
     if (!db || !user?.uid) return null;
-    return doc(db, 'players_v10', user.uid);
+    return doc(db, 'players_v12', user.uid);
   }, [db, user?.uid]);
   
   const { data: profile } = useDoc(userDocRef);

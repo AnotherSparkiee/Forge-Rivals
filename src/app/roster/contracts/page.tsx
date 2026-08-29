@@ -49,8 +49,8 @@ export default function ContractsPage() {
     return () => clearInterval(timer);
   }, []);
 
-  // Updated to use players_v11
-  const userRef = useMemoFirebase(() => (user?.uid ? doc(db, 'players_v11', user.uid) : null), [db, user?.uid]);
+  // Updated to strictly use players_v12
+  const userRef = useMemoFirebase(() => (user?.uid ? doc(db, 'players_v12', user.uid) : null), [db, user?.uid]);
   const { data: profile } = useDoc(userRef);
 
   if (!isLoaded) return <LoadingScreen />;

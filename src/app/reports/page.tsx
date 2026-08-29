@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview ЦЕНТР ОТЧЕТОВ МАТЧЕЙ v1.5.
- * Стабилизация импортов для предотвращения ошибок сборки чанков.
+ * @fileOverview ЦЕНТР ОТЧЕТОВ МАТЧЕЙ v1.6.
+ * Обновлен для работы с игроками v12.
  */
 
 import { useGameState } from '@/app/lib/store';
@@ -38,10 +38,10 @@ export default function ReportsPage() {
     if (!isUserLoading && !user) router.push('/auth/login');
   }, [user, isUserLoading, router]);
 
-  // Загрузка участников группы для разрешения имен
+  // Загрузка участников группы для разрешения имен (v12)
   const groupPlayersQuery = useMemoFirebase(() => {
     if (!db || !selectedLeagueId) return null;
-    return query(collection(db, 'players_v11'), 
+    return query(collection(db, 'players_v12'), 
       where('selectedLeagueId', '==', selectedLeagueId),
       where('leagueLevel', '==', leagueLevel),
       where('groupId', '==', groupId)

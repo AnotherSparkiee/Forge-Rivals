@@ -50,8 +50,8 @@ export async function generatePyramidCup(targetSeasonNumber?: number) {
 
   console.log(`[CUP ENGINE v12] Initializing Season ${SEASON_ID} Brackets...`);
 
-  // Сбор всех игроков
-  const playersSnap = await getDocs(collection(db, 'players_v10'));
+  // Сбор всех игроков из актуальной коллекции v12
+  const playersSnap = await getDocs(collection(db, 'players_v12'));
   const allGlobalPlayers = playersSnap.docs.map(d => ({ id: d.id, ...d.data() } as any));
 
   for (let i = 0; i < LEAGUES.length; i++) {
