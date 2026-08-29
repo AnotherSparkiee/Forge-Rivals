@@ -6,285 +6,232 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { 
   ChevronLeft, Settings, Users, ShieldCheck, 
-  Info, Loader2, Package, Gift,
-  ChevronRight, Sparkles, Database, Sword,
-  RefreshCw, Globe, ShieldAlert, AlertTriangle, Construction, Zap
+  Info, Loader2, Zap, RefreshCw, Globe, 
+  ShieldAlert, AlertTriangle, Construction, 
+  Trash2, Play, FastForward, Trophy, Database
 } from 'lucide-react';
 import Link from 'next/link';
 import { useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
 import { collection, query, doc } from 'firebase/firestore';
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { TOTAL_GROUPS } from '../lib/leagues-data';
 import { runGlobalEmergencyRepair } from '../actions/fix-calendar';
+import { totalNuclearResetV131 } from '../actions/nuclear-reset';
+import { resolveDailyMatches } from '../actions/autonomous-cycle';
+import { generatePyramidCup } from '../actions/cup-engine';
 import { useToast } from '@/hooks/use-toast';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 export default function SystemPage() {
   const { language, seasonNumber, selectedLeagueId } = useGameState();
   const db = useFirestore();
   const { toast } = useToast();
-  const [isBuilding, setIsBuilding] = useState(false);
-
-  // Запрос всех актуальных игроков v13 для подсчета статистики
-  const playersQuery = useMemoFirebase(() => {
-    if (!db) return null;
-    return query(collection(db, 'players_v13'));
-  }, [db]);
   
+  const [isBuilding, setIsBuilding] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [showNuclearDialog, setShowNuclearDialog] = useState(false);
+
+  // Запросы данных
+  const playersQuery = useMemoFirebase(() => db ? query(collection(db, 'players_v13')) : null, [db]);
   const { data: players, isLoading: isPlayersLoading } = useCollection(playersQuery);
 
-  // Запрос статуса инициализации мира (v131)
-  const initStatusRef = useMemoFirebase(() => {
-    if (!db || !selectedLeagueId) return null;
-    return doc(db, 'system_v1', `init_v131_S${seasonNumber}_L${selectedLeagueId}`);
-  }, [db, selectedLeagueId, seasonNumber]);
-
+  const initStatusRef = useMemoFirebase(() => 
+    (db && selectedLeagueId) ? doc(db, 'system_v1', `init_v131_S${seasonNumber}_L${selectedLeagueId}`) : null, 
+    [db, selectedLeagueId, seasonNumber]
+  );
   const { data: initStatus } = useDoc(initStatusRef);
 
-  // Запрос статуса ремонта v131
-  const repairStatusRef = useMemoFirebase(() => {
-    if (!db || !selectedLeagueId) return null;
-    return doc(db, 'system_v1', `repair_v131_S${seasonNumber}_L${selectedLeagueId}`);
-  }, [db, selectedLeagueId, seasonNumber]);
-
+  const repairStatusRef = useMemoFirebase(() => 
+    (db && selectedLeagueId) ? doc(db, 'system_v1', `repair_v131_S${seasonNumber}_L${selectedLeagueId}`) : null, 
+    [db, selectedLeagueId, seasonNumber]
+  );
   const { data: repairStatus } = useDoc(repairStatusRef);
 
   const stats = useMemo(() => {
     if (!players) return { total: 0, online: 0 };
     const now = Date.now();
     const fiveMinutesAgo = now - 5 * 60 * 1000;
-    const total = players.length;
-    const onlineCount = players.filter(p => {
-      const lastLogin = p.lastLoginDate ? new Date(p.lastLoginDate).getTime() : 0;
-      return lastLogin > fiveMinutesAgo;
-    }).length;
-    return { total: Math.max(total, 0), online: Math.max(onlineCount, 0) };
+    const onlineCount = players.filter(p => (p.lastLoginDate ? new Date(p.lastLoginDate).getTime() : 0) > fiveMinutesAgo).length;
+    return { total: players.length, online: onlineCount };
   }, [players]);
 
   const worldProgress = initStatus?.currentIndex || 0;
   const isWorldReady = repairStatus?.phase === 'COMPLETED';
-  const currentPhase = repairStatus?.phase || 'INITIALIZING';
 
   const t = {
     ru: { 
-      title: "СИСТЕМА", 
-      subtitle: "Параметры и сетевая статистика (v131)",
-      status: "Статус сети",
-      online: "Игроков онлайн",
-      registered: "Зарегистрировано",
-      knowledge: "База знаний",
-      heroes: "Герои",
-      heroesDesc: "Реестр из 128 игровых персонажей",
-      roles: "Роли",
-      rolesDesc: "Специализации и позиции на карте",
-      items: "Предметы",
-      itemsDesc: "Каталог артефактов и снаряжения",
-      bonuses: "Реестр Подарков",
-      bonusesDesc: "Справочник дипломатических грузов S-Tier",
-      loading: "Синхронизация...",
-      hostId: "ID хоста",
-      worldStatus: "Состояние мира",
-      building: "Постройка пирамиды v131...",
-      ready: "Мир v131 полностью готов",
-      forceBuild: "ФОРСИРОВАТЬ ПОСТРОЙКУ МИРА",
-      forceDesc: "Нажмите для запуска монолитного цикла (511 групп)"
+      title: "СИСТЕМА", subtitle: "Параметры и сетевая статистика (v131)",
+      status: "Статус сети", online: "Игроков онлайн", registered: "Зарегистрировано",
+      worldStatus: "Состояние мира", building: "Постройка пирамиды v131...", ready: "Мир v131 готов",
+      forceBuild: "ФОРСИРОВАТЬ ПОСТРОЙКУ",
+      adminTitle: "ТЕРМИНАЛ АДМИНИСТРАТОРА",
+      nuclear: "ЯДЕРНЫЙ СБРОС v131", nuclearDesc: "Удалить ВСЕХ игроков и таблицы Сезона 1",
+      resolve: "РАССЧИТАТЬ ТУР", resolveDesc: "Запустить расчет матчей сегодняшнего дня",
+      cup: "ГЕНЕРАЦИЯ КУБКА", cupDesc: "Создать турнирную сетку на текущий сезон",
+      transition: "СМЕНА СЕЗОНА", transitionDesc: "Запустить переход в следующий сезон (Transition)",
+      confirmNuclear: "ВЫ УВЕРЕНЫ?", confirmNuclearDesc: "Это действие необратимо. Все игроки будут удалены.",
+      btnConfirm: "ПОДТВЕРДИТЬ", btnCancel: "ОТМЕНА"
     },
     en: { 
-      title: "SYSTEM", 
-      subtitle: "Parameters and network metrics (v131)",
-      status: "Network Status",
-      online: "Online Managers",
-      registered: "Total Registered",
-      knowledge: "Knowledge Base",
-      heroes: "Heroes",
-      heroesDesc: "Registry of 128 game units",
-      roles: "Roles",
-      rolesDesc: "Specializations and roles",
-      items: "Items",
-      itemsDesc: "Artifact and equipment catalog",
-      bonuses: "Gifts Registry",
-      bonusesDesc: "Guide to S-Tier diplomatic cargo",
-      loading: "Syncing...",
-      hostId: "Host ID",
-      worldStatus: "World Integrity",
-      building: "Building Pyramid v131...",
-      ready: "World v131 Ready",
+      title: "SYSTEM", subtitle: "Parameters and network metrics (v131)",
+      status: "Network Status", online: "Online Managers", registered: "Total Registered",
+      worldStatus: "World Integrity", building: "Building Pyramid v131...", ready: "World v131 Ready",
       forceBuild: "FORCE WORLD BUILD",
-      forceDesc: "Click to launch monolithic build cycle (511 groups)"
+      adminTitle: "ADMIN TERMINAL",
+      nuclear: "NUCLEAR RESET v131", nuclearDesc: "Delete ALL players and tables for Season 1",
+      resolve: "RESOLVE DAILY", resolveDesc: "Trigger match calculation for current tour",
+      cup: "GENERATE CUP", cupDesc: "Create tournament bracket for current season",
+      transition: "SEASON TRANSITION", transitionDesc: "Trigger promotion/relegation logic",
+      confirmNuclear: "ARE YOU SURE?", confirmNuclearDesc: "This action is irreversible. All players will be wiped.",
+      btnConfirm: "CONFIRM", btnCancel: "CANCEL"
     }
   }[language === 'ru' ? 'ru' : 'en'];
 
-  const handleForceBuild = async () => {
-    if (isBuilding) return;
-    setIsBuilding(true);
+  const handleAction = async (action: string) => {
+    setIsProcessing(true);
     try {
-      const res = await runGlobalEmergencyRepair();
-      toast({ 
-        title: language === 'ru' ? "Цикл обновления" : "Build Cycle Update",
-        description: res.progress || res.status
-      });
-    } catch (e) {
-      console.error(e);
-      toast({ 
-        variant: "destructive", 
-        title: "Build Error", 
-        description: language === 'ru' ? "Сервер обрабатывает данные. Подождите 30 сек и нажмите еще раз." : "Server is processing. Wait 30s and click again." 
-      });
+      let res;
+      if (action === 'nuclear') res = await totalNuclearResetV131();
+      if (action === 'resolve') res = await resolveDailyMatches();
+      if (action === 'cup') res = await generatePyramidCup(seasonNumber);
+      
+      toast({ title: "Action Complete", description: "System response received" });
+      if (action === 'nuclear') window.location.reload();
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Action Failed", description: e.message });
     } finally {
-      setIsBuilding(false);
+      setIsProcessing(false);
+      setShowNuclearDialog(false);
     }
   };
 
   return (
     <div className="max-w-md mx-auto px-4 pt-8 pb-32">
       <header className="mb-8 flex items-center gap-4">
-        <Link href="/">
-          <Button variant="ghost" size="icon" className="rounded-full bg-secondary/50 border border-white/5">
-            <ChevronLeft className="w-6 h-6" />
-          </Button>
-        </Link>
+        <Link href="/"><Button variant="ghost" size="icon" className="rounded-full bg-secondary/50 border border-white/5"><ChevronLeft className="w-6 h-6" /></Button></Link>
         <div>
-          <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-white flex items-center gap-2">
-            <Settings className="w-6 h-6 text-primary" />
-            {t.title}
-          </h1>
+          <h1 className="text-2xl font-headline font-bold uppercase tracking-tighter text-white flex items-center gap-2"><Settings className="w-6 h-6 text-primary" /> {t.title}</h1>
           <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-black opacity-50">{t.subtitle}</p>
         </div>
       </header>
 
-      <div className="space-y-6">
+      <div className="space-y-8">
+        {/* WORLD STATUS */}
         <section className="space-y-3">
           <h2 className="text-[10px] font-black uppercase tracking-widest text-accent px-1">{t.worldStatus}</h2>
-          <Card className={cn(
-            "glass-card border-white/5 bg-secondary/10 overflow-hidden transition-all",
-            !isWorldReady && "border-primary/30"
-          )}>
+          <Card className={cn("glass-card border-white/5 bg-secondary/10 overflow-hidden", !isWorldReady && "border-primary/30")}>
             <CardContent className="p-4">
                <div className="flex items-center justify-between mb-3">
                  <div className="flex items-center gap-3">
                    <div className={cn("p-2 rounded-lg bg-secondary/50", !isWorldReady ? "text-primary animate-pulse" : "text-green-400")}>
                      {isWorldReady ? <ShieldCheck className="w-5 h-5" /> : <Construction className="w-5 h-5" />}
                    </div>
-                   <div>
-                     <p className="text-xs font-bold uppercase text-white">{isWorldReady ? t.ready : t.building}</p>
-                     <p className="text-[8px] text-muted-foreground uppercase font-black tracking-widest">Phase: {currentPhase}</p>
-                   </div>
+                   <p className="text-xs font-bold uppercase text-white">{isWorldReady ? t.ready : t.building}</p>
                  </div>
-                 <div className="text-right">
-                    <p className="text-sm font-headline font-bold text-primary">{worldProgress} / {TOTAL_GROUPS}</p>
-                 </div>
+                 <p className="text-sm font-headline font-bold text-primary">{worldProgress} / {TOTAL_GROUPS}</p>
                </div>
                <div className="h-1.5 w-full bg-background rounded-full overflow-hidden border border-white/5">
-                  <div 
-                    className="h-full bg-primary transition-all duration-500 ease-out shadow-[0_0_10px_rgba(var(--primary),0.5)]" 
-                    style={{ width: `${(worldProgress / TOTAL_GROUPS) * 100}%` }}
-                  />
+                  <div className="h-full bg-primary transition-all duration-500 shadow-[0_0_10px_rgba(var(--primary),0.5)]" style={{ width: `${(worldProgress / TOTAL_GROUPS) * 100}%` }} />
                </div>
-
                {!isWorldReady && (
-                 <div className="mt-6 pt-4 border-t border-white/5">
-                   <Button 
-                    className="w-full h-12 hero-gradient font-black text-[10px] uppercase tracking-widest shadow-xl"
-                    onClick={handleForceBuild}
-                    disabled={isBuilding}
-                   >
-                     {isBuilding ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Zap className="w-4 h-4 mr-2" />}
-                     {t.forceBuild}
-                   </Button>
-                   <p className="text-[8px] text-center text-muted-foreground uppercase font-bold mt-2">{t.forceDesc}</p>
-                 </div>
+                 <Button className="w-full h-11 hero-gradient font-black text-[10px] uppercase mt-4" onClick={() => runGlobalEmergencyRepair()} disabled={isBuilding}>
+                    {isBuilding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4 mr-2" />} {t.forceBuild}
+                 </Button>
                )}
             </CardContent>
           </Card>
         </section>
 
+        {/* ADMIN TERMINAL */}
         <section className="space-y-3">
-          <h2 className="text-[10px] font-black uppercase tracking-widest text-accent px-1">{t.status}</h2>
-          <div className="grid grid-cols-2 gap-3">
-            <Card className="glass-card border-white/5 bg-secondary/10">
-              <CardContent className="p-4 text-center">
-                <Users className="w-5 h-5 text-primary mx-auto mb-2" />
-                <p className="text-[8px] font-black text-muted-foreground uppercase">{t.online}</p>
-                {isPlayersLoading ? (
-                  <div className="flex justify-center mt-2">
-                    <Loader2 className="w-4 h-4 animate-spin text-primary opacity-50" />
-                  </div>
-                ) : (
-                  <p className="text-xl font-headline font-bold text-white italic">{stats.online}</p>
-                )}
+          <h2 className="text-[10px] font-black uppercase tracking-widest text-red-500 px-1 flex items-center gap-2"><Database className="w-4 h-4" /> {t.adminTitle}</h2>
+          <div className="grid grid-cols-1 gap-2">
+            <Card className="glass-card border-red-500/20 bg-red-500/5 overflow-hidden group hover:border-red-500/40 transition-all cursor-pointer" onClick={() => setShowNuclearDialog(true)}>
+              <CardContent className="p-4 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="p-2.5 rounded-xl bg-red-500/20 text-red-500"><Trash2 className="w-5 h-5" /></div>
+                  <div><h3 className="text-xs font-black uppercase text-white">{t.nuclear}</h3><p className="text-[8px] text-muted-foreground uppercase">{t.nuclearDesc}</p></div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-red-500/40" />
               </CardContent>
             </Card>
-            <Card className="glass-card border-white/5 bg-secondary/10">
-              <CardContent className="p-4 text-center">
-                <ShieldCheck className="w-5 h-5 text-green-400 mx-auto mb-2" />
-                <p className="text-[8px] font-black text-muted-foreground uppercase">{t.registered}</p>
-                {isPlayersLoading ? (
-                  <div className="flex justify-center mt-2">
-                    <Loader2 className="w-4 h-4 animate-spin text-green-400 opacity-50" />
-                  </div>
-                ) : (
-                  <p className="text-xl font-headline font-bold text-white italic">{stats.total}</p>
-                )}
+
+            <Card className="glass-card border-white/5 hover:bg-white/5 transition-all cursor-pointer" onClick={() => handleAction('resolve')}>
+              <CardContent className="p-4 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="p-2.5 rounded-xl bg-secondary/50 text-green-400"><Play className="w-5 h-5" /></div>
+                  <div><h3 className="text-xs font-black uppercase text-white">{t.resolve}</h3><p className="text-[8px] text-muted-foreground uppercase">{t.resolveDesc}</p></div>
+                </div>
+                {isProcessing ? <Loader2 className="w-4 h-4 animate-spin text-primary" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
+              </CardContent>
+            </Card>
+
+            <Card className="glass-card border-white/5 hover:bg-white/5 transition-all cursor-pointer" onClick={() => handleAction('cup')}>
+              <CardContent className="p-4 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="p-2.5 rounded-xl bg-secondary/50 text-yellow-500"><Trophy className="w-5 h-5" /></div>
+                  <div><h3 className="text-xs font-black uppercase text-white">{t.cup}</h3><p className="text-[8px] text-muted-foreground uppercase">{t.cupDesc}</p></div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-muted-foreground" />
+              </CardContent>
+            </Card>
+
+            <Card className="glass-card border-white/5 hover:bg-white/5 transition-all cursor-pointer opacity-50 grayscale">
+              <CardContent className="p-4 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="p-2.5 rounded-xl bg-secondary/50 text-accent"><FastForward className="w-5 h-5" /></div>
+                  <div><h3 className="text-xs font-black uppercase text-white">{t.transition}</h3><p className="text-[8px] text-muted-foreground uppercase">{t.transitionDesc}</p></div>
+                </div>
+                <Badge variant="outline" className="text-[7px] border-white/10 uppercase">Auto-only</Badge>
               </CardContent>
             </Card>
           </div>
         </section>
 
-        <section className="space-y-2">
-          <h2 className="text-[10px] font-black uppercase tracking-widest text-accent px-1">{t.knowledge}</h2>
-          <Link href="/system/knowledge-base/heroes" className="block">
-            <Card className="glass-card border-white/5 bg-secondary/10 hover:bg-white/5 transition-all cursor-pointer">
-              <CardContent className="p-4 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="p-2 rounded-lg bg-primary/10"><Sparkles className="w-5 h-5 text-primary" /></div>
-                  <div><h3 className="text-xs font-bold uppercase">{t.heroes}</h3><p className="text-[9px] text-muted-foreground uppercase">{t.heroesDesc}</p></div>
-                </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground" />
-              </CardContent>
+        {/* NETWORK STATS */}
+        <section className="space-y-3">
+          <h2 className="text-[10px] font-black uppercase tracking-widest text-accent px-1">{t.status}</h2>
+          <div className="grid grid-cols-2 gap-3">
+            <Card className="glass-card border-white/5 bg-secondary/10 p-4 text-center">
+              <Users className="w-5 h-5 text-primary mx-auto mb-2" />
+              <p className="text-[8px] font-black text-muted-foreground uppercase">{t.online}</p>
+              <p className="text-xl font-headline font-bold text-white italic">{stats.online}</p>
             </Card>
-          </Link>
-          <Link href="/system/knowledge-base/roles" className="block">
-            <Card className="glass-card border-white/5 bg-secondary/10 hover:bg-white/5 transition-all cursor-pointer">
-              <CardContent className="p-4 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="p-2 rounded-lg bg-red-500/10"><Sword className="w-5 h-5 text-red-400" /></div>
-                  <div><h3 className="text-xs font-bold uppercase">{t.roles}</h3><p className="text-[9px] text-muted-foreground uppercase">{t.rolesDesc}</p></div>
-                </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground" />
-              </CardContent>
+            <Card className="glass-card border-white/5 bg-secondary/10 p-4 text-center">
+              <ShieldCheck className="w-5 h-5 text-green-400 mx-auto mb-2" />
+              <p className="text-[8px] font-black text-muted-foreground uppercase">{t.registered}</p>
+              <p className="text-xl font-headline font-bold text-white italic">{stats.total}</p>
             </Card>
-          </Link>
-          <Link href="/system/knowledge-base/items" className="block">
-            <Card className="glass-card border-white/5 bg-secondary/10 hover:bg-white/5 transition-all cursor-pointer">
-              <CardContent className="p-4 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="p-2 rounded-lg bg-blue-500/10"><Package className="w-5 h-5 text-blue-400" /></div>
-                  <div><h3 className="text-xs font-bold uppercase">{t.items}</h3><p className="text-[9px] text-muted-foreground uppercase">{t.itemsDesc}</p></div>
-                </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground" />
-              </CardContent>
-            </Card>
-          </Link>
-          <Link href="/system/knowledge-base/bonuses" className="block">
-            <Card className="glass-card border-white/5 bg-secondary/10 hover:bg-white/5 transition-all cursor-pointer">
-              <CardContent className="p-4 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="p-2 rounded-lg bg-yellow-500/10"><Gift className="w-5 h-5 text-yellow-500" /></div>
-                  <div><h3 className="text-xs font-bold uppercase">{t.bonuses}</h3><p className="text-[9px] text-muted-foreground uppercase">{t.bonusesDesc}</p></div>
-                </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground" />
-              </CardContent>
-            </Card>
-          </Link>
+          </div>
         </section>
-
-        <div className="p-6 bg-primary/5 rounded-2xl border border-dashed border-white/10 text-center opacity-30">
-          <Info className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
-          <p className="text-[8px] font-black uppercase tracking-widest">{t.hostId}: v131-UNIVERSE-ARCHITECT</p>
-          <p className="text-[7px] uppercase font-bold text-muted-foreground mt-1">Реестр: v13.1.0</p>
-          <Badge variant="outline" className="text-[8px] border-green-500/30 text-green-400 font-black uppercase tracking-widest mt-2">MONOLITHIC_CYCLE_ACTIVE</Badge>
-        </div>
       </div>
+
+      {/* NUCLEAR CONFIRMATION */}
+      <Dialog open={showNuclearDialog} onOpenChange={setShowNuclearDialog}>
+        <DialogContent className="max-w-xs bg-card border-white/10 p-6">
+          <DialogHeader>
+            <div className="mx-auto w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mb-4 border border-red-500/20"><AlertTriangle className="w-8 h-8 text-red-500 animate-pulse" /></div>
+            <DialogTitle className="text-center font-headline font-bold uppercase text-red-500">{t.confirmNuclear}</DialogTitle>
+            <DialogDescription className="text-center text-xs text-muted-foreground mt-2">{t.confirmNuclearDesc}</DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2 mt-6">
+            <Button variant="destructive" className="h-12 font-black uppercase text-[10px]" onClick={() => handleAction('nuclear')} disabled={isProcessing}>
+              {isProcessing ? <Loader2 className="animate-spin" /> : t.btnConfirm}
+            </Button>
+            <Button variant="outline" className="h-12 font-bold uppercase text-[10px] border-white/10" onClick={() => setShowNuclearDialog(false)}>
+              {t.btnCancel}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

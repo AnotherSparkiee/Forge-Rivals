@@ -1,56 +1,63 @@
 'use server';
 
 /**
- * @fileOverview Скрипт "Ядерной очистки" S1.
- * Вызывает удаление старых таблиц и матчей для полной перезагрузки автономного цикла.
+ * @fileOverview Скрипт "Ядерной очистки" v131.
+ * Выполняет тотальное удаление ВСЕХ игровых данных для перезапуска системы.
  */
 
 import { 
-  collection, getDocs, query, where, 
-  deleteDoc, doc, writeBatch, updateDoc 
+  collection, getDocs, query, limit, 
+  deleteDoc, doc, writeBatch 
 } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 
-export async function nuclearResetS1() {
+const WIPE_BATCH_SIZE = 500;
+
+async function wipeCollection(db: any, collName: string) {
+  let deletedCount = 0;
+  while (true) {
+    const q = query(collection(db, collName), limit(WIPE_BATCH_SIZE));
+    const snap = await getDocs(q);
+    if (snap.empty) break;
+    
+    const batch = writeBatch(db);
+    snap.docs.forEach(d => batch.delete(d.ref));
+    await batch.commit();
+    deletedCount += snap.size;
+    if (snap.size < WIPE_BATCH_SIZE) break;
+  }
+  return deletedCount;
+}
+
+export async function totalNuclearResetV131() {
   const { firestore: db } = initializeFirebase();
+  console.log("[NUCLEAR v131] Starting Global Wipe...");
+
+  const results: any = {};
+
+  // 1. Очистка игровых данных
+  results.tables = await wipeCollection(db, 'league_tables_v2');
+  results.matches = await wipeCollection(db, 'matches_v2');
+  results.players = await wipeCollection(db, 'players_v13');
   
-  console.log("[NUCLEAR] Starting Deep Clean for Season 1 (v130)...");
+  // 2. Очистка социальных данных
+  results.chat = await wipeCollection(db, 'global_chat_v2');
+  results.market = await wipeCollection(db, 'market_v7');
+  results.friends = await wipeCollection(db, 'friend_requests_v4');
+  results.notifications = await wipeCollection(db, 'notifications_v7');
+  
+  // 3. Очистка турниров
+  results.cup = await wipeCollection(db, 'cup_matches');
+  results.pyramidCup = await wipeCollection(db, 'cup_pyramid_v1');
 
-  // 1. Удаление таблиц v2
-  const tablesQ = query(collection(db, 'league_tables_v2'), where('season', '==', 1));
-  const tablesSnap = await getDocs(tablesQ);
-  for (const d of tablesSnap.docs) await deleteDoc(d.ref);
-
-  // 2. Удаление матчей v2
-  const matchesQ = query(collection(db, 'matches_v2'), where('season', '==', 1));
-  const matchesSnap = await getDocs(matchesQ);
-  for (const d of matchesSnap.docs) await deleteDoc(d.ref);
-
-  // 3. Удаление системных флагов
-  const sysRefs = [
-    doc(db, 'system_v1', 'init_S1_LALPHA'),
-    doc(db, 'system_v1', 'repair_v130_S1_LALPHA'),
-    doc(db, 'system_v1', 'transition_S1')
-  ];
-  for (const r of sysRefs) await deleteDoc(r).catch(() => {});
-
-  // 4. Сброс игроков v13
-  const playersSnap = await getDocs(collection(db, 'players_v13'));
+  // 4. Сброс системных флагов
+  const sysCol = collection(db, 'system_v1');
+  const sysSnap = await getDocs(sysCol);
   const batch = writeBatch(db);
-  playersSnap.forEach(p => {
-    batch.update(p.ref, {
-      leagueLevel: null,
-      groupId: null,
-      rank: null,
-      targetLevel: null,
-      targetGroup: null,
-      targetRank: null,
-      lastProcessedSeason: 0,
-      version: 130
-    });
-  });
+  sysSnap.docs.forEach(d => batch.delete(d.ref));
   await batch.commit();
+  results.systemFlags = sysSnap.size;
 
-  console.log("[NUCLEAR] Clean Complete. System ready for Autonomous Build.");
-  return { success: true };
+  console.log("[NUCLEAR v131] System Purged Successfully:", results);
+  return { success: true, details: results };
 }
