@@ -13,7 +13,7 @@ import {
 import Link from 'next/link';
 import { useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
 import { collection, query, doc } from 'firebase/firestore';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { TOTAL_GROUPS } from '../lib/leagues-data';
 import { runGlobalEmergencyRepair } from '../actions/fix-calendar';
@@ -62,7 +62,7 @@ export default function SystemPage() {
   }, [players]);
 
   const worldProgress = initStatus?.currentIndex || 0;
-  const isWorldReady = initStatus?.status === 'completed' && initStatus?.version === 131;
+  const isWorldReady = repairStatus?.phase === 'COMPLETED';
   const currentPhase = repairStatus?.phase || 'INITIALIZING';
 
   const t = {
@@ -120,15 +120,15 @@ export default function SystemPage() {
     try {
       const res = await runGlobalEmergencyRepair();
       toast({ 
-        title: language === 'ru' ? "Цикл постройки обновлен" : "Build Cycle Updated",
-        description: `Status: ${res.status} | Progress: ${res.progress || 'In Progress'}`
+        title: language === 'ru' ? "Цикл обновления" : "Build Cycle Update",
+        description: res.progress || res.status
       });
     } catch (e) {
       console.error(e);
       toast({ 
         variant: "destructive", 
         title: "Build Error", 
-        description: language === 'ru' ? "Таймаут или ошибка. Проверьте консоль." : "Request timed out or failed. Check console." 
+        description: language === 'ru' ? "Сервер обрабатывает данные. Подождите 30 сек и нажмите еще раз." : "Server is processing. Wait 30s and click again." 
       });
     } finally {
       setIsBuilding(false);
@@ -176,7 +176,7 @@ export default function SystemPage() {
                </div>
                <div className="h-1.5 w-full bg-background rounded-full overflow-hidden border border-white/5">
                   <div 
-                    className="h-full bg-primary transition-all duration-1000 ease-out shadow-[0_0_10px_rgba(var(--primary),0.5)]" 
+                    className="h-full bg-primary transition-all duration-500 ease-out shadow-[0_0_10px_rgba(var(--primary),0.5)]" 
                     style={{ width: `${(worldProgress / TOTAL_GROUPS) * 100}%` }}
                   />
                </div>

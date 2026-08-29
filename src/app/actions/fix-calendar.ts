@@ -15,7 +15,7 @@ import { initializeLeagueWorld } from './world-engine';
 import { TOTAL_GROUPS } from '@/app/lib/leagues-data';
 
 const DELETE_BATCH_SIZE = 500; 
-const WIPE_LOOPS_PER_CALL = 10; // Удаляем до 5000 доков за один клик
+const WIPE_LOOPS_PER_CALL = 12; // Удаляем до 6000 доков за один клик для скорости
 
 export async function runGlobalEmergencyRepair() {
   const { firestore: db } = initializeFirebase();
@@ -70,13 +70,13 @@ export async function runGlobalEmergencyRepair() {
         status: `WIPING_${repairData.phase}`, 
         deleted: totalDeleted, 
         phase: repairData.phase,
-        progress: 'Preparing...' 
+        progress: `Удалено: ${totalDeleted} (${repairData.phase})` 
       };
     }
     
     // Переход к следующей фазе, если текущие коллекции пусты
     await setDoc(repairStatusRef, { phase: currentWipe.next }, { merge: true });
-    return { status: `${repairData.phase}_CLEARED`, next: currentWipe.next, progress: 'Switching phase...' };
+    return { status: `${repairData.phase}_CLEARED`, next: currentWipe.next, progress: `Переход к ${currentWipe.next}...` };
   }
 
   /**
@@ -100,7 +100,7 @@ export async function runGlobalEmergencyRepair() {
       status: 'BUILDING_WORLD_V131', 
       currentIndex: worldRes.currentIndex,
       total: TOTAL_GROUPS,
-      progress: `${progressVal}%`
+      progress: `Постройка: ${worldRes.currentIndex}/${TOTAL_GROUPS} (${progressVal}%)`
     };
   }
 
