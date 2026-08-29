@@ -1,7 +1,7 @@
 'use server';
 
 /**
- * Скрипт-синхронизатор v108 (Autonomous Global Reseeder).
+ * Скрипт-синхронизатор v109 (Autonomous Global Reseeder).
  * Реализует строго последовательный цикл: NUCLEAR_WIPE -> INIT_WORLD -> RESEED_PLAYERS.
  */
 
@@ -23,8 +23,8 @@ export async function runGlobalEmergencyRepair() {
   const seasonNum = info.activeSeasonNumber;
   const leagueId = "ALPHA";
 
-  // Документ состояния ремонта v108
-  const repairStatusRef = doc(db, 'system_v1', `repair_v108_S${seasonNum}_L${leagueId}`);
+  // Документ состояния ремонта v109
+  const repairStatusRef = doc(db, 'system_v1', `repair_v109_S${seasonNum}_L${leagueId}`);
   const repairSnap = await getDoc(repairStatusRef);
   const repairData = repairSnap.exists() ? repairSnap.data() : { phase: 'NUCLEAR_WIPE', status: 'processing' };
 
@@ -32,7 +32,7 @@ export async function runGlobalEmergencyRepair() {
     return { status: 'ALL_READY', msg: 'World is fully initialized.' };
   }
 
-  console.log(`[AUTONOMOUS REPAIR] v108, Phase: ${repairData.phase}`);
+  console.log(`[AUTONOMOUS REPAIR] v109, Phase: ${repairData.phase}`);
 
   /**
    * ФАЗА 1: NUCLEAR_WIPE
@@ -50,7 +50,6 @@ export async function runGlobalEmergencyRepair() {
     }
 
     // 2. Удаление матчей (по 500 за раз)
-    // Это самая долгая часть (~28к документов)
     const matchesQ = query(collection(db, 'matches_v1'), where('season', '==', 1), limit(DELETE_BATCH_SIZE));
     const mSnap = await getDocs(matchesQ);
     if (!mSnap.empty) {
