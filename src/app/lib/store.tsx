@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Глобальное локальное хранилище v225 (Atomic Reset Support).
+ * Глобальное локальное хранилище v226 (Absolute Reset Support).
  * Теперь при смене версии (NUCLEAR RESET) локальная история матчей 
  * автоматически очищается.
  */
@@ -125,7 +125,7 @@ interface GameState {
   saveToLocal: (state: Partial<GameState>) => void;
 }
 
-const STORAGE_KEY = 'lote_game_state_v225';
+const STORAGE_KEY = 'lote_game_state_v226';
 
 const DEFAULT_STATE: GameState = {
   credits: 1000000, crystals: 50, experiencePoints: 0, managerLevel: 1,
@@ -145,7 +145,7 @@ const DEFAULT_STATE: GameState = {
   arena: { capacity: 5000 }, hq: {}, bootcamp: {}, academy: {}, medical: {},
   country: null, isPremium: false, premiumUntil: null, activeSeasonNumber: 1, seasonNumber: 1, seasonDay: 1, isSyncing: false, language: 'ru',
   isDataReady: false, allSeasonMatches: [], nextMatch: null, isMatchesLoading: true,
-  lastProcessedSeason: 0, trophies: [], version: 225,
+  lastProcessedSeason: 0, trophies: [], version: 226,
   availableGiftsToSend: [], receivedGifts: [], lastGiftGenDate: null,
   addCrystals: () => {}, addCredits: () => {}, updatePlayer: () => {}, removePlayer: () => {}, assignToRole: () => {}, updateLineup: () => {}, updateTactics: () => {},
   claimReward: () => {}, setLanguage: () => {}, purchaseLicense: () => false, purchasePremium: () => false,
@@ -190,12 +190,12 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       try {
         const parsed = JSON.parse(saved);
         
-        // NUCLEAR RESET: Если версия в сторе ниже 225, очищаем историю матчей
-        if (parsed.version < 225) {
+        // NUCLEAR RESET: Если версия в сторе ниже 226, очищаем историю матчей
+        if (parsed.version < 226) {
           parsed.matchHistory = [];
           parsed.lastSeenMatchDay = 0;
           parsed.trophies = [];
-          parsed.version = 225;
+          parsed.version = 226;
         }
 
         // Принудительный сброс если ID не совпадает с UID Firebase

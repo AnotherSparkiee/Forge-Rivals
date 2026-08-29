@@ -1,8 +1,8 @@
 'use server';
 
 /**
- * Скрипт-синхронизатор v112 (Universal Global Reseeder).
- * Реализует строго последовательный цикл: NUCLEAR_WIPE (Total) -> INIT_WORLD -> RESEED_PLAYERS.
+ * Скрипт-синхронизатор v113 (Absolute Global Reset).
+ * Реализует строго последовательный цикл: NUCLEAR_WIPE -> INIT_WORLD -> RESEED_PLAYERS.
  */
 
 import { 
@@ -23,8 +23,8 @@ export async function runGlobalEmergencyRepair() {
   const seasonNum = info.activeSeasonNumber;
   const leagueId = "ALPHA";
 
-  // Документ состояния ремонта v112 (Новая версия для тотальной очистки)
-  const repairStatusRef = doc(db, 'system_v1', `repair_v112_S${seasonNum}_L${leagueId}`);
+  // Документ состояния ремонта v113 (Тотальный сброс)
+  const repairStatusRef = doc(db, 'system_v1', `repair_v113_S${seasonNum}_L${leagueId}`);
   const repairSnap = await getDoc(repairStatusRef);
   const repairData = repairSnap.exists() ? repairSnap.data() : { phase: 'NUCLEAR_WIPE', status: 'processing' };
 
@@ -32,14 +32,14 @@ export async function runGlobalEmergencyRepair() {
     return { status: 'ALL_READY', msg: 'World is fully initialized.' };
   }
 
-  console.log(`[AUTONOMOUS REPAIR] v112, Phase: ${repairData.phase}`);
+  console.log(`[AUTONOMOUS REPAIR] v113, Phase: ${repairData.phase}`);
 
   /**
    * ФАЗА 1: NUCLEAR_WIPE
-   * Тотальное удаление ВСЕХ данных в турнирных коллекциях и сброс игроков.
+   * Удаление ВСЕХ данных и сброс игроков в lastProcessedSeason = 0.
    */
   if (repairData.phase === 'NUCLEAR_WIPE') {
-    // 1. Удаление ВСЕХ таблиц (без фильтра по сезону для гарантии чистоты)
+    // 1. Удаление ВСЕХ таблиц
     const tablesQ = query(collection(db, 'league_tables_v1'), limit(DELETE_BATCH_SIZE));
     const tSnap = await getDocs(tablesQ);
     if (!tSnap.empty) {
@@ -56,10 +56,10 @@ export async function runGlobalEmergencyRepair() {
       const batch = writeBatch(db);
       mSnap.docs.forEach(d => batch.delete(d.ref));
       await batch.commit();
-      return { status: 'WIPING_MATCHES', deleted: mSnap.size, msg: "Step 1: Cleaning match calendar (this may take 60-80 cycles)..." };
+      return { status: 'WIPING_MATCHES', deleted: mSnap.size, msg: "Step 1: Cleaning match calendar..." };
     }
 
-    // 3. Тотальный сброс игроков
+    // 3. Тотальный сброс игроков в 0
     let playersResetQ = query(
       collection(db, 'players_v11'),
       orderBy('createdAt', 'asc'),
@@ -86,7 +86,7 @@ export async function runGlobalEmergencyRepair() {
           targetLevel: null,
           targetGroup: null,
           targetRank: null,
-          lastProcessedSeason: 0
+          lastProcessedSeason: 0 // Принудительно ставим 0
         });
       });
       
@@ -94,7 +94,7 @@ export async function runGlobalEmergencyRepair() {
       
       await batch.commit();
       await setDoc(repairStatusRef, { lastResetId }, { merge: true });
-      return { status: 'RESETTING_PLAYERS', processed: pSnap.size, msg: "Step 1: Resetting manager coordinates for fresh start..." };
+      return { status: 'RESETTING_PLAYERS', processed: pSnap.size, msg: "Step 1: Resetting manager coordinates to zero..." };
     }
 
     // 4. Очистка системных флагов и переход в INIT_WORLD
@@ -112,7 +112,6 @@ export async function runGlobalEmergencyRepair() {
 
   /**
    * ФАЗА 2: INIT_WORLD
-   * Создание структуры 511 групп с ботами.
    */
   if (repairData.phase === 'INIT_WORLD') {
     const worldRes = await initializeLeagueWorld(leagueId, seasonNum);
@@ -129,13 +128,12 @@ export async function runGlobalEmergencyRepair() {
 
   /**
    * ФАЗА 3: RESEED_PLAYERS
-   * Расстановка реальных игроков по новым группам.
+   * Теперь ищем только тех, у кого lastProcessedSeason == 0 (сброшенных в фазе 1).
    */
   if (repairData.phase === 'RESEED_PLAYERS') {
     let playersQ = query(
       collection(db, 'players_v11'), 
-      where('lastProcessedSeason', '!=', seasonNum),
-      orderBy('lastProcessedSeason', 'asc'),
+      where('lastProcessedSeason', '==', 0),
       orderBy('createdAt', 'asc'),
       limit(PLAYERS_PER_CHUNK)
     );
@@ -143,8 +141,7 @@ export async function runGlobalEmergencyRepair() {
     if (repairData.lastCreatedAt) {
       playersQ = query(
         collection(db, 'players_v11'), 
-        where('lastProcessedSeason', '!=', seasonNum),
-        orderBy('lastProcessedSeason', 'asc'),
+        where('lastProcessedSeason', '==', 0),
         orderBy('createdAt', 'asc'),
         startAfter(repairData.lastCreatedAt), 
         limit(PLAYERS_PER_CHUNK)
@@ -170,20 +167,13 @@ export async function runGlobalEmergencyRepair() {
       lastCreatedAt = p.createdAt;
       
       try {
-        let tier = p.targetLevel;
-        let group = p.targetGroup;
-        let rank = p.targetRank;
-
-        if (!tier || !group) {
-          const placement = await findStrategicPlacement(leagueId);
-          tier = placement.tier;
-          group = placement.group;
-          rank = placement.rank;
-        }
+        const placement = await findStrategicPlacement(leagueId);
         
         await initializeClubV11(pDoc.id, {
           ...p,
-          tier, group, rank,
+          tier: placement.tier,
+          group: placement.group,
+          rank: placement.rank,
           selectedLeagueId: leagueId,
           lastProcessedSeason: seasonNum
         });
@@ -198,7 +188,7 @@ export async function runGlobalEmergencyRepair() {
       updatedAt: serverTimestamp()
     }, { merge: true });
 
-    return { status: 'RESEEDING', processedCount: processed, msg: `Step 3: Placing managers on new positions: ${processed} processed.` };
+    return { status: 'RESEEDING', processedCount: processed, msg: `Step 3: Placing managers: ${processed} processed.` };
   }
 
   return { status: 'UNKNOWN' };
