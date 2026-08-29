@@ -3,10 +3,9 @@
 /**
  * Глобальный двигатель заполнения мира v120 (Universe Architect).
  * Особенности:
- * 1. Использует новые коллекции v2 для мгновенной изоляции от старых данных.
- * 2. Одна группа = один коммит батча (таблица + 56 матчей).
- * 3. Создает только ботов (8 на группу).
- * 4. Оптимизирован для постройки 511 групп за минимальное количество вызовов.
+ * 1. Одна группа = один коммит батча (таблица + 56 матчей + обновление прогресса).
+ * 2. Атомарное сохранение чекпойнта гарантирует отсутствие пропусков групп.
+ * 3. Использует новые коллекции v2 для мгновенной изоляции.
  */
 
 import { 
@@ -23,7 +22,7 @@ import {
 } from '@/app/lib/leagues-data';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 
-const GROUPS_TO_CREATE_PER_CALL = 100; // По 100 групп за цикл для скорости
+const GROUPS_TO_CREATE_PER_CALL = 100; 
 
 function getGroupCoordinates(index: number) {
   if (index < 1) return { tier: 1, group: 1 };
@@ -123,40 +122,41 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
     currentIndex = data.currentIndex || 0;
   }
 
-  let createdInThisCall = 0;
+  let processedInThisCall = 0;
 
-  while (createdInThisCall < GROUPS_TO_CREATE_PER_CALL && currentIndex < TOTAL_GROUPS) {
+  while (processedInThisCall < GROUPS_TO_CREATE_PER_CALL && currentIndex < TOTAL_GROUPS) {
     currentIndex++;
     const coords = getGroupCoordinates(currentIndex);
-
     const tableId = `table_S${seasonNum}_L${leagueId}_V${coords.tier}_G${coords.group}`;
     const tableRef = doc(db, 'league_tables_v2', tableId);
     
     const checkSnap = await getDoc(tableRef);
-    let needsCreate = true;
+    let needsCreation = true;
     
-    // Проверка целостности: группа должна иметь 8 команд и версию 120
     if (checkSnap.exists()) {
       const data = checkSnap.data();
       if (data?.stats && Object.keys(data.stats).length === 8 && data.version === 120) {
-        needsCreate = false; 
+        needsCreation = false; 
       }
     }
 
-    if (needsCreate) {
-      const batch = writeBatch(db);
+    // Атомный батч: Группа + Чекпойнт
+    const batch = writeBatch(db);
+    
+    if (needsCreation) {
       injectGroupData(batch, db, leagueId, coords.tier, coords.group, seasonNum);
-      await batch.commit();
-      createdInThisCall++;
     }
 
-    // Сохраняем прогресс сразу после каждой группы (Атомно)
-    await setDoc(statusRef, {
+    // Обновляем прогресс В ЭТОМ ЖЕ БАТЧЕ
+    batch.set(statusRef, {
       currentIndex,
       status: currentIndex >= TOTAL_GROUPS ? 'completed' : 'processing',
       updatedAt: serverTimestamp(),
       version: 120
     }, { merge: true });
+
+    await batch.commit();
+    processedInThisCall++;
   }
 
   const isComplete = currentIndex >= TOTAL_GROUPS;
