@@ -1,10 +1,10 @@
 'use server';
 
 /**
- * Глобальный двигатель заполнения мира v110 (Atomic Batch Per Group).
+ * Глобальный двигатель заполнения мира v111 (Atomic Per-Group Commits).
  * Особенности:
- * 1. Исправлен баг Batch Limit (500): Теперь каждая группа коммитится отдельным батчем (~58 операций).
- * 2. Атомарный прогресс: currentIndex сохраняется сразу после успешного создания группы.
+ * 1. Исправлен баг Batch Limit (500): Теперь КАЖДАЯ группа коммитится своим отдельным батчем (~58 операций).
+ * 2. Атомарный прогресс: currentIndex сохраняется СРАЗУ после успешного создания каждой группы.
  * 3. Агрессивный ремонт: Группы с < 8 командами считаются битыми и пересоздаются.
  */
 
@@ -22,7 +22,7 @@ import {
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 
 const TOTAL_GROUPS = 511; 
-const GROUPS_TO_CREATE_PER_CALL = 25; 
+const GROUPS_TO_CREATE_PER_CALL = 15; // Уменьшено для стабильности HTTP-запроса
 const MAX_SCAN_LIMIT = 511; 
 
 /**
@@ -79,7 +79,7 @@ function injectGroupData(
     id: tableId, leagueId, level: tier, group, season: seasonNum,
     stats: initialStats,
     createdAt: serverTimestamp(),
-    version: 110
+    version: 111
   });
 
   const calendar = generateSeasonCalendar(teamsForCalendar, seasonNum, leagueId);
@@ -90,7 +90,7 @@ function injectGroupData(
       id: mId,
       leagueId, level: tier, groupId: group, season: seasonNum,
       isFinished: false, scoreA: 0, scoreB: 0,
-      version: 110
+      version: 111
     });
   }
 }
@@ -115,7 +115,7 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
   let createdInThisCall = 0;
   let scannedInThisCall = 0;
 
-  console.log(`[WORLD ENGINE v110] Starting pyramid scan from index ${currentIndex}...`);
+  console.log(`[WORLD ENGINE v111] Starting pyramid scan from index ${currentIndex}...`);
 
   while (createdInThisCall < GROUPS_TO_CREATE_PER_CALL && currentIndex < TOTAL_GROUPS && scannedInThisCall < MAX_SCAN_LIMIT) {
     currentIndex++;
@@ -125,7 +125,6 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
     const tableId = `table_S${seasonNum}_L${leagueId}_V${coords.tier}_G${coords.group}`;
     const tableRef = doc(db, 'league_tables_v1', tableId);
     
-    // ПРОВЕРКА ДЫР
     const checkSnap = await getDoc(tableRef);
     let needsRepair = true;
     
@@ -137,24 +136,24 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
     }
 
     if (needsRepair) {
-      console.log(`[WORLD ENGINE] Fixing Group index ${currentIndex}: Div ${coords.tier} Group ${coords.group}`);
+      console.log(`[WORLD ENGINE] Building Group ${currentIndex}: Div ${coords.tier} G${coords.group}`);
       
-      // Создаем ОТДЕЛЬНЫЙ батч для текущей группы (~58 операций)
+      // КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: Новый батч на КАЖДУЮ группу
       const groupBatch = writeBatch(db);
       injectGroupData(groupBatch, db, leagueId, coords.tier, coords.group, seasonNum);
       
-      // Сразу коммитим данные группы
+      // Коммитим данные ОДНОЙ группы
       await groupBatch.commit();
       createdInThisCall++;
     }
 
-    // Сохраняем прогресс currentIndex ПОСЛЕ КАЖДОЙ итерации (даже если группа пропущена)
-    // Это гарантирует, что мы не будем сканировать одно и то же при таймауте или ошибке
+    // Сохраняем currentIndex СРАЗУ после каждой итерации
+    // Даже если группа была пропущена, мы должны зафиксировать, что этот индекс проверен
     await setDoc(statusRef, {
       currentIndex,
       status: currentIndex >= TOTAL_GROUPS ? 'completed' : 'processing',
       updatedAt: serverTimestamp(),
-      version: 110
+      version: 111
     }, { merge: true });
   }
 

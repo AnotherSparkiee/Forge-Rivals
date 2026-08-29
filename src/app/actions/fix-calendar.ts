@@ -1,7 +1,7 @@
 'use server';
 
 /**
- * Скрипт-синхронизатор v109 (Autonomous Global Reseeder).
+ * Скрипт-синхронизатор v111 (Autonomous Global Reseeder).
  * Реализует строго последовательный цикл: NUCLEAR_WIPE -> INIT_WORLD -> RESEED_PLAYERS.
  */
 
@@ -15,7 +15,7 @@ import { initializeLeagueWorld } from './world-engine';
 import { findStrategicPlacement, initializeClubV11 } from './season-init';
 
 const PLAYERS_PER_CHUNK = 25; 
-const DELETE_BATCH_SIZE = 500; // Максимально допустимый лимит Firestore
+const DELETE_BATCH_SIZE = 500; 
 
 export async function runGlobalEmergencyRepair() {
   const { firestore: db } = initializeFirebase();
@@ -23,8 +23,8 @@ export async function runGlobalEmergencyRepair() {
   const seasonNum = info.activeSeasonNumber;
   const leagueId = "ALPHA";
 
-  // Документ состояния ремонта v109
-  const repairStatusRef = doc(db, 'system_v1', `repair_v109_S${seasonNum}_L${leagueId}`);
+  // Документ состояния ремонта v111
+  const repairStatusRef = doc(db, 'system_v1', `repair_v111_S${seasonNum}_L${leagueId}`);
   const repairSnap = await getDoc(repairStatusRef);
   const repairData = repairSnap.exists() ? repairSnap.data() : { phase: 'NUCLEAR_WIPE', status: 'processing' };
 
@@ -32,60 +32,88 @@ export async function runGlobalEmergencyRepair() {
     return { status: 'ALL_READY', msg: 'World is fully initialized.' };
   }
 
-  console.log(`[AUTONOMOUS REPAIR] v109, Phase: ${repairData.phase}`);
+  console.log(`[AUTONOMOUS REPAIR] v111, Phase: ${repairData.phase}`);
 
   /**
    * ФАЗА 1: NUCLEAR_WIPE
-   * Удаление старых данных Сезона 1.
+   * Удаление старых данных и сброс ВСЕХ игроков.
    */
   if (repairData.phase === 'NUCLEAR_WIPE') {
-    // 1. Удаление таблиц (по 500 за раз)
+    // 1. Удаление таблиц S1
     const tablesQ = query(collection(db, 'league_tables_v1'), where('season', '==', 1), limit(DELETE_BATCH_SIZE));
     const tSnap = await getDocs(tablesQ);
     if (!tSnap.empty) {
       const batch = writeBatch(db);
       tSnap.docs.forEach(d => batch.delete(d.ref));
       await batch.commit();
-      return { status: 'WIPING_TABLES', deleted: tSnap.size, msg: "Cleaning old league tables..." };
+      return { status: 'WIPING_TABLES', deleted: tSnap.size, msg: "Step 1: Cleaning old league tables..." };
     }
 
-    // 2. Удаление матчей (по 500 за раз)
+    // 2. Удаление матчей S1
     const matchesQ = query(collection(db, 'matches_v1'), where('season', '==', 1), limit(DELETE_BATCH_SIZE));
     const mSnap = await getDocs(matchesQ);
     if (!mSnap.empty) {
       const batch = writeBatch(db);
       mSnap.docs.forEach(d => batch.delete(d.ref));
       await batch.commit();
-      return { status: 'WIPING_MATCHES', deleted: mSnap.size, msg: "Cleaning match calendar (this may take 60-80 cycles)..." };
+      return { status: 'WIPING_MATCHES', deleted: mSnap.size, msg: "Step 1: Cleaning match calendar (sequential wipe)..." };
     }
 
-    // 3. Сброс игроков (по 100 за раз для безопасности)
-    const playersQ = query(collection(db, 'players_v11'), where('lastProcessedSeason', '!=', 0), limit(100));
-    const pSnap = await getDocs(playersQ);
+    // 3. Тотальный сброс игроков (безопасный обход через createdAt)
+    let playersResetQ = query(
+      collection(db, 'players_v11'),
+      orderBy('createdAt', 'asc'),
+      limit(100)
+    );
+
+    if (repairData.lastResetId) {
+      playersResetQ = query(
+        collection(db, 'players_v11'),
+        orderBy('createdAt', 'asc'),
+        startAfter(repairData.lastResetId),
+        limit(100)
+      );
+    }
+
+    const pSnap = await getDocs(playersResetQ);
     if (!pSnap.empty) {
       const batch = writeBatch(db);
+      let needsResetCount = 0;
       pSnap.docs.forEach(d => {
-        batch.update(d.ref, {
-          leagueLevel: null,
-          groupId: null,
-          rank: null,
-          lastProcessedSeason: 0
-        });
+        const p = d.data();
+        // Сбрасываем только если есть что сбрасывать или сезон не 0
+        if (p.leagueLevel !== null || p.lastProcessedSeason !== 0) {
+          batch.update(d.ref, {
+            leagueLevel: null,
+            groupId: null,
+            rank: null,
+            targetLevel: null,
+            targetGroup: null,
+            targetRank: null,
+            lastProcessedSeason: 0
+          });
+          needsResetCount++;
+        }
       });
+      
+      const lastResetId = pSnap.docs[pSnap.docs.length - 1].data().createdAt;
+      
       await batch.commit();
-      return { status: 'RESETTING_PLAYERS', updated: pSnap.size, msg: "Unseeding players for fresh placement..." };
+      await setDoc(repairStatusRef, { lastResetId }, { merge: true });
+      return { status: 'RESETTING_PLAYERS', processed: pSnap.size, msg: "Step 1: Resetting manager coordinates for fresh start..." };
     }
 
-    // 4. Очистка системного флага и переход в INIT_WORLD
+    // 4. Очистка системных флагов и переход в INIT_WORLD
     await deleteDoc(doc(db, 'system_v1', `init_S${seasonNum}_L${leagueId}`)).catch(() => {});
     
     await setDoc(repairStatusRef, { 
       phase: 'INIT_WORLD', 
       status: 'processing',
+      lastResetId: null, // очистка для следующего раза
       updatedAt: serverTimestamp()
     }, { merge: true });
 
-    return { status: 'WIPE_COMPLETE', next: 'INIT_WORLD', msg: "Nuclear wipe finished. Starting world reconstruction." };
+    return { status: 'WIPE_COMPLETE', next: 'INIT_WORLD', msg: "Step 1 complete. Starting world reconstruction." };
   }
 
   /**
@@ -100,9 +128,9 @@ export async function runGlobalEmergencyRepair() {
         lastCreatedAt: null,
         updatedAt: serverTimestamp()
       }, { merge: true });
-      return { status: 'PHASE_TRANSITION', next: 'RESEED_PLAYERS', msg: "World built. Moving to player re-seeding." };
+      return { status: 'PHASE_TRANSITION', next: 'RESEED_PLAYERS', msg: "Step 2: World built. Moving to player re-seeding." };
     }
-    return { status: 'BUILDING_WORLD', currentIndex: worldRes.currentIndex, msg: `Reconstructing pyramid: ${worldRes.currentIndex}/511` };
+    return { status: 'BUILDING_WORLD', currentIndex: worldRes.currentIndex, msg: `Step 2: Constructing pyramid: ${worldRes.currentIndex}/511` };
   }
 
   /**
@@ -137,7 +165,7 @@ export async function runGlobalEmergencyRepair() {
         status: 'completed',
         finishedAt: serverTimestamp() 
       }, { merge: true });
-      return { status: 'ALL_COMPLETE', msg: "League is fully restored and operational." };
+      return { status: 'ALL_COMPLETE', msg: "Step 3: League is fully restored and operational." };
     }
 
     let lastCreatedAt = null;
@@ -152,7 +180,6 @@ export async function runGlobalEmergencyRepair() {
         let group = p.targetGroup;
         let rank = p.targetRank;
 
-        // Если нет целевых координат (новая регистрация или сброс), ищем свободное место
         if (!tier || !group) {
           const placement = await findStrategicPlacement(leagueId);
           tier = placement.tier;
@@ -177,7 +204,7 @@ export async function runGlobalEmergencyRepair() {
       updatedAt: serverTimestamp()
     }, { merge: true });
 
-    return { status: 'RESEEDING', processedCount: processed, msg: `Placing managers: ${processed} processed in this chunk.` };
+    return { status: 'RESEEDING', processedCount: processed, msg: `Step 3: Placing managers on new positions: ${processed} processed.` };
   }
 
   return { status: 'UNKNOWN' };
