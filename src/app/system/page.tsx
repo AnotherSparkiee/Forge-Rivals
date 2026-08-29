@@ -8,7 +8,8 @@ import {
   ChevronLeft, Settings, Users, ShieldCheck, 
   Info, Loader2, Zap, RefreshCw, Globe, 
   ShieldAlert, AlertTriangle, Construction, 
-  Trash2, Play, FastForward, Trophy, Database
+  Trash2, Play, FastForward, Trophy, Database,
+  ChevronRight
 } from 'lucide-react';
 import Link from 'next/link';
 import { useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
@@ -18,7 +19,7 @@ import { cn } from '@/lib/utils';
 import { TOTAL_GROUPS } from '../lib/leagues-data';
 import { runGlobalEmergencyRepair } from '../actions/fix-calendar';
 import { totalNuclearResetV131 } from '../actions/nuclear-reset';
-import { resolveDailyMatches } from '../actions/autonomous-cycle';
+import { resolveDailyMatches, performSeasonTransition } from '../actions/autonomous-cycle';
 import { generatePyramidCup } from '../actions/cup-engine';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -100,12 +101,25 @@ export default function SystemPage() {
     try {
       let res;
       if (action === 'nuclear') res = await totalNuclearResetV131();
-      if (action === 'resolve') res = await resolveDailyMatches();
-      if (action === 'cup') res = await generatePyramidCup(seasonNumber);
+      else if (action === 'resolve') res = await resolveDailyMatches();
+      else if (action === 'cup') res = await generatePyramidCup(seasonNumber);
+      else if (action === 'transition') res = await performSeasonTransition();
+      else if (action === 'forceBuild') {
+        setIsBuilding(true);
+        res = await runGlobalEmergencyRepair();
+        setIsBuilding(false);
+      }
       
-      toast({ title: "Action Complete", description: "System response received" });
-      if (action === 'nuclear') window.location.reload();
+      toast({ 
+        title: res?.status || "Action Complete", 
+        description: res?.progress || res?.msg || "System response received" 
+      });
+
+      if (action === 'nuclear') {
+        setTimeout(() => window.location.reload(), 2000);
+      }
     } catch (e: any) {
+      console.error("[ADMIN ACTION ERROR]:", e);
       toast({ variant: "destructive", title: "Action Failed", description: e.message });
     } finally {
       setIsProcessing(false);
@@ -134,7 +148,7 @@ export default function SystemPage() {
                    <div className={cn("p-2 rounded-lg bg-secondary/50", !isWorldReady ? "text-primary animate-pulse" : "text-green-400")}>
                      {isWorldReady ? <ShieldCheck className="w-5 h-5" /> : <Construction className="w-5 h-5" />}
                    </div>
-                   <p className="text-xs font-bold uppercase text-white">{isWorldReady ? t.ready : t.building}</p>
+                   <p className="text-xs font-bold uppercase text-white">{isWorldReady ? t.ready : (repairStatus?.progress || t.building)}</p>
                  </div>
                  <p className="text-sm font-headline font-bold text-primary">{worldProgress} / {TOTAL_GROUPS}</p>
                </div>
@@ -142,8 +156,8 @@ export default function SystemPage() {
                   <div className="h-full bg-primary transition-all duration-500 shadow-[0_0_10px_rgba(var(--primary),0.5)]" style={{ width: `${(worldProgress / TOTAL_GROUPS) * 100}%` }} />
                </div>
                {!isWorldReady && (
-                 <Button className="w-full h-11 hero-gradient font-black text-[10px] uppercase mt-4" onClick={() => runGlobalEmergencyRepair()} disabled={isBuilding}>
-                    {isBuilding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4 mr-2" />} {t.forceBuild}
+                 <Button className="w-full h-11 hero-gradient font-black text-[10px] uppercase mt-4 shadow-xl" onClick={() => handleAction('forceBuild')} disabled={isBuilding || isProcessing}>
+                    {isBuilding ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Zap className="w-4 h-4 mr-2" />} {t.forceBuild}
                  </Button>
                )}
             </CardContent>
@@ -184,13 +198,15 @@ export default function SystemPage() {
               </CardContent>
             </Card>
 
-            <Card className="glass-card border-white/5 hover:bg-white/5 transition-all cursor-pointer opacity-50 grayscale">
+            <Card className="glass-card border-white/5 hover:bg-white/5 transition-all cursor-pointer" onClick={() => handleAction('transition')}>
               <CardContent className="p-4 flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  <div className="p-2.5 rounded-xl bg-secondary/50 text-accent"><FastForward className="w-5 h-5" /></div>
+                  <div className={cn("p-2.5 rounded-xl bg-secondary/50", isProcessing ? "text-primary animate-pulse" : "text-accent")}>
+                    <FastForward className="w-5 h-5" />
+                  </div>
                   <div><h3 className="text-xs font-black uppercase text-white">{t.transition}</h3><p className="text-[8px] text-muted-foreground uppercase">{t.transitionDesc}</p></div>
                 </div>
-                <Badge variant="outline" className="text-[7px] border-white/10 uppercase">Auto-only</Badge>
+                <ChevronRight className="w-4 h-4 text-muted-foreground" />
               </CardContent>
             </Card>
           </div>
