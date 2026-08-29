@@ -2,16 +2,12 @@
 
 /**
  * Глобальный двигатель заполнения мира v131 (Universe Architect).
- * Особенности:
- * 1. Использование префикса v131 в ID документов для изоляции.
- * 2. Гарантия 8 ботов в каждой группе.
- * 3. Атомарность группы и чекпойнта.
- * 4. Увеличен лимит для монолитной постройки (511 групп за вызов).
+ * Оптимизирован для предотвращения таймаутов Server Actions.
  */
 
 import { 
   doc, getDoc, writeBatch, 
-  Firestore, serverTimestamp
+  Firestore, serverTimestamp, setDoc
 } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import { 
@@ -23,7 +19,7 @@ import {
 } from '@/app/lib/leagues-data';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 
-const GROUPS_TO_CREATE_PER_CALL = 511; // Пытаемся построить всё за один проход
+const GROUPS_TO_CREATE_PER_CALL = 40; // Безопасный лимит для 60-секундного таймаута
 
 function getGroupCoordinates(index: number) {
   if (index < 1) return { tier: 1, group: 1 };
@@ -105,15 +101,13 @@ export async function createGroupStructure(
 }
 
 /**
- * Инициализация мира v131. Проходит по всем 511 группам.
- * Теперь поддерживает длительное выполнение.
+ * Инициализация мира v131. Проходит по группам порциями.
  */
 export async function initializeLeagueWorld(leagueId: string, targetSeason?: number) {
   const { firestore: db } = initializeFirebase();
   const info = getGlobalSeasonInfo();
   const seasonNum = targetSeason || info.activeSeasonNumber;
 
-  // Документ прогресса (версия 131)
   const statusRef = doc(db, 'system_v1', `init_v131_S${seasonNum}_L${leagueId}`);
   const statusSnap = await getDoc(statusRef);
   
@@ -128,12 +122,10 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
 
   let processedInThisCall = 0;
 
-  // Цикл постройки: каждая группа — отдельный коммит
   while (processedInThisCall < GROUPS_TO_CREATE_PER_CALL && currentIndex < TOTAL_GROUPS) {
     const nextIndex = currentIndex + 1;
     const coords = getGroupCoordinates(nextIndex);
     
-    // Проверка существования (защита от гонок)
     const tableId = `table_v131_S${seasonNum}_L${leagueId}_V${coords.tier}_G${coords.group}`;
     const tableSnap = await getDoc(doc(db, 'league_tables_v2', tableId));
     
@@ -141,7 +133,6 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
       const batch = writeBatch(db);
       injectGroupData(batch, db, leagueId, coords.tier, coords.group, seasonNum);
       
-      // Обновляем прогресс в этом же батче
       batch.set(statusRef, {
         currentIndex: nextIndex,
         status: nextIndex >= TOTAL_GROUPS ? 'completed' : 'processing',
@@ -151,7 +142,6 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
 
       await batch.commit();
     } else {
-      // Группа уже есть, просто двигаем счетчик прогресса
       await setDoc(statusRef, {
         currentIndex: nextIndex,
         status: nextIndex >= TOTAL_GROUPS ? 'completed' : 'processing',

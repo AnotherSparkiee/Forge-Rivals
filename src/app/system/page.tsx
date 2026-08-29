@@ -120,7 +120,7 @@ export default function SystemPage() {
       }
     } catch (e: any) {
       console.error("[ADMIN ACTION ERROR]:", e);
-      toast({ variant: "destructive", title: "Action Failed", description: e.message });
+      toast({ variant: "destructive", title: "Action Error", description: "The request took too long or server failed. Check console." });
     } finally {
       setIsProcessing(false);
       setShowNuclearDialog(false);
