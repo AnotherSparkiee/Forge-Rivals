@@ -2,7 +2,7 @@
 
 /**
  * Глобальный двигатель заполнения мира v131 (Universe Architect).
- * Оптимизирован для предотвращения таймаутов (15 групп за вызов).
+ * Оптимизирован для предотвращения таймаутов и лимитов Firestore (5 групп за вызов).
  */
 
 import { 
@@ -19,7 +19,7 @@ import {
 } from '@/app/lib/leagues-data';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 
-const GROUPS_TO_CREATE_PER_CALL = 15; // Безопасный лимит для предотвращения таймаутов Server Actions
+const GROUPS_TO_CREATE_PER_CALL = 5; // Снижено до 5 для гарантии < 500 операций (5 * 58 = 290)
 
 function getGroupCoordinates(index: number) {
   if (index < 1) return { tier: 1, group: 1 };
@@ -117,13 +117,12 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
     const nextIndex = currentIndex + 1;
     const coords = getGroupCoordinates(nextIndex);
     
-    const tableId = `table_v131_S${seasonNum}_L${coords.tier}_G${coords.group}`;
     const batch = writeBatch(db);
     
-    // Инъекция данных группы
+    // Инъекция данных группы (57 операций)
     injectGroupData(batch, db, leagueId, coords.tier, coords.group, seasonNum);
     
-    // Обновление прогресса в ТОМ ЖЕ батче
+    // Обновление прогресса в ТОМ ЖЕ батче (1 операция)
     batch.set(statusRef, {
       currentIndex: nextIndex,
       status: nextIndex >= TOTAL_GROUPS ? 'completed' : 'processing',

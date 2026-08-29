@@ -79,7 +79,7 @@ export default function SystemPage() {
       transition: "СМЕНА СЕЗОНА", transitionDesc: "Запустить переход в следующий сезон (Transition)",
       confirmNuclear: "ВЫ УВЕРЕНЫ?", confirmNuclearDesc: "Это действие необратимо. Все игроки будут удалены.",
       btnConfirm: "ПОДТВЕРДИТЬ", btnCancel: "ОТМЕНА",
-      error: "Сервер занят. Подождите 5 секунд и нажмите снова."
+      error: "Сервер занят. Подождите 10 секунд и нажмите снова."
     },
     en: { 
       title: "SYSTEM", subtitle: "Parameters and network metrics (v131)",
@@ -93,7 +93,7 @@ export default function SystemPage() {
       transition: "SEASON TRANSITION", transitionDesc: "Trigger promotion/relegation logic",
       confirmNuclear: "ARE YOU SURE?", confirmNuclearDesc: "This action is irreversible. All players will be wiped.",
       btnConfirm: "CONFIRM", btnCancel: "CANCEL",
-      error: "Server busy. Please wait 5s and click again."
+      error: "Server busy. Please wait 10s and click again."
     }
   }[language === 'ru' ? 'ru' : 'en'];
 
@@ -102,7 +102,7 @@ export default function SystemPage() {
     if (action === 'forceBuild') setIsBuilding(true);
     
     try {
-      let res;
+      let res: any;
       if (action === 'nuclear') res = await totalNuclearResetV131();
       else if (action === 'resolve') res = await resolveDailyMatches();
       else if (action === 'cup') res = await generatePyramidCup(seasonNumber);
@@ -111,17 +111,17 @@ export default function SystemPage() {
       
       toast({ 
         title: res?.status || "Action Complete", 
-        description: res?.progress || res?.msg || "System response received" 
+        description: res?.progress || res?.msg || "System updated" 
       });
 
-      if (action === 'nuclear' && res?.msg === "System Purged") {
-        setTimeout(() => window.location.reload(), 2000);
+      if (action === 'nuclear' && res?.success) {
+        setTimeout(() => window.location.reload(), 1500);
       }
     } catch (e: any) {
-      console.warn("[SYSTEM ACTION] Response delay or error:", e.message);
+      console.warn("[SYSTEM ACTION ERROR]", e.message);
       toast({ 
         variant: "destructive", 
-        title: "Timeout / Processing", 
+        title: "Timeout Notification", 
         description: t.error 
       });
     } finally {
