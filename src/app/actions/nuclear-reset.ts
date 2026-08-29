@@ -2,51 +2,47 @@
 
 /**
  * Скрипт "Ядерной очистки" v131.
- * Выполняет удаление порциями для предотвращения таймаутов.
+ * Оптимизирован для предотвращения таймаутов (макс 1500 доков за вызов).
  */
 
 import { 
   collection, getDocs, query, limit, 
-  deleteDoc, doc, writeBatch 
+  writeBatch 
 } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 
 const WIPE_BATCH_SIZE = 500;
-const MAX_DELETIONS_PER_CALL = 5000; // Лимит во избежание таймаута
-
-async function wipeCollection(db: any, collName: string) {
-  let deletedCount = 0;
-  while (deletedCount < MAX_DELETIONS_PER_CALL) {
-    const q = query(collection(db, collName), limit(WIPE_BATCH_SIZE));
-    const snap = await getDocs(q);
-    if (snap.empty) break;
-    
-    const batch = writeBatch(db);
-    snap.docs.forEach(d => batch.delete(d.ref));
-    await batch.commit();
-    deletedCount += snap.size;
-    if (snap.size < WIPE_BATCH_SIZE) break;
-  }
-  return deletedCount;
-}
+const LIMIT_PER_CALL = 1500;
 
 export async function totalNuclearResetV131() {
   const { firestore: db } = initializeFirebase();
   console.log("[NUCLEAR v131] Starting Safety Purge...");
 
+  const colls = ['league_tables_v2', 'matches_v2', 'players_v13', 'global_chat_v2', 'market_v7'];
+  let totalDeleted = 0;
   const results: any = {};
 
-  // Очистка по цепочке, пока не упремся в лимит или не закончим
-  results.tables = await wipeCollection(db, 'league_tables_v2');
-  results.matches = await wipeCollection(db, 'matches_v2');
-  results.players = await wipeCollection(db, 'players_v13');
-  
-  // Если за первый проход удалили много, возвращаем статус для повторного вызова
-  const totalDeleted = Object.values(results).reduce((a: any, b: any) => a + b, 0);
+  for (const coll of colls) {
+    if (totalDeleted >= LIMIT_PER_CALL) break;
+    
+    const q = query(collection(db, coll), limit(WIPE_BATCH_SIZE));
+    const snap = await getDocs(q);
+    
+    if (!snap.empty) {
+      const batch = writeBatch(db);
+      snap.docs.forEach(d => batch.delete(d.ref));
+      await batch.commit();
+      
+      results[coll] = snap.size;
+      totalDeleted += snap.size;
+    } else {
+      results[coll] = 0;
+    }
+  }
 
   return { 
     success: true, 
     details: results, 
-    msg: totalDeleted >= MAX_DELETIONS_PER_CALL ? "Purge In Progress (Click again)" : "System Purged" 
+    msg: totalDeleted > 0 ? `Wiping in progress... (${totalDeleted} deleted)` : "System Purged" 
   };
 }

@@ -40,7 +40,6 @@ export default function SystemPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showNuclearDialog, setShowNuclearDialog] = useState(false);
 
-  // Запросы данных
   const playersQuery = useMemoFirebase(() => db ? query(collection(db, 'players_v13')) : null, [db]);
   const { data: players, isLoading: isPlayersLoading } = useCollection(playersQuery);
 
@@ -79,7 +78,8 @@ export default function SystemPage() {
       cup: "ГЕНЕРАЦИЯ КУБКА", cupDesc: "Создать турнирную сетку на текущий сезон",
       transition: "СМЕНА СЕЗОНА", transitionDesc: "Запустить переход в следующий сезон (Transition)",
       confirmNuclear: "ВЫ УВЕРЕНЫ?", confirmNuclearDesc: "Это действие необратимо. Все игроки будут удалены.",
-      btnConfirm: "ПОДТВЕРДИТЬ", btnCancel: "ОТМЕНА"
+      btnConfirm: "ПОДТВЕРДИТЬ", btnCancel: "ОТМЕНА",
+      error: "Сервер занят. Подождите 5 секунд и нажмите снова."
     },
     en: { 
       title: "SYSTEM", subtitle: "Parameters and network metrics (v131)",
@@ -92,37 +92,41 @@ export default function SystemPage() {
       cup: "GENERATE CUP", cupDesc: "Create tournament bracket for current season",
       transition: "SEASON TRANSITION", transitionDesc: "Trigger promotion/relegation logic",
       confirmNuclear: "ARE YOU SURE?", confirmNuclearDesc: "This action is irreversible. All players will be wiped.",
-      btnConfirm: "CONFIRM", btnCancel: "CANCEL"
+      btnConfirm: "CONFIRM", btnCancel: "CANCEL",
+      error: "Server busy. Please wait 5s and click again."
     }
   }[language === 'ru' ? 'ru' : 'en'];
 
   const handleAction = async (action: string) => {
     setIsProcessing(true);
+    if (action === 'forceBuild') setIsBuilding(true);
+    
     try {
       let res;
       if (action === 'nuclear') res = await totalNuclearResetV131();
       else if (action === 'resolve') res = await resolveDailyMatches();
       else if (action === 'cup') res = await generatePyramidCup(seasonNumber);
       else if (action === 'transition') res = await performSeasonTransition();
-      else if (action === 'forceBuild') {
-        setIsBuilding(true);
-        res = await runGlobalEmergencyRepair();
-        setIsBuilding(false);
-      }
+      else if (action === 'forceBuild') res = await runGlobalEmergencyRepair();
       
       toast({ 
         title: res?.status || "Action Complete", 
         description: res?.progress || res?.msg || "System response received" 
       });
 
-      if (action === 'nuclear') {
+      if (action === 'nuclear' && res?.msg === "System Purged") {
         setTimeout(() => window.location.reload(), 2000);
       }
     } catch (e: any) {
-      console.error("[ADMIN ACTION ERROR]:", e);
-      toast({ variant: "destructive", title: "Action Error", description: "The request took too long or server failed. Check console." });
+      console.warn("[SYSTEM ACTION] Response delay or error:", e.message);
+      toast({ 
+        variant: "destructive", 
+        title: "Timeout / Processing", 
+        description: t.error 
+      });
     } finally {
       setIsProcessing(false);
+      setIsBuilding(false);
       setShowNuclearDialog(false);
     }
   };
@@ -138,7 +142,6 @@ export default function SystemPage() {
       </header>
 
       <div className="space-y-8">
-        {/* WORLD STATUS */}
         <section className="space-y-3">
           <h2 className="text-[10px] font-black uppercase tracking-widest text-accent px-1">{t.worldStatus}</h2>
           <Card className={cn("glass-card border-white/5 bg-secondary/10 overflow-hidden", !isWorldReady && "border-primary/30")}>
@@ -164,7 +167,6 @@ export default function SystemPage() {
           </Card>
         </section>
 
-        {/* ADMIN TERMINAL */}
         <section className="space-y-3">
           <h2 className="text-[10px] font-black uppercase tracking-widest text-red-500 px-1 flex items-center gap-2"><Database className="w-4 h-4" /> {t.adminTitle}</h2>
           <div className="grid grid-cols-1 gap-2">
@@ -212,7 +214,6 @@ export default function SystemPage() {
           </div>
         </section>
 
-        {/* NETWORK STATS */}
         <section className="space-y-3">
           <h2 className="text-[10px] font-black uppercase tracking-widest text-accent px-1">{t.status}</h2>
           <div className="grid grid-cols-2 gap-3">
@@ -230,7 +231,6 @@ export default function SystemPage() {
         </section>
       </div>
 
-      {/* NUCLEAR CONFIRMATION */}
       <Dialog open={showNuclearDialog} onOpenChange={setShowNuclearDialog}>
         <DialogContent className="max-w-xs bg-card border-white/10 p-6">
           <DialogHeader>

@@ -1,8 +1,8 @@
 'use server';
 
 /**
- * @fileOverview Скрипт Абсолютного Сброса v131 (Clean Environment).
- * Очищает ВСЕ коллекции v1/v2 и запускает постройку пирамиды v131.
+ * @fileOverview Скрипт Абсолютного Сброса v131 (Safe Batches).
+ * Очищает коллекции порциями по 1500 доков для предотвращения таймаутов.
  */
 
 import { 
@@ -15,7 +15,7 @@ import { initializeLeagueWorld } from './world-engine';
 import { TOTAL_GROUPS } from '@/app/lib/leagues-data';
 
 const DELETE_BATCH_SIZE = 500; 
-const WIPE_LOOPS_PER_CALL = 12; // Удаляем до 6000 доков за один клик для скорости
+const WIPE_LOOPS_PER_CALL = 3; // Удаляем до 1500 доков за один вызов для безопасности
 
 export async function runGlobalEmergencyRepair() {
   const { firestore: db } = initializeFirebase();
@@ -23,7 +23,6 @@ export async function runGlobalEmergencyRepair() {
   const seasonNum = info.activeSeasonNumber;
   const leagueId = "ALPHA";
 
-  // Документ состояния ремонта v131
   const repairStatusRef = doc(db, 'system_v1', `repair_v131_S${seasonNum}_L${leagueId}`);
   const repairSnap = await getDoc(repairStatusRef);
   const repairData = repairSnap.exists() ? repairSnap.data() : { phase: 'TOTAL_PURGE_V2' };
@@ -32,11 +31,6 @@ export async function runGlobalEmergencyRepair() {
     return { status: 'ALL_READY', msg: 'Season 1 v131 world fully built and ready.', progress: '100%' };
   }
 
-  console.log(`[WORLD ARCHITECT v131] Phase: ${repairData.phase}`);
-
-  /**
-   * ЭТАП 1: Тотальная очистка (Wipe everything)
-   */
   const WIPE_PHASES = [
     { phase: 'TOTAL_PURGE_V2', colls: ['league_tables_v2', 'matches_v2'], next: 'TOTAL_PURGE_V1' },
     { phase: 'TOTAL_PURGE_V1', colls: ['league_tables_v1', 'matches_v1'], next: 'TOTAL_PURGE_PLAYERS' },
@@ -48,7 +42,6 @@ export async function runGlobalEmergencyRepair() {
   if (currentWipe) {
     let totalDeleted = 0;
     
-    // Внутренний цикл для ускорения очистки
     for (let i = 0; i < WIPE_LOOPS_PER_CALL; i++) {
       let loopDeleted = 0;
       for (const coll of currentWipe.colls) {
@@ -62,7 +55,7 @@ export async function runGlobalEmergencyRepair() {
         }
       }
       totalDeleted += loopDeleted;
-      if (loopDeleted === 0) break; // Если во всех коллекциях фазы пусто - выходим
+      if (loopDeleted === 0) break; 
     }
 
     if (totalDeleted > 0) {
@@ -74,14 +67,10 @@ export async function runGlobalEmergencyRepair() {
       };
     }
     
-    // Переход к следующей фазе, если текущие коллекции пусты
     await setDoc(repairStatusRef, { phase: currentWipe.next }, { merge: true });
     return { status: `${repairData.phase}_CLEARED`, next: currentWipe.next, progress: `Переход к ${currentWipe.next}...` };
   }
 
-  /**
-   * ЭТАП 2: Постройка нового мира в v131 (511 групп)
-   */
   if (repairData.phase === 'INIT_WORLD_V131') {
     const worldRes = await initializeLeagueWorld(leagueId, seasonNum);
     const progressVal = Math.round((worldRes.currentIndex / TOTAL_GROUPS) * 100);
