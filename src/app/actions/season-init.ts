@@ -1,7 +1,7 @@
 'use server';
 
 /**
- * @fileOverview Серверный модуль инициализации v130 (Absolute Isolation).
+ * @fileOverview Серверный модуль инициализации v131 (Absolute Isolation).
  * Использует коллекции v2 и профили v13 для исключения конфликтов.
  */
 
@@ -56,9 +56,9 @@ export async function findStrategicPlacement(leagueId: string) {
 }
 
 /**
- * Атомарная инициализация клуба v130 в коллекциях v2.
+ * Атомарная инициализация клуба v131 в коллекциях v2.
  */
-export async function initializeClubV12(userId: string, data: any) {
+export async function initializeClubV13(userId: string, data: any) {
   const { firestore: db } = initializeFirebase();
   const seasonInfo = getGlobalSeasonInfo();
   const seasonNum = seasonInfo.activeSeasonNumber;
@@ -66,13 +66,14 @@ export async function initializeClubV12(userId: string, data: any) {
   const { tier, group, rank, clubName, clubLogo } = data;
   const leagueId = data.selectedLeagueId || "ALPHA";
   
-  const tableId = `table_S${seasonNum}_L${leagueId}_V${tier}_G${group}`;
+  // КЛЮЧЕВОЕ ИЗМЕНЕНИЕ v131: префикс в ID таблицы
+  const tableId = `table_v131_S${seasonNum}_L${leagueId}_V${tier}_G${group}`;
   const tableRef = doc(db, 'league_tables_v2', tableId);
   
   let tableSnap = await getDoc(tableRef);
 
   if (!tableSnap.exists()) {
-    console.warn(`[JIT] Table ${tableId} missing. Creating group structure in v2...`);
+    console.warn(`[JIT v131] Table ${tableId} missing. Creating...`);
     await createGroupStructure(db, leagueId, tier, group, seasonNum);
     tableSnap = await getDoc(tableRef);
   } 
@@ -87,12 +88,11 @@ export async function initializeClubV12(userId: string, data: any) {
   if (stats[targetBotId] && stats[targetBotId].isBot === true) {
     botToReplaceId = targetBotId;
   } else {
-    // Если бот на этом ранге уже занят (гонка условий), берем любого другого бота
     botToReplaceId = Object.keys(stats).find(id => stats[id].isBot === true) || null;
   }
 
   if (!botToReplaceId && !stats[userId]) {
-    console.error(`[OVERFLOW] Group ${tier}.${group} is full!`);
+    console.error(`[OVERFLOW v131] Group ${tier}.${group} is full!`);
     return { success: false, error: "GROUP_FULL" };
   }
 
@@ -117,24 +117,23 @@ export async function initializeClubV12(userId: string, data: any) {
     batch.update(tableRef, { stats, updatedAt: serverTimestamp() });
   }
 
-  // Обновляем календарь для этого слота
-  if (botToReplaceId) {
-    const matchesQ = query(collection(db, 'matches_v2'), 
-      where('leagueId', '==', leagueId),
-      where('level', '==', tier),
-      where('groupId', '==', group),
-      where('season', '==', seasonNum)
-    );
-    const matchesSnap = await getDocs(matchesQ);
+  // Обновляем календарь (matches_v2 с префиксом v131)
+  const matchesQ = query(collection(db, 'matches_v2'), 
+    where('leagueId', '==', leagueId),
+    where('level', '==', tier),
+    where('groupId', '==', group),
+    where('season', '==', seasonNum),
+    where('version', '==', 131)
+  );
+  const matchesSnap = await getDocs(matchesQ);
 
-    matchesSnap.forEach(mDoc => {
-      const mData = mDoc.data();
-      const updates: any = {};
-      if (mData.homeId === botToReplaceId) { updates.homeId = userId; updates.homeName = clubName; updates.homeLogo = clubLogo; }
-      if (mData.awayId === botToReplaceId) { updates.awayId = userId; updates.awayName = clubName; updates.awayLogo = clubLogo; }
-      if (Object.keys(updates).length > 0) batch.update(mDoc.ref, updates);
-    });
-  }
+  matchesSnap.forEach(mDoc => {
+    const mData = mDoc.data();
+    const updates: any = {};
+    if (mData.homeId === botToReplaceId) { updates.homeId = userId; updates.homeName = clubName; updates.homeLogo = clubLogo; }
+    if (mData.awayId === botToReplaceId) { updates.awayId = userId; updates.awayName = clubName; updates.awayLogo = clubLogo; }
+    if (Object.keys(updates).length > 0) batch.update(mDoc.ref, updates);
+  });
 
   // Создаем профиль в v13
   const playerRef = doc(db, 'players_v13', userId);
@@ -149,7 +148,7 @@ export async function initializeClubV12(userId: string, data: any) {
     rank,
     lastProcessedSeason: seasonNum,
     lastLoginDate: new Date().toISOString(),
-    version: 130
+    version: 131
   }, { merge: true });
 
   await batch.commit();

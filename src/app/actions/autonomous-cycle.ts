@@ -1,8 +1,8 @@
 'use server';
 
 /**
- * @fileOverview ГЛОБАЛЬНЫЙ АВТОНОМНЫЙ ДВИГАТЕЛЬ ЛИГИ v130 (V2 COLLECTIONS).
- * Обрабатывает матчи версии 130.
+ * @fileOverview ГЛОБАЛЬНЫЙ АВТОНОМНЫЙ ДВИГАТЕЛЬ ЛИГИ v131 (V2 COLLECTIONS).
+ * Обрабатывает матчи версии 131.
  */
 
 import { 
@@ -26,11 +26,6 @@ class FirestoreBatcher {
     this.count++;
     if (this.count >= 480) await this.commit();
   }
-  async set(ref: any, data: any, options?: any) {
-    this.batch.set(ref, data, options);
-    this.count++;
-    if (this.count >= 480) await this.commit();
-  }
   async commit() {
     if (this.count > 0) {
       await this.batch.commit();
@@ -45,14 +40,13 @@ export async function resolveDailyMatches() {
   const info = getGlobalSeasonInfo();
   const currentSeason = info.activeSeasonNumber;
   
-  const repairStatusRef = doc(db, 'system_v1', `repair_v130_S${currentSeason}_LALPHA`);
+  const repairStatusRef = doc(db, 'system_v1', `repair_v131_S${currentSeason}_LALPHA`);
   const repairSnap = await getDoc(repairStatusRef);
   const isRepairComplete = repairSnap.exists() && repairSnap.data().phase === 'COMPLETED';
 
   if (!isRepairComplete) {
-    console.log(`[HEARTBEAT] World v130 not ready for S${currentSeason}. Running reset v130.`);
-    const repairResult = await runGlobalEmergencyRepair();
-    return { success: true, status: "INITIALIZING_WORLD", details: repairResult.status };
+    console.log(`[HEARTBEAT] World v131 not ready for S${currentSeason}. Skipping resolve.`);
+    return { success: true, status: "INITIALIZING_WORLD" };
   }
 
   if (info.isOffseason) return { success: true, count: 0, msg: "Offseason: matches paused" };
@@ -62,7 +56,7 @@ export async function resolveDailyMatches() {
     where('season', '==', currentSeason),
     where('tour', '==', info.dayOfCycle),
     where('isFinished', '==', false),
-    where('version', '==', 130),
+    where('version', '==', 131), // Только v131
     limit(100) 
   );
 
@@ -80,10 +74,10 @@ export async function resolveDailyMatches() {
     await batcher.update(matchDoc.ref, {
       scoreA: sA, scoreB: sB, winnerId,
       status: 'finished', isFinished: true,
-      resolvedAt: serverTimestamp(), version: 130
+      resolvedAt: serverTimestamp(), version: 131
     });
 
-    const tableId = `table_S${currentSeason}_L${m.leagueId}_V${m.level}_G${m.groupId}`;
+    const tableId = `table_v131_S${currentSeason}_L${m.leagueId}_V${m.level}_G${m.groupId}`;
     const tableRef = doc(db, 'league_tables_v2', tableId);
     
     const statsUpdate: any = {};

@@ -1,11 +1,11 @@
 'use server';
 
 /**
- * Глобальный двигатель заполнения мира v130 (Universe Architect).
+ * Глобальный двигатель заполнения мира v131 (Universe Architect).
  * Особенности:
- * 1. Атомарность: Группа + Прогресс сохраняются в ОДНОМ батче. Исключает дыры.
- * 2. Надежность: Чтение по прямому ID без фильтров (не требует индексов).
- * 3. Скорость: Порционная обработка до 100 групп за вызов.
+ * 1. Использование префикса v131 в ID документов для изоляции.
+ * 2. Гарантия 8 ботов в каждой группе.
+ * 3. Атомарность группы и чекпойнта.
  */
 
 import { 
@@ -41,7 +41,7 @@ function getGroupCoordinates(index: number) {
 
 /**
  * Внутренняя функция инъекции данных группы в батч.
- * ГАРАНТИЯ: Ровно 8 ботов.
+ * ГАРАНТИЯ: Ровно 8 ботов версии v131.
  */
 function injectGroupData(
   batch: any, 
@@ -51,7 +51,8 @@ function injectGroupData(
   group: number, 
   seasonNum: number
 ) {
-  const tableId = `table_S${seasonNum}_L${leagueId}_V${tier}_G${group}`;
+  // КЛЮЧЕВОЕ ИЗМЕНЕНИЕ v131: префикс в ID таблицы
+  const tableId = `table_v131_S${seasonNum}_L${leagueId}_V${tier}_G${group}`;
   const tableRef = doc(db, 'league_tables_v2', tableId);
   
   const initialStats: any = {};
@@ -72,18 +73,19 @@ function injectGroupData(
     id: tableId, leagueId, level: tier, group, season: seasonNum,
     stats: initialStats,
     createdAt: serverTimestamp(),
-    version: 130
+    version: 131
   });
 
   const calendar = generateSeasonCalendar(teamsForCalendar, seasonNum, leagueId);
   for (const m of calendar) {
-    const mId = `match_S${seasonNum}_L${leagueId}_V${tier}_G${group}_T${m.tour}_R${m.homeRank}_vs_R${m.awayRank}`;
+    // КЛЮЧЕВОЕ ИЗМЕНЕНИЕ v131: префикс в ID матча
+    const mId = `match_v131_S${seasonNum}_L${leagueId}_V${tier}_G${group}_T${m.tour}_R${m.homeRank}_vs_R${m.awayRank}`;
     batch.set(doc(db, 'matches_v2', mId), {
       ...m,
       id: mId,
       leagueId, level: tier, groupId: group, season: seasonNum,
       isFinished: false, scoreA: 0, scoreB: 0,
-      version: 130
+      version: 131
     });
   }
 }
@@ -104,21 +106,21 @@ export async function createGroupStructure(
 }
 
 /**
- * Инициализация мира. Проходит по всем 511 группам.
+ * Инициализация мира v131. Проходит по всем 511 группам.
  */
 export async function initializeLeagueWorld(leagueId: string, targetSeason?: number) {
   const { firestore: db } = initializeFirebase();
   const info = getGlobalSeasonInfo();
   const seasonNum = targetSeason || info.activeSeasonNumber;
 
-  // Документ прогресса (версия 130)
-  const statusRef = doc(db, 'system_v1', `init_S${seasonNum}_L${leagueId}`);
+  // Документ прогресса (версия 131)
+  const statusRef = doc(db, 'system_v1', `init_v131_S${seasonNum}_L${leagueId}`);
   const statusSnap = await getDoc(statusRef);
   
   let currentIndex = 0;
   if (statusSnap.exists()) {
     const data = statusSnap.data();
-    if (data.status === 'completed' && data.version === 130) {
+    if (data.status === 'completed' && data.version === 131) {
       return { status: 'COMPLETE', isComplete: true, currentIndex: TOTAL_GROUPS };
     }
     currentIndex = data.currentIndex || 0;
@@ -126,25 +128,21 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
 
   let processedInThisCall = 0;
 
-  // Цикл создания групп с ИНДИВИДУАЛЬНЫМИ коммитами для каждой группы
   while (processedInThisCall < GROUPS_TO_CREATE_PER_CALL && currentIndex < TOTAL_GROUPS) {
     const nextIndex = currentIndex + 1;
     const coords = getGroupCoordinates(nextIndex);
-    const tableId = `table_S${seasonNum}_L${leagueId}_V${coords.tier}_G${coords.group}`;
-    const tableRef = doc(db, 'league_tables_v2', tableId);
     
-    // Атомный батч: Группа + Продвижение Чекпойнта
     const batch = writeBatch(db);
     
-    // Всегда пересоздаем группу, если мы на этом индексе, чтобы гарантировать 8 ботов
+    // Создаем группу v131
     injectGroupData(batch, db, leagueId, coords.tier, coords.group, seasonNum);
 
-    // Обновляем прогресс В ЭТОМ ЖЕ БАТЧЕ
+    // Обновляем прогресс в этом же батче
     batch.set(statusRef, {
       currentIndex: nextIndex,
       status: nextIndex >= TOTAL_GROUPS ? 'completed' : 'processing',
       updatedAt: serverTimestamp(),
-      version: 130
+      version: 131
     }, { merge: true });
 
     await batch.commit();

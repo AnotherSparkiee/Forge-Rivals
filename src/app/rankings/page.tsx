@@ -45,7 +45,8 @@ export default function RankingsPage() {
   const contextLevel = Number(navLevel || profile?.leagueLevel || 9);
   const contextGroup = Number(navGroup || profile?.groupId || 1);
 
-  const tableId = `table_S${seasonNumber}_L${contextLeagueId}_V${contextLevel}_G${contextGroup}`;
+  // КЛЮЧЕВОЕ ИЗМЕНЕНИЕ v131: префикс в ID таблицы
+  const tableId = `table_v131_S${seasonNumber}_L${contextLeagueId}_V${contextLevel}_G${contextGroup}`;
   const tableRef = useMemoFirebase(() => {
     if (!db || !isLoaded) return null;
     return doc(db, 'league_tables_v2', tableId);
