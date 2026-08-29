@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -23,7 +24,7 @@ export async function findStrategicPlacement(leagueId: string) {
   const { firestore: db } = initializeFirebase();
 
   try {
-    // Получаем всех игроков этой лиги, у которых есть координаты
+    // Получаем всех игроков этой лиги в коллекции v12
     const q = query(
       collection(db, 'players_v12'), 
       where('selectedLeagueId', '==', leagueId)
@@ -43,11 +44,12 @@ export async function findStrategicPlacement(leagueId: string) {
     for (let tier = 1; tier <= 9; tier++) {
       const groupsInTier = getGroupsCountInLevel(tier);
       for (let group = 1; group <= groupsInTier; group++) {
-        for (let rank = 1; rank <= 8; rank++) {
+        for (let rank = 1; group <= 8; rank++) {
           const key = `${tier}_${group}_${rank}`;
           if (!occupiedSlots.has(key)) {
             return { tier, group, rank };
           }
+          if (rank >= 8) break;
         }
       }
     }
@@ -100,7 +102,6 @@ export async function initializeClubV11(userId: string, data: any) {
   // Если в группе нет ни одного бота, значит она реально полная (8 человек)
   if (!botToReplaceId && !stats[userId]) {
     console.error(`[OVERFLOW] Group ${tier}.${group} is full of humans!`);
-    // В идеале тут нужно вызвать findStrategicPlacement заново, но для MVP просто выходим
     return { success: false, error: "GROUP_FULL" };
   }
 

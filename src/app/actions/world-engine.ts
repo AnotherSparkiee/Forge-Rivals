@@ -1,11 +1,12 @@
+
 'use server';
 
 /**
- * Глобальный двигатель заполнения мира v116 (Atomic Bot-Only Support).
+ * Глобальный двигатель заполнения мира v117 (Atomic Bot-Only Support).
  * Особенности:
  * 1. Одна группа = один коммит батча (58 операций).
  * 2. Создает только ботов (8 на группу).
- * 3. Использует версию 116 для чистого старта.
+ * 3. Использует версию 117 для чистого старта.
  */
 
 import { 
@@ -72,7 +73,7 @@ function injectGroupData(
     id: tableId, leagueId, level: tier, group, season: seasonNum,
     stats: initialStats,
     createdAt: serverTimestamp(),
-    version: 116
+    version: 117
   });
 
   const calendar = generateSeasonCalendar(teamsForCalendar, seasonNum, leagueId);
@@ -83,7 +84,7 @@ function injectGroupData(
       id: mId,
       leagueId, level: tier, groupId: group, season: seasonNum,
       isFinished: false, scoreA: 0, scoreB: 0,
-      version: 116
+      version: 117
     });
   }
 }
@@ -136,8 +137,8 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
     
     if (checkSnap.exists()) {
       const data = checkSnap.data();
-      // Если в группе уже есть 8 команд и версия 116, пропускаем
-      if (data?.stats && Object.keys(data.stats).length === 8 && data.version === 116) {
+      // Если в группе уже есть 8 команд и версия 117, пропускаем
+      if (data?.stats && Object.keys(data.stats).length === 8 && data.version === 117) {
         needsCreate = false; 
       }
     }
@@ -152,7 +153,7 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
       currentIndex,
       status: currentIndex >= TOTAL_GROUPS ? 'completed' : 'processing',
       updatedAt: serverTimestamp(),
-      version: 116
+      version: 117
     }, { merge: true });
   }
 
