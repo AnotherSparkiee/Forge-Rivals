@@ -1,9 +1,8 @@
-
 'use server';
 
 /**
- * @fileOverview Серверный модуль инициализации v72 (V12 Absolute Isolation).
- * Исправлена проблема переполнения групп (9-я команда).
+ * @fileOverview Серверный модуль инициализации v120 (Absolute Isolation).
+ * Использует коллекции v2 для исключения конфликтов со старыми данными.
  */
 
 import { collection, getDocs, query, where, doc, getDoc, writeBatch, serverTimestamp } from 'firebase/firestore';
@@ -18,13 +17,11 @@ import { createGroupStructure } from './world-engine';
 
 /**
  * Находит свободное место в текущем сезоне v12.
- * Сканирует занятые слоты реальных игроков.
  */
 export async function findStrategicPlacement(leagueId: string) {
   const { firestore: db } = initializeFirebase();
 
   try {
-    // Получаем всех игроков этой лиги в коллекции v12
     const q = query(
       collection(db, 'players_v12'), 
       where('selectedLeagueId', '==', leagueId)
@@ -40,16 +37,14 @@ export async function findStrategicPlacement(leagueId: string) {
       }
     });
 
-    // Ищем первое свободное место по иерархии (сверху вниз)
     for (let tier = 1; tier <= 9; tier++) {
       const groupsInTier = getGroupsCountInLevel(tier);
       for (let group = 1; group <= groupsInTier; group++) {
-        for (let rank = 1; group <= 8; rank++) {
+        for (let rank = 1; rank <= 8; rank++) {
           const key = `${tier}_${group}_${rank}`;
           if (!occupiedSlots.has(key)) {
             return { tier, group, rank };
           }
-          if (rank >= 8) break;
         }
       }
     }
@@ -61,10 +56,9 @@ export async function findStrategicPlacement(leagueId: string) {
 }
 
 /**
- * Атомарная инициализация клуба v12.
- * ГАРАНТИРУЕТ ровно 8 команд в группе.
+ * Атомарная инициализация клуба v120 в коллекциях v2.
  */
-export async function initializeClubV11(userId: string, data: any) {
+export async function initializeClubV12(userId: string, data: any) {
   const { firestore: db } = initializeFirebase();
   const seasonInfo = getGlobalSeasonInfo();
   const seasonNum = seasonInfo.activeSeasonNumber;
@@ -73,13 +67,12 @@ export async function initializeClubV11(userId: string, data: any) {
   const leagueId = data.selectedLeagueId || "ALPHA";
   
   const tableId = `table_S${seasonNum}_L${leagueId}_V${tier}_G${group}`;
-  const tableRef = doc(db, 'league_tables_v1', tableId);
+  const tableRef = doc(db, 'league_tables_v2', tableId);
   
   let tableSnap = await getDoc(tableRef);
 
-  // JIT создание группы, если она еще не построена фоновым процессом
   if (!tableSnap.exists()) {
-    console.warn(`[JIT] Table ${tableId} missing. Creating group structure...`);
+    console.warn(`[JIT] Table ${tableId} missing. Creating group structure in v2...`);
     await createGroupStructure(db, leagueId, tier, group, seasonNum);
     tableSnap = await getDoc(tableRef);
   } 
@@ -87,27 +80,22 @@ export async function initializeClubV11(userId: string, data: any) {
   const tableData = tableSnap.data();
   const stats = { ...tableData!.stats };
 
-  // ОПРЕДЕЛЕНИЕ ЦЕЛИ ДЛЯ ЗАМЕНЫ
-  // Мы должны заменить БОТА, чтобы сохранить лимит в 8 команд.
   const targetBotId = getBotId(leagueId, tier, group, rank);
   let botToReplaceId = null;
 
-  if (stats[targetBotId]) {
+  if (stats[targetBotId] && stats[targetBotId].isBot === true) {
     botToReplaceId = targetBotId;
   } else {
-    // Если на этом ранге уже человек, ищем ЛЮБОГО другого бота в этой группе
     botToReplaceId = Object.keys(stats).find(id => stats[id].isBot === true) || null;
   }
 
-  // Если в группе нет ни одного бота, значит она реально полная (8 человек)
   if (!botToReplaceId && !stats[userId]) {
-    console.error(`[OVERFLOW] Group ${tier}.${group} is full of humans!`);
+    console.error(`[OVERFLOW] Group ${tier}.${group} is full!`);
     return { success: false, error: "GROUP_FULL" };
   }
 
   const batch = writeBatch(db);
 
-  // Обновляем таблицу: заменяем бота на игрока
   if (botToReplaceId || !stats[userId]) {
     const baseStats = botToReplaceId ? stats[botToReplaceId] : { matchesPlayed: 0, wins: 0, draws: 0, losses: 0, points: 0, diff: 0 };
     
@@ -127,9 +115,8 @@ export async function initializeClubV11(userId: string, data: any) {
     batch.update(tableRef, { stats, updatedAt: serverTimestamp() });
   }
 
-  // Обновляем матчи: меняем ID бота на ID игрока
   if (botToReplaceId) {
-    const matchesQ = query(collection(db, 'matches_v1'), 
+    const matchesQ = query(collection(db, 'matches_v2'), 
       where('leagueId', '==', leagueId),
       where('level', '==', tier),
       where('groupId', '==', group),
@@ -146,7 +133,6 @@ export async function initializeClubV11(userId: string, data: any) {
     });
   }
 
-  // Сохраняем профиль в коллекцию v12
   const playerRef = doc(db, 'players_v12', userId);
   batch.set(playerRef, {
     ...data,
@@ -159,7 +145,7 @@ export async function initializeClubV11(userId: string, data: any) {
     rank,
     lastProcessedSeason: seasonNum,
     lastLoginDate: new Date().toISOString(),
-    version: 12
+    version: 120
   }, { merge: true });
 
   await batch.commit();

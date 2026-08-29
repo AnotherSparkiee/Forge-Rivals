@@ -1,11 +1,11 @@
 'use server';
 
 /**
- * Глобальный двигатель заполнения мира v119 (Total Isolation Mode).
+ * Глобальный двигатель заполнения мира v120 (Total Isolation Mode).
  * Особенности:
- * 1. Одна группа = один коммит батча (58 операций).
- * 2. Создает только ботов (8 на группу).
- * 3. Использует версию 119 для гарантированной чистоты данных.
+ * 1. Использует новые коллекции v2 для мгновенной изоляции от старых данных.
+ * 2. Одна группа = один коммит батча (58 операций).
+ * 3. Создает только ботов (8 на группу).
  */
 
 import { 
@@ -23,7 +23,6 @@ import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 
 const TOTAL_GROUPS = 511; 
 const GROUPS_TO_CREATE_PER_CALL = 20; 
-const MAX_SCAN_LIMIT = 511; 
 
 function getGroupCoordinates(index: number) {
   if (index < 1) return { tier: 1, group: 1 };
@@ -52,7 +51,7 @@ function injectGroupData(
   seasonNum: number
 ) {
   const tableId = `table_S${seasonNum}_L${leagueId}_V${tier}_G${group}`;
-  const tableRef = doc(db, 'league_tables_v1', tableId);
+  const tableRef = doc(db, 'league_tables_v2', tableId);
   
   const initialStats: any = {};
   const teamsForCalendar = [];
@@ -72,18 +71,18 @@ function injectGroupData(
     id: tableId, leagueId, level: tier, group, season: seasonNum,
     stats: initialStats,
     createdAt: serverTimestamp(),
-    version: 119
+    version: 120
   });
 
   const calendar = generateSeasonCalendar(teamsForCalendar, seasonNum, leagueId);
   for (const m of calendar) {
     const mId = `match_S${seasonNum}_L${leagueId}_V${tier}_G${group}_T${m.tour}_R${m.homeRank}_vs_R${m.awayRank}`;
-    batch.set(doc(db, 'matches_v1', mId), {
+    batch.set(doc(db, 'matches_v2', mId), {
       ...m,
       id: mId,
       leagueId, level: tier, groupId: group, season: seasonNum,
       isFinished: false, scoreA: 0, scoreB: 0,
-      version: 119
+      version: 120
     });
   }
 }
@@ -114,30 +113,27 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
   let currentIndex = 0;
   if (statusSnap.exists()) {
     const data = statusSnap.data();
-    if (data.status === 'completed') {
+    if (data.status === 'completed' && data.version === 120) {
       return { status: 'COMPLETE', isComplete: true, currentIndex: TOTAL_GROUPS };
     }
     currentIndex = data.currentIndex || 0;
   }
 
   let createdInThisCall = 0;
-  let scannedInThisCall = 0;
 
-  while (createdInThisCall < GROUPS_TO_CREATE_PER_CALL && currentIndex < TOTAL_GROUPS && scannedInThisCall < MAX_SCAN_LIMIT) {
+  while (createdInThisCall < GROUPS_TO_CREATE_PER_CALL && currentIndex < TOTAL_GROUPS) {
     currentIndex++;
-    scannedInThisCall++;
     const coords = getGroupCoordinates(currentIndex);
 
     const tableId = `table_S${seasonNum}_L${leagueId}_V${coords.tier}_G${coords.group}`;
-    const tableRef = doc(db, 'league_tables_v1', tableId);
+    const tableRef = doc(db, 'league_tables_v2', tableId);
     
     const checkSnap = await getDoc(tableRef);
     let needsCreate = true;
     
     if (checkSnap.exists()) {
       const data = checkSnap.data();
-      // Если в группе уже есть 8 команд и версия 119, пропускаем
-      if (data?.stats && Object.keys(data.stats).length === 8 && data.version === 119) {
+      if (data?.stats && Object.keys(data.stats).length === 8 && data.version === 120) {
         needsCreate = false; 
       }
     }
@@ -152,7 +148,7 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
       currentIndex,
       status: currentIndex >= TOTAL_GROUPS ? 'completed' : 'processing',
       updatedAt: serverTimestamp(),
-      version: 119
+      version: 120
     }, { merge: true });
   }
 

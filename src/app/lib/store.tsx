@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * Глобальное локальное хранилище v232 (Absolute Purge Implementation).
- * Повышена версия хранилища для принудительной очистки локальных данных старых сезонов.
+ * Глобальное локальное хранилище v233 (V2 Collections Integration).
+ * Повышена версия хранилища для перехода на matches_v2 и league_tables_v2.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useMemo } from 'react';
@@ -124,7 +124,7 @@ interface GameState {
   saveToLocal: (state: Partial<GameState>) => void;
 }
 
-const STORAGE_KEY = 'lote_game_state_v232';
+const STORAGE_KEY = 'lote_game_state_v233';
 
 const DEFAULT_STATE: GameState = {
   credits: 1000000, crystals: 50, experiencePoints: 0, managerLevel: 1,
@@ -144,7 +144,7 @@ const DEFAULT_STATE: GameState = {
   arena: { capacity: 5000 }, hq: {}, bootcamp: {}, academy: {}, medical: {},
   country: null, isPremium: false, premiumUntil: null, activeSeasonNumber: 1, seasonNumber: 1, seasonDay: 1, isSyncing: false, language: 'ru',
   isDataReady: false, allSeasonMatches: [], nextMatch: null, isMatchesLoading: true,
-  lastProcessedSeason: 0, trophies: [], version: 232,
+  lastProcessedSeason: 0, trophies: [], version: 233,
   availableGiftsToSend: [], receivedGifts: [], lastGiftGenDate: null,
   addCrystals: () => {}, addCredits: () => {}, updatePlayer: () => {}, removePlayer: () => {}, assignToRole: () => {}, updateLineup: () => {}, updateTactics: () => {},
   claimReward: () => {}, setLanguage: () => {}, purchaseLicense: () => false, purchasePremium: () => false,
@@ -187,7 +187,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (parsed.version < 232) {
+        if (parsed.version < 233) {
           localStorage.removeItem(STORAGE_KEY);
           window.location.reload();
           return;
@@ -320,7 +320,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const clearMatchHistory = useCallback(() => saveToLocal({ matchHistory: [] }), [saveToLocal]);
   const upgradeManagerSkill = useCallback((k: keyof GameState['managerSkills']) => saveToLocal({ managerSkills: { ...state.managerSkills, [k]: (state.managerSkills[k] || 0) + 1 } }), [state.managerSkills, saveToLocal]);
   
-  // Infrastructure Definition
   const startArenaConstruction = useCallback((id: string, cost: number) => {
     if (state.credits < cost) return false;
     const finish = new Date(getMoscowTime().getTime() + 4 * 3600000).toISOString();

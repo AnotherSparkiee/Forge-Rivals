@@ -38,7 +38,6 @@ export default function MatchesPage() {
     return () => clearInterval(timer);
   }, []);
 
-  // 1. Загрузка участников группы из v12
   const groupPlayersQuery = useMemoFirebase(() => {
     if (!db) return null;
     return query(collection(db, 'players_v12'), 
@@ -50,10 +49,9 @@ export default function MatchesPage() {
 
   const { data: players } = useCollection(groupPlayersQuery);
 
-  // 2. Загрузка календаря из БД (v1)
   const groupMatchesQuery = useMemoFirebase(() => {
     if (!db || !selectedLeagueId) return null;
-    return query(collection(db, 'matches_v1'), 
+    return query(collection(db, 'matches_v2'), 
       where('leagueId', '==', selectedLeagueId),
       where('level', '==', leagueLevel),
       where('groupId', '==', groupId),

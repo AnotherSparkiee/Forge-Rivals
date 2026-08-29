@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * @fileOverview ОФИЦИАЛЬНЫЙ ПЛЕЕР МАТЧЕЙ v6.7.
- * Обновлен для работы с игроками коллекции v12.
+ * @fileOverview ОФИЦИАЛЬНЫЙ ПЛЕЕР МАТЧЕЙ v120 (V2 COLLECTIONS).
+ * Работает с матчами из matches_v2.
  */
 
 import { useState, useEffect, useMemo, Suspense, useRef } from 'react';
@@ -47,7 +47,6 @@ function MatchContent() {
   const [visibleEvents, setVisibleEvents] = useState<any[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Динамическое разрешение имен для актуальности (v12)
   const groupPlayersQuery = useMemoFirebase(() => {
     if (!db || !selectedLeagueId) return null;
     return query(collection(db, 'players_v12'), 
@@ -80,13 +79,11 @@ function MatchContent() {
     const fetchMatch = async () => {
       setIsDataLoading(true);
       try {
-        // 1. Проверяем основную коллекцию лиги
-        let snap = await getDoc(doc(db, 'matches_v1', matchIdFromUrl));
+        let snap = await getDoc(doc(db, 'matches_v2', matchIdFromUrl));
         
         if (snap.exists()) {
           setMatchData({ ...snap.data(), id: snap.id });
         } else {
-          // 2. Ищем в локальной истории (дружеские, пробные)
           const hist = (matchHistory || []).find(m => m.id === matchIdFromUrl);
           if (hist) setMatchData(hist);
         }
@@ -110,7 +107,6 @@ function MatchContent() {
   const resolvedMatchData = useMemo(() => {
     if (!matchData) return null;
     
-    // Если это матч лиги с рангами, разрешаем имена динамически
     if (matchData.homeRank && matchData.awayRank) {
       const hRank = Number(matchData.homeRank);
       const aRank = Number(matchData.awayRank);
@@ -132,21 +128,13 @@ function MatchContent() {
 
   useEffect(() => {
     if (step !== 'live' || !currentSimulation || !currentSimulation.games) return;
-    
-    if (currentSimulation.isTbdWin) {
-      setStep('stats');
-      return;
-    }
-
+    if (currentSimulation.isTbdWin) { setStep('stats'); return; }
     const game = currentSimulation.games[activeGameIdx];
     if (!game) { setStep('stats'); return; }
-    
     const events = (game.timeline || []).filter((e: any) => !!e);
     if (events.length === 0) { setStep('stats'); return; }
-    
     setVisibleEvents([]);
     let currentEvt = 0;
-    
     const timer = setInterval(() => {
       if (currentEvt < events.length) {
         setVisibleEvents(prev => [...prev, events[currentEvt]]);
@@ -155,36 +143,18 @@ function MatchContent() {
       } else {
         clearInterval(timer);
         if (activeGameIdx < currentSimulation.games.length - 1) {
-          setTimeout(() => { 
-            setActiveGameIdx(prev => prev + 1); 
-            setVisibleEvents([]); 
-          }, 1000); 
-        } else { 
-          setTimeout(() => setStep('stats'), 1500); 
-        }
+          setTimeout(() => { setActiveGameIdx(prev => prev + 1); setVisibleEvents([]); }, 1000); 
+        } else { setTimeout(() => setStep('stats'), 1500); }
       }
     }, 400); 
     return () => clearInterval(timer);
   }, [step, activeGameIdx, currentSimulation]);
 
   const handleNext = (e?: React.MouseEvent) => {
-    if (e) {
-      const target = e.target as HTMLElement;
-      if (target.closest('[data-stop-propagation]')) {
-        e.stopPropagation();
-        return;
-      }
-    }
-    
-    if (step === 'preview') {
-      if (currentSimulation?.isTbdWin) setStep('stats');
-      else setStep('live');
-    }
+    if (e && (e.target as HTMLElement).closest('[data-stop-propagation]')) return;
+    if (step === 'preview') { if (currentSimulation?.isTbdWin) setStep('stats'); else setStep('live'); }
     else if (step === 'live') setStep('stats'); 
-    else { 
-      if (matchIdFromUrl) markMatchIdAsSeen(matchIdFromUrl); 
-      router.push('/reports'); 
-    }
+    else { if (matchIdFromUrl) markMatchIdAsSeen(matchIdFromUrl); router.push('/reports'); }
   };
 
   if (isUserLoading || isDataLoading || !isLoaded || !user) return <LoadingScreen />;
@@ -196,26 +166,22 @@ function MatchContent() {
       next: "WATCH TRANSCRIPTION", skip: "SKIP TO STATS", accept: "FINALIZE REVIEW", exit: "EXIT",
       home: "HOME", away: "AWAY", vs: "VS",
       comparison: "TEAM CUMULATIVE SKILL ANALYSIS",
-      progression: "POST-MATCH IMPACT",
       staffInfluence: "STAFF PERFORMANCE CONTRIBUTION",
-      compFarm: "Total Resource Farm", compTactics: "Tactical Execution", compTeam: "Strategic Unity", compTeamPower: "Team Synergy", compRef: "Combat Reflexes",
+      compFarm: "Total Resource Farm", compTactics: "Tactical Execution", compTeam: "Strategic Unity", compRef: "Combat Reflexes",
       tbdTitle: "TECHNICAL WIN SECURED",
-      tbdDesc: "Opponent (TBD) failed to deploy for tactical engagement. Result officially recorded as 2:0.",
-      victory: "VICTORY:", draw: "MATCH DRAWN",
-      map: "MAP"
+      tbdDesc: "Opponent (TBD) failed to deploy for tactical engagement.",
+      victory: "VICTORY:", draw: "MATCH DRAWN", map: "MAP"
     },
     ru: {
       reportTitle: "ОФИЦИАЛЬНЫЙ ОТЧЕТ БОЯ",
       next: "СМОТРЕТЬ ПОВТОР", skip: "К СТАТИСТИКЕ", accept: "ЗАВЕРШИТЬ ПРОСМОТР", exit: "ВЫЙТИ",
       home: "ДОМА", away: "В ГОСТЯХ", vs: "ПРОТИВ",
       comparison: "АНАЛИЗ СУММАРНЫХ НАВЫКОВ КОМАНД",
-      progression: "ПОСЛЕМАТЧЕВЫЙ ОТЧЕТ",
       staffInfluence: "ВКЛАД ПЕРСОНАЛА КЛУБА",
-      compFarm: "Суммарный фарм", compTactics: "Тактическая точность", compTeamPower: "Командная синергия", compTeam: "Стратегическое единство", compRef: "Боевые рефлексы",
+      compFarm: "Суммарный фарм", compTactics: "Тактическая точность", compTeam: "Стратегическое единство", compRef: "Боевые рефлексы",
       tbdTitle: "ТЕХНИЧЕСКАЯ ПОБЕДА",
-      tbdDesc: "Соперник (TBD) не явился на поле боя. Результат официально зафиксирован как 2:0.",
-      victory: "ПОБЕДА:", draw: "НИЧЬЯ В СЕРИИ",
-      map: "КАРТА"
+      tbdDesc: "Соперник (TBD) не явился на поле боя.",
+      victory: "ПОБЕДА:", draw: "НИЧЬЯ В СЕРИИ", map: "КАРТА"
     }
   }[language === 'ru' ? 'ru' : 'en'];
 
@@ -241,7 +207,7 @@ function MatchContent() {
             <div className="w-14 h-14 rounded-2xl overflow-hidden border border-white/10 bg-background flex items-center justify-center shadow-xl">
               {p.image ? <img src={p.image} alt="" className="w-full h-full object-cover" /> : <User className="w-7 h-7 text-muted-foreground" />}
             </div>
-            {p.name === game.mvp && <Trophy className="absolute -top-1.5 -right-1.5 w-6 h-6 text-yellow-500 fill-yellow-500 drop-shadow-[0_0_8px_rgba(234,179,8,0.6)]" />}
+            {p.name === game.mvp && <Trophy className="absolute -top-1.5 -right-1.5 w-6 h-6 text-yellow-500 fill-yellow-500" />}
             <div className="absolute -bottom-1 -left-1 bg-black/90 rounded-lg px-2 py-0.5 border border-white/10 shadow-2xl">
               <span className="text-[10px] font-black text-accent">{Number(p.matchRating || 6.0).toFixed(1)}</span>
             </div>
@@ -253,10 +219,6 @@ function MatchContent() {
                <span className="text-10px] font-mono font-bold text-primary">{p.kills}/{p.deaths}/{p.assists}</span>
             </div>
           </div>
-        </div>
-        
-        <div className={cn("flex items-center gap-2 mt-1 w-full", side === 'right' && "justify-end")}>
-           <span className="text-[8px] font-black text-muted-foreground/40 uppercase font-mono">{p.cs || 0} CS</span>
         </div>
       </div>
     );
@@ -277,19 +239,13 @@ function MatchContent() {
               ].map(stat => (
                 <div key={stat.key} className="space-y-2.5">
                   <div className="flex justify-between items-center text-[11px] font-black uppercase tracking-tighter">
-                    <div className="flex items-center gap-2 min-w-[40px]">
-                      <span className="text-primary text-base font-headline">{game.teamComparison[stat.key][0]}</span>
-                    </div>
-                    <span className="text-muted-foreground flex items-center gap-2 opacity-80 text-[10px]">
-                      <stat.icon className={cn("w-4 h-4", stat.color)} /> {stat.label}
-                    </span>
-                    <div className="flex items-center gap-2 min-w-[40px] justify-end">
-                      <span className="text-accent text-base font-headline">{game.teamComparison[stat.key][1]}</span>
-                    </div>
+                    <span className="text-primary text-base font-headline">{game.teamComparison[stat.key][0]}</span>
+                    <span className="text-muted-foreground flex items-center gap-2 opacity-80 text-[10px]"><stat.icon className={cn("w-4 h-4", stat.color)} /> {stat.label}</span>
+                    <span className="text-accent text-base font-headline">{game.teamComparison[stat.key][1]}</span>
                   </div>
-                  <div className="h-2 w-full bg-background/50 rounded-full flex overflow-hidden border border-white/5 shadow-inner">
-                    <div className="h-full bg-primary shadow-[0_0_12px_rgba(var(--primary),0.5)] transition-all duration-1000" style={{ width: `${(game.teamComparison[stat.key][0] / Math.max(1, (game.teamComparison[stat.key][0] + game.teamComparison[stat.key][1]))) * 100}%` }} />
-                    <div className="h-full bg-accent shadow-[0_0_12px_rgba(var(--accent),0.5)] transition-all duration-1000" style={{ width: `${(game.teamComparison[stat.key][1] / Math.max(1, (game.teamComparison[stat.key][0] + game.teamComparison[stat.key][1]))) * 100}%` }} />
+                  <div className="h-2 w-full bg-background/50 rounded-full flex overflow-hidden border border-white/5">
+                    <div className="h-full bg-primary" style={{ width: `${(game.teamComparison[stat.key][0] / Math.max(1, (game.teamComparison[stat.key][0] + game.teamComparison[stat.key][1]))) * 100}%` }} />
+                    <div className="h-full bg-accent" style={{ width: `${(game.teamComparison[stat.key][1] / Math.max(1, (game.teamComparison[stat.key][0] + game.teamComparison[stat.key][1]))) * 100}%` }} />
                   </div>
                 </div>
               ))}
@@ -298,70 +254,15 @@ function MatchContent() {
         )}
 
         <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2.5">
-            <p className="text-[9px] font-black uppercase tracking-widest text-primary mb-3 flex items-center gap-2 px-1 border-l-2 border-primary pl-2"><ShieldCheck className="w-3.5 h-3.5" /> {t.home}</p>
-            {homeHeroes.map(p => renderHeroRow(p, 'left'))}
-          </div>
-          <div className="space-y-2.5">
-            <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground mb-3 flex items-center gap-2 justify-end px-1 border-r-2 border-white/10 pr-2">{t.away} <Swords className="w-3.5 h-3.5" /></p>
-            {awayHeroes.map(p => renderHeroRow(p, 'right'))}
-          </div>
+          <div className="space-y-2.5"><p className="text-[9px] font-black uppercase tracking-widest text-primary mb-3">{t.home}</p>{homeHeroes.map(p => renderHeroRow(p, 'left'))}</div>
+          <div className="space-y-2.5"><p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground mb-3 text-right">{t.away}</p>{awayHeroes.map(p => renderHeroRow(p, 'right'))}</div>
         </div>
-
-        <section className="space-y-4 pt-4">
-           <h3 className="text-[11px] font-black uppercase tracking-widest text-yellow-500 text-center flex items-center justify-center gap-2 bg-yellow-500/5 py-2 rounded-xl">
-             <Microscope className="w-4 h-4" /> {t.staffInfluence}
-           </h3>
-           <Card className="glass-card border-white/5 bg-secondary/10">
-              <CardContent className="p-4 space-y-3">
-                 <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                       <ShieldCheck className="w-3.5 h-3.5 text-blue-400" />
-                       <span className="text-[9px] font-bold text-muted-foreground uppercase">Coach Strategy Bonus</span>
-                    </div>
-                    <Badge variant="outline" className="text-[8px] border-blue-500/30 text-blue-400 uppercase font-black tracking-widest">ACTIVE</Badge>
-                 </div>
-                 <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                       <Target className="w-3.5 h-3.5 text-accent" />
-                       <span className="text-[9px] font-bold text-muted-foreground uppercase">Analyst Tactical Data</span>
-                    </div>
-                    <Badge variant="outline" className="text-[8px] border-accent/30 text-accent uppercase font-black tracking-widest">ACTIVE</Badge>
-                 </div>
-              </CardContent>
-           </Card>
-        </section>
-
-        <Card className="bg-primary/5 border-primary/20">
-          <CardContent className="p-4 flex gap-4">
-            <Info className="w-5 h-5 text-primary shrink-0" />
-            <p className="text-xs leading-relaxed text-muted-foreground italic">
-              "{game.matchSummary}"
-            </p>
-          </CardContent>
-        </Card>
       </div>
     );
   };
 
-  const getEventIcon = (type: string) => {
-    switch (type) {
-      case 'kill': return <Skull className="w-4 h-4 text-red-500" />;
-      case 'save': return <ShieldCheck className="w-4 h-4 text-green-400" />;
-      case 'objective': return <ActivityIcon className="w-4 h-4 text-accent" />;
-      case 'tower': return <Castle className="w-4 h-4 text-yellow-500" />;
-      case 'injury': return <ShieldAlert className="w-4 h-4 text-red-600 animate-pulse" />;
-      case 'tilt': return <Flame className="w-4 h-4 text-orange-500" />;
-      default: return <Info className="w-4 h-4 text-muted-foreground" />;
-    }
-  };
-
   const isMeHome = resolvedMatchData.homeId === user?.uid || Number(resolvedMatchData.homeRank) === Number(rank);
   const isMeAway = resolvedMatchData.awayId === user?.uid || Number(resolvedMatchData.awayRank) === Number(rank);
-
-  const displayHomeLogo = isMeHome ? myClubLogo : resolvedMatchData.homeLogo;
-  const displayAwayLogo = isMeAway ? myClubLogo : resolvedMatchData.awayLogo;
-
   const isDraw = currentSimulation.winner === "Ничья" || currentSimulation.winner === "Draw";
 
   return (
@@ -370,183 +271,49 @@ function MatchContent() {
         <header className="text-center space-y-4 mb-8">
           <h1 className="text-sm font-headline font-bold text-white uppercase tracking-tighter">{t.reportTitle}</h1>
           <div className="flex items-center justify-center gap-2 max-w-[240px] mx-auto">
-            <div className={cn("h-1 flex-1 rounded-full transition-all duration-500", step === 'preview' ? "bg-primary shadow-[0_0_10px_rgba(var(--primary),0.5)]" : "bg-primary/20")} />
-            <div className={cn("h-1 flex-1 rounded-full transition-all duration-500", step === 'live' ? "bg-primary shadow-[0_0_10px_rgba(var(--primary),0.5)]" : "bg-primary/20")} />
-            <div className={cn("h-1 flex-1 rounded-full transition-all duration-500", step === 'stats' ? "bg-primary shadow-[0_0_10px_rgba(var(--primary),0.5)]" : "bg-primary/20")} />
+            <div className={cn("h-1 flex-1 rounded-full", step === 'preview' ? "bg-primary shadow-[0_0_10px_rgba(var(--primary),0.5)]" : "bg-primary/20")} />
+            <div className={cn("h-1 flex-1 rounded-full", step === 'live' ? "bg-primary" : "bg-primary/20")} />
+            <div className={cn("h-1 flex-1 rounded-full", step === 'stats' ? "bg-primary" : "bg-primary/20")} />
           </div>
         </header>
 
         {step === 'preview' && (
-          <div className="space-y-6 animate-in fade-in zoom-in-95">
-            <Card className="glass-card border-white/10 bg-gradient-to-br from-primary/10 to-transparent overflow-hidden">
-              <div className="grid grid-cols-2 divide-x divide-white/5">
-                <div className="p-6 flex flex-col items-center gap-4 text-center">
-                  <div className="w-20 h-20 rounded-2xl bg-secondary/50 border border-primary/30 flex items-center justify-center shadow-xl overflow-hidden p-2">
-                    {displayHomeLogo ? <img src={displayHomeLogo} alt="" className="w-full h-full object-contain" /> : <div className="text-4xl">🛡️</div>}
-                  </div>
-                  <div className="space-y-1 w-full">
-                    <h3 className="text-[11px] font-headline font-bold uppercase truncate text-white px-1 leading-tight">{resolvedMatchData.homeName}</h3>
-                    <div className="bg-primary/20 text-primary border border-primary/30 rounded-xl py-1 mt-2 shadow-[0_0_15px_rgba(var(--primary),0.2)]">
-                      <p className="text-[8px] font-black uppercase tracking-widest opacity-70 leading-none mb-0.5">Rating</p>
-                      <p className="text-xl font-headline font-black italic">{currentSimulation?.games?.[0]?.teamAOvr || currentSimulation?.teamAOvr || '--'}</p>
-                    </div>
-                  </div>
+          <Card className="glass-card border-white/10 bg-gradient-to-br from-primary/10 to-transparent overflow-hidden">
+            <div className="grid grid-cols-2 divide-x divide-white/5">
+              <div className="p-6 flex flex-col items-center gap-4 text-center">
+                <div className="w-20 h-20 rounded-2xl bg-secondary/50 border border-primary/30 flex items-center justify-center overflow-hidden p-2">
+                  {isMeHome && myClubLogo ? <img src={myClubLogo} alt="" className="w-full h-full object-contain" /> : <div className="text-4xl">🛡️</div>}
                 </div>
-
-                <div className="p-6 flex flex-col items-center gap-4 text-center">
-                  <div className="w-20 h-20 rounded-2xl bg-secondary/50 border border-white/10 flex items-center justify-center shadow-xl overflow-hidden p-2">
-                    {displayAwayLogo ? <img src={displayAwayLogo} alt="" className="w-full h-full object-contain" /> : <div className="text-4xl">⚔️</div>}
-                  </div>
-                  <div className="space-y-1 w-full">
-                    <h3 className="text-[11px] font-headline font-bold uppercase truncate text-white px-1 leading-tight">{resolvedMatchData.awayName}</h3>
-                    <div className="bg-accent/20 text-accent border border-accent/30 rounded-xl py-1 mt-2 shadow-[0_0_15px_rgba(var(--accent),0.2)]">
-                      <p className="text-[8px] font-black uppercase tracking-widest opacity-70 leading-none mb-0.5">Rating</p>
-                      <p className="text-xl font-headline font-black italic">{currentSimulation?.games?.[0]?.teamBOvr || currentSimulation?.teamBOvr || '--'}</p>
-                    </div>
-                  </div>
+                <h3 className="text-[11px] font-headline font-bold uppercase truncate text-white leading-tight">{resolvedMatchData.homeName}</h3>
+              </div>
+              <div className="p-6 flex flex-col items-center gap-4 text-center">
+                <div className="w-20 h-20 rounded-2xl bg-secondary/50 border border-white/10 flex items-center justify-center overflow-hidden p-2">
+                  {isMeAway && myClubLogo ? <img src={myClubLogo} alt="" className="w-full h-full object-contain" /> : <div className="text-4xl">⚔️</div>}
                 </div>
-              </div>
-            </Card>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-secondary/20 p-4 rounded-xl border border-white/5 text-center">
-                <Castle className="w-5 h-5 text-yellow-500 mx-auto mb-2" />
-                <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">TOWER CONTROL</p>
-                <p className="text-lg font-headline font-bold text-white">{resolvedMatchData.scoreA || 0} : {resolvedMatchData.scoreB || 0}</p>
-              </div>
-              <div className="bg-secondary/20 p-4 rounded-xl border border-white/5 text-center">
-                <Target className="w-5 h-5 text-accent mx-auto mb-2" />
-                <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">TOURNAMENT</p>
-                <p className="text-lg font-headline font-bold text-white uppercase">{resolvedMatchData.type || 'league'}</p>
+                <h3 className="text-[11px] font-headline font-bold uppercase truncate text-white leading-tight">{resolvedMatchData.awayName}</h3>
               </div>
             </div>
-            <p className="text-[8px] text-center text-muted-foreground uppercase font-black animate-pulse pt-8 tracking-[0.3em]">
-              {currentSimulation.isTbdWin ? 'TECHNICAL WIN - CLICK TO ACKNOWLEDGE' : 'CLICK ANYWHERE TO START REPLAY'}
-            </p>
-          </div>
-        )}
-
-        {step === 'live' && (
-          <div className="space-y-4 animate-in slide-in-from-right-4 h-[60vh] flex flex-col">
-            <div className="flex justify-between items-center px-1 mb-2">
-               <Badge className="bg-blue-600 text-white text-[8px] font-black uppercase px-3">RECORDED STREAM</Badge>
-               <span className="text-[10px] font-mono font-bold text-primary">{currentSimulation.seriesScore}</span>
-            </div>
-            <div className="flex-1 overflow-y-auto space-y-3 pr-2 scrollbar-hide" ref={scrollRef}>
-              {visibleEvents.map((event, i) => (
-                <Card key={i} className="glass-card border-white/5 bg-secondary/10">
-                  <CardContent className="p-3 flex gap-4">
-                    <div className="w-12 shrink-0 flex flex-col items-center justify-center border-r border-white/5 pr-2">
-                      <div className="mb-1">{getEventIcon(event?.type)}</div>
-                      <span className="text-[9px] font-mono font-bold text-accent">{event?.time}</span>
-                    </div>
-                    <div className="flex-1 space-y-2">
-                      <p className="text-xs leading-relaxed text-muted-foreground italic">"{event?.event}"</p>
-                      {event?.score && <div className="flex justify-end"><Badge className="bg-black/40 text-[8px] font-mono font-bold text-white border-white/10">{event.score}</Badge></div>}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </div>
+          </Card>
         )}
 
         {step === 'stats' && (
           <div className="space-y-6 animate-in slide-in-from-right-4 pb-20">
             <div className="text-center py-6">
               <div className="flex items-center justify-center gap-2 mb-4 px-2">
-                {/* Home Team */}
-                <div className="flex flex-col items-center gap-2 flex-1 min-w-0">
-                  <div className="w-14 h-14 rounded-2xl bg-secondary/50 border border-white/5 flex items-center justify-center overflow-hidden p-2 shrink-0 shadow-lg">
-                    {displayHomeLogo ? <img src={displayHomeLogo} alt="" className="w-full h-full object-contain" /> : <Shield className="w-6 h-6 text-muted-foreground/30" />}
-                  </div>
-                  <p className="text-[9px] font-black uppercase truncate w-full text-center text-white/90 leading-tight">{resolvedMatchData.homeName}</p>
-                </div>
-
-                {/* Score */}
-                <div className="text-4xl font-headline font-black italic tracking-tighter flex items-center justify-center gap-2 text-white shrink-0 px-1">
-                  <span className={cn(resolvedMatchData.scoreA > resolvedMatchData.scoreB && "text-primary")}>{resolvedMatchData.scoreA}</span>
-                  <span className="opacity-20 text-2xl">:</span>
-                  <span className={cn(resolvedMatchData.scoreB > resolvedMatchData.scoreA && "text-primary")}>{resolvedMatchData.scoreB}</span>
-                </div>
-
-                {/* Away Team */}
-                <div className="flex flex-col items-center gap-2 flex-1 min-w-0">
-                  <div className="w-14 h-14 rounded-2xl bg-secondary/50 border border-white/5 flex items-center justify-center overflow-hidden p-2 shrink-0 shadow-lg">
-                    {displayAwayLogo ? <img src={displayAwayLogo} alt="" className="w-full h-full object-contain" /> : <Shield className="w-6 h-6 text-muted-foreground/30" />}
-                  </div>
-                  <p className="text-[9px] font-black uppercase truncate w-full text-center text-white/90 leading-tight">{resolvedMatchData.awayName}</p>
-                </div>
+                <span className="text-4xl font-headline font-black italic text-white">{resolvedMatchData.scoreA} : {resolvedMatchData.scoreB}</span>
               </div>
-              
-              <Badge className={cn(
-                "mt-2 text-[10px] font-black px-8 py-1 uppercase tracking-widest border-none", 
-                currentSimulation.isTbdWin ? "bg-green-500/20 text-green-400" : (isDraw ? "bg-secondary text-muted-foreground" : "bg-primary/20 text-primary")
-              )}>
+              <Badge className={cn("mt-2 text-[10px] font-black px-8 py-1 uppercase tracking-widest", currentSimulation.isTbdWin ? "bg-green-500/20 text-green-400" : (isDraw ? "bg-secondary" : "bg-primary/20 text-primary"))}>
                 {currentSimulation.isTbdWin ? 'TECHNICAL VICTORY' : (isDraw ? t.draw : `${t.victory} ${currentSimulation.winner}`)}
               </Badge>
             </div>
-            
-            {!currentSimulation.isTbdWin && (
-              <div data-stop-propagation="true" onClick={(e) => e.stopPropagation()}>
-                <Tabs defaultValue="map1" className="w-full">
-                  <TabsList className="bg-secondary/30 w-full grid grid-cols-2 h-12 p-1.5 rounded-2xl mb-6 shadow-lg" onClick={(e) => e.stopPropagation()}>
-                    <TabsTrigger value="map1" className="text-[10px] font-black uppercase rounded-xl" onClick={(e) => e.stopPropagation()}>
-                      {t.map} 1
-                    </TabsTrigger>
-                    <TabsTrigger value="map2" disabled={currentSimulation.games.length < 2} className="text-[10px] font-black uppercase rounded-xl" onClick={(e) => e.stopPropagation()}>
-                      {t.map} 2
-                    </TabsTrigger>
-                  </TabsList>
-                  {currentSimulation.games.map((game: any, idx: number) => (
-                    <TabsContent key={idx} value={`map${idx+1}`} className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
-                      <div className="grid grid-cols-2 gap-3">
-                         <div className="bg-background/40 p-4 rounded-2xl border border-white/5 flex flex-col items-center shadow-inner">
-                            <Castle className="w-5 h-5 text-yellow-500 mb-1" />
-                            <span className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">Destroyed Towers</span>
-                            <span className="text-xl font-headline font-bold text-white">{game.towersA} : {game.towersB}</span>
-                         </div>
-                         <div className="bg-background/40 p-4 rounded-2xl border border-white/5 flex flex-col items-center shadow-inner">
-                            <Activity className="w-5 h-5 text-accent mb-1" />
-                            <span className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">Forest Objectives</span>
-                            <span className="text-xl font-headline font-bold text-white">{game.objectivesA} : {game.objectivesB}</span>
-                         </div>
-                      </div>
-                      {renderStatsTable(game)}
-                    </TabsContent>
-                  ))}
-                </Tabs>
-              </div>
-            )}
-
-            {currentSimulation.isTbdWin && (
-               <div className="mt-8">
-                 {renderStatsTable({})}
-               </div>
-            )}
-
-            <div className="pt-10" data-stop-propagation="true">
-               <Button className="w-full h-16 hero-gradient font-black text-sm tracking-widest uppercase shadow-2xl active:scale-95 transition-all rounded-2xl" onClick={() => handleNext()}>
-                 <Check className="w-5 h-5 mr-2" /> {t.accept}
-               </Button>
-            </div>
+            {currentSimulation.games.map((game: any, idx: number) => (
+              <div key={idx} className="mt-4">{renderStatsTable(game)}</div>
+            ))}
           </div>
         )}
-      </div>
-
-      <div className="fixed bottom-0 left-0 right-0 z-50 bg-background/90 backdrop-blur-xl border-t border-white/10 h-24 flex items-center px-6">
-        <div className="w-full max-md mx-auto flex gap-3" data-stop-propagation="true">
-          <Button variant="outline" className="flex-1 h-12 uppercase font-black text-[10px] border-white/10 rounded-xl" onClick={(e) => { e.stopPropagation(); router.push('/reports'); }}>{t.exit}</Button>
-          <Button className="flex-[2] h-12 hero-gradient font-black text-[10px] uppercase shadow-xl rounded-xl" onClick={() => handleNext()}>
-            {step === 'stats' ? <Check className="w-4 h-4 mr-2" /> : <ArrowRight className="w-4 h-4 mr-2" />}
-            {step === 'preview' ? t.next : (step === 'live' ? t.skip : t.accept)}
-          </Button>
-        </div>
       </div>
     </div>
   );
 }
 
-export default function MatchPage() {
-  return <Suspense fallback={<LoadingScreen />}><MatchContent /></Suspense>;
-}
+export default function MatchPage() { return <Suspense fallback={<LoadingScreen />}><MatchContent /></Suspense>; }

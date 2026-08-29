@@ -11,7 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useGameState, LineupSlot } from '@/app/lib/store';
 import { getRandomStartingSquad } from '@/app/lib/moba-data';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
-import { findStrategicPlacement, initializeClubV11 } from '@/app/actions/season-init';
+import { findStrategicPlacement, initializeClubV12 } from '@/app/actions/season-init';
 import { useUser } from '@/firebase';
 import { cn } from '@/lib/utils';
 
@@ -83,8 +83,7 @@ export default function SetupPage() {
 
       const finalClubName = teamName.trim();
 
-      // Инициализация в players_v12
-      await initializeClubV11(user.uid, {
+      await initializeClubV12(user.uid, {
         tier: placement.tier,
         group: placement.group,
         rank: placement.rank,
@@ -108,10 +107,10 @@ export default function SetupPage() {
         lineup: initialLineup,
         isDataReady: true,
         isTeamLoaded: true,
-        version: 12
+        version: 120
       });
 
-      toast({ title: language === 'ru' ? "Клуб v12 инициализирован!" : "Club v12 Initialized!" });
+      toast({ title: language === 'ru' ? "Клуб v120 инициализирован!" : "Club v120 Initialized!" });
       router.replace('/');
     } catch (e: any) {
       console.error("[SETUP ERROR]:", e);

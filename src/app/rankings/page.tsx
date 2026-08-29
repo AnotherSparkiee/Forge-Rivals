@@ -48,7 +48,7 @@ export default function RankingsPage() {
   const tableId = `table_S${seasonNumber}_L${contextLeagueId}_V${contextLevel}_G${contextGroup}`;
   const tableRef = useMemoFirebase(() => {
     if (!db || !isLoaded) return null;
-    return doc(db, 'league_tables_v1', tableId);
+    return doc(db, 'league_tables_v2', tableId);
   }, [db, tableId, isLoaded]);
 
   const { data: tableData, isLoading: isTableLoading } = useDoc(tableRef);

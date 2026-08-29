@@ -1,8 +1,8 @@
 'use server';
 
 /**
- * @fileOverview ГЛОБАЛЬНЫЙ АВТОНОМНЫЙ ДВИГАТЕЛЬ ЛИГИ v2.6 (V12 RESET).
- * Обрабатывает матчи. Целевая коллекция: players_v12.
+ * @fileOverview ГЛОБАЛЬНЫЙ АВТОНОМНЫЙ ДВИГАТЕЛЬ ЛИГИ v120 (V2 COLLECTIONS).
+ * Обрабатывает матчи в новых коллекциях v2.
  */
 
 import { 
@@ -45,13 +45,12 @@ export async function resolveDailyMatches() {
   const info = getGlobalSeasonInfo();
   const currentSeason = info.activeSeasonNumber;
   
-  // Проверяем готовность мира по протоколу v116 (Чистый старт)
-  const repairStatusRef = doc(db, 'system_v1', `repair_v116_S${currentSeason}_LALPHA`);
+  const repairStatusRef = doc(db, 'system_v1', `repair_v120_S${currentSeason}_LALPHA`);
   const repairSnap = await getDoc(repairStatusRef);
   const isRepairComplete = repairSnap.exists() && repairSnap.data().phase === 'COMPLETED';
 
   if (!isRepairComplete) {
-    console.log(`[HEARTBEAT] World v12 not ready for S${currentSeason}. Running reset v116.`);
+    console.log(`[HEARTBEAT] World v2 not ready for S${currentSeason}. Running reset v120.`);
     const repairResult = await runGlobalEmergencyRepair();
     return { success: true, status: "INITIALIZING_WORLD", details: repairResult.status };
   }
@@ -59,7 +58,7 @@ export async function resolveDailyMatches() {
   if (info.isOffseason) return { success: true, count: 0, msg: "Offseason: matches paused" };
 
   const q = query(
-    collection(db, 'matches_v1'),
+    collection(db, 'matches_v2'),
     where('season', '==', currentSeason),
     where('tour', '==', info.dayOfCycle),
     where('isFinished', '==', false),
@@ -74,18 +73,17 @@ export async function resolveDailyMatches() {
 
   for (const matchDoc of snap.docs) {
     const m = matchDoc.data();
-    // Двойной круг: Ранги используются для детерминированного исхода
     const [sA, sB] = getMatchResult(m.homeRank, m.awayRank, m.level, m.groupId, m.season, m.tour);
     const winnerId = sA > sB ? (m.homeId || null) : (sB > sA ? (m.awayId || null) : null);
 
     await batcher.update(matchDoc.ref, {
       scoreA: sA, scoreB: sB, winnerId,
       status: 'finished', isFinished: true,
-      resolvedAt: serverTimestamp(), version: 116
+      resolvedAt: serverTimestamp(), version: 120
     });
 
     const tableId = `table_S${currentSeason}_L${m.leagueId}_V${m.level}_G${m.groupId}`;
-    const tableRef = doc(db, 'league_tables_v1', tableId);
+    const tableRef = doc(db, 'league_tables_v2', tableId);
     
     const statsUpdate: any = {};
     if (m.homeId) {

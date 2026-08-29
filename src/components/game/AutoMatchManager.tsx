@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useRef } from 'react';
@@ -8,9 +7,8 @@ import { useFirestore, useUser } from '@/firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 
 /**
- * КЛИЕНТСКИЙ СИНХРОНИЗАТОР v19.0 (Pure Passive Sync)
- * Больше не запускает логику расчетов. Только синхронизирует локальное состояние
- * с результатами, которые серверный CRON уже записал в БД.
+ * КЛИЕНТСКИЙ СИНХРОНИЗАТОР v120 (V2 COLLECTIONS)
+ * Синхронизирует локальное состояние с данными из matches_v2.
  */
 export function AutoMatchManager() {
   const { 
@@ -23,8 +21,6 @@ export function AutoMatchManager() {
   const db = useFirestore();
   const syncStartedRef = useRef<string | null>(null);
 
-  // СИНХРОНИЗАЦИЯ КАЛЕНДАРЯ
-  // Загружает матчи вашей группы, чтобы в интерфейсе всегда были актуальные счета и расписание
   useEffect(() => {
     if (!isLoaded || !db || !selectedLeagueId || !user) {
       if (isLoaded && !user) setWorldReady(true);
@@ -33,15 +29,15 @@ export function AutoMatchManager() {
     
     const info = getGlobalSeasonInfo();
     const currentSeason = info.activeSeasonNumber;
-    const currentContext = `${selectedLeagueId}_L${leagueLevel}_G${groupId}_S${currentSeason}`;
+    const currentContext = `${selectedLeagueId}_L${leagueLevel}_G${groupId}_S${currentSeason}_v120`;
     
     if (syncStartedRef.current !== currentContext) {
       syncStartedRef.current = currentContext;
 
       const syncMatches = async () => {
         try {
-          console.log(`[PASSIVE SYNC] Loading group calendar for ${currentContext}`);
-          const q = query(collection(db, 'matches_v1'), 
+          console.log(`[PASSIVE SYNC] Loading group calendar for ${currentContext} (v2)`);
+          const q = query(collection(db, 'matches_v2'), 
             where('leagueId', '==', selectedLeagueId),
             where('level', '==', leagueLevel),
             where('groupId', '==', groupId),
