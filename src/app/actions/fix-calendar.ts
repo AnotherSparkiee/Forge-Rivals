@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -11,7 +12,7 @@ import {
 } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
-import { initializeLeagueWorld } from './world-engine';
+import { initializeLeagueWorld, TOTAL_GROUPS } from './world-engine';
 
 const DELETE_BATCH_SIZE = 500; 
 
@@ -112,7 +113,12 @@ export async function runGlobalEmergencyRepair() {
       }, { merge: true });
       return { status: 'ALL_COMPLETE', msg: "Universe v120 built in V2 collections. No old records visible." };
     }
-    return { status: 'BUILDING_WORLD_V2', currentIndex: worldRes.currentIndex };
+    return { 
+      status: 'BUILDING_WORLD_V2', 
+      currentIndex: worldRes.currentIndex,
+      total: TOTAL_GROUPS,
+      progress: `${Math.round((worldRes.currentIndex / TOTAL_GROUPS) * 100)}%`
+    };
   }
 
   return { status: 'UNKNOWN' };

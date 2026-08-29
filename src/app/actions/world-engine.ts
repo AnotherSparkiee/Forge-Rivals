@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -6,6 +7,7 @@
  * 1. Использует новые коллекции v2 для мгновенной изоляции от старых данных.
  * 2. Одна группа = один коммит батча (58 операций).
  * 3. Создает только ботов (8 на группу).
+ * 4. Оптимизирован для быстрой постройки 511 групп.
  */
 
 import { 
@@ -21,8 +23,8 @@ import {
 } from '@/app/lib/leagues-data';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 
-const TOTAL_GROUPS = 511; 
-const GROUPS_TO_CREATE_PER_CALL = 20; 
+export const TOTAL_GROUPS = 511; 
+const GROUPS_TO_CREATE_PER_CALL = 40; // Увеличено для скорости
 
 function getGroupCoordinates(index: number) {
   if (index < 1) return { tier: 1, group: 1 };
