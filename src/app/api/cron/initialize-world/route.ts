@@ -3,9 +3,11 @@ import { runGlobalEmergencyRepair } from '@/app/actions/fix-calendar';
 
 /**
  * @fileOverview Единственная точка входа для подготовки мира.
- * Вызывается Cloud Scheduler постоянно (каждые 30-60 сек).
- * Управляет постройкой групп и расстановкой игроков в зависимости от фазы.
+ * Вызывается Cloud Scheduler.
+ * Установлен увеличенный лимит выполнения для монолитной постройки мира v131.
  */
+
+export const maxDuration = 300; // 5 минут (стандартный максимум для Vercel/Firebase)
 
 export async function GET(request: Request) {
   const authHeader = request.headers.get('authorization');

@@ -6,6 +6,7 @@
  * 1. Использование префикса v131 в ID документов для изоляции.
  * 2. Гарантия 8 ботов в каждой группе.
  * 3. Атомарность группы и чекпойнта.
+ * 4. Увеличен лимит для монолитной постройки (511 групп за вызов).
  */
 
 import { 
@@ -22,7 +23,7 @@ import {
 } from '@/app/lib/leagues-data';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 
-const GROUPS_TO_CREATE_PER_CALL = 100; 
+const GROUPS_TO_CREATE_PER_CALL = 511; // Пытаемся построить всё за один проход
 
 function getGroupCoordinates(index: number) {
   if (index < 1) return { tier: 1, group: 1 };
@@ -51,7 +52,6 @@ function injectGroupData(
   group: number, 
   seasonNum: number
 ) {
-  // КЛЮЧЕВОЕ ИЗМЕНЕНИЕ v131: префикс в ID таблицы
   const tableId = `table_v131_S${seasonNum}_L${leagueId}_V${tier}_G${group}`;
   const tableRef = doc(db, 'league_tables_v2', tableId);
   
@@ -78,7 +78,6 @@ function injectGroupData(
 
   const calendar = generateSeasonCalendar(teamsForCalendar, seasonNum, leagueId);
   for (const m of calendar) {
-    // КЛЮЧЕВОЕ ИЗМЕНЕНИЕ v131: префикс в ID матча
     const mId = `match_v131_S${seasonNum}_L${leagueId}_V${tier}_G${group}_T${m.tour}_R${m.homeRank}_vs_R${m.awayRank}`;
     batch.set(doc(db, 'matches_v2', mId), {
       ...m,
@@ -107,6 +106,7 @@ export async function createGroupStructure(
 
 /**
  * Инициализация мира v131. Проходит по всем 511 группам.
+ * Теперь поддерживает длительное выполнение.
  */
 export async function initializeLeagueWorld(leagueId: string, targetSeason?: number) {
   const { firestore: db } = initializeFirebase();
@@ -128,24 +128,38 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
 
   let processedInThisCall = 0;
 
+  // Цикл постройки: каждая группа — отдельный коммит
   while (processedInThisCall < GROUPS_TO_CREATE_PER_CALL && currentIndex < TOTAL_GROUPS) {
     const nextIndex = currentIndex + 1;
     const coords = getGroupCoordinates(nextIndex);
     
-    const batch = writeBatch(db);
+    // Проверка существования (защита от гонок)
+    const tableId = `table_v131_S${seasonNum}_L${leagueId}_V${coords.tier}_G${coords.group}`;
+    const tableSnap = await getDoc(doc(db, 'league_tables_v2', tableId));
     
-    // Создаем группу v131
-    injectGroupData(batch, db, leagueId, coords.tier, coords.group, seasonNum);
+    if (!tableSnap.exists()) {
+      const batch = writeBatch(db);
+      injectGroupData(batch, db, leagueId, coords.tier, coords.group, seasonNum);
+      
+      // Обновляем прогресс в этом же батче
+      batch.set(statusRef, {
+        currentIndex: nextIndex,
+        status: nextIndex >= TOTAL_GROUPS ? 'completed' : 'processing',
+        updatedAt: serverTimestamp(),
+        version: 131
+      }, { merge: true });
 
-    // Обновляем прогресс в этом же батче
-    batch.set(statusRef, {
-      currentIndex: nextIndex,
-      status: nextIndex >= TOTAL_GROUPS ? 'completed' : 'processing',
-      updatedAt: serverTimestamp(),
-      version: 131
-    }, { merge: true });
+      await batch.commit();
+    } else {
+      // Группа уже есть, просто двигаем счетчик прогресса
+      await setDoc(statusRef, {
+        currentIndex: nextIndex,
+        status: nextIndex >= TOTAL_GROUPS ? 'completed' : 'processing',
+        updatedAt: serverTimestamp(),
+        version: 131
+      }, { merge: true });
+    }
 
-    await batch.commit();
     currentIndex = nextIndex;
     processedInThisCall++;
   }

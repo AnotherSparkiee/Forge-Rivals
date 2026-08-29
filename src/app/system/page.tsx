@@ -33,18 +33,18 @@ export default function SystemPage() {
   
   const { data: players, isLoading: isPlayersLoading } = useCollection(playersQuery);
 
-  // Запрос статуса инициализации мира
+  // Запрос статуса инициализации мира (v131)
   const initStatusRef = useMemoFirebase(() => {
     if (!db || !selectedLeagueId) return null;
-    return doc(db, 'system_v1', `init_S${seasonNumber}_L${selectedLeagueId}`);
+    return doc(db, 'system_v1', `init_v131_S${seasonNumber}_L${selectedLeagueId}`);
   }, [db, selectedLeagueId, seasonNumber]);
 
   const { data: initStatus } = useDoc(initStatusRef);
 
-  // Запрос статуса ремонта v130
+  // Запрос статуса ремонта v131
   const repairStatusRef = useMemoFirebase(() => {
     if (!db || !selectedLeagueId) return null;
-    return doc(db, 'system_v1', `repair_v130_S${seasonNumber}_L${selectedLeagueId}`);
+    return doc(db, 'system_v1', `repair_v131_S${seasonNumber}_L${selectedLeagueId}`);
   }, [db, selectedLeagueId, seasonNumber]);
 
   const { data: repairStatus } = useDoc(repairStatusRef);
@@ -62,13 +62,13 @@ export default function SystemPage() {
   }, [players]);
 
   const worldProgress = initStatus?.currentIndex || 0;
-  const isWorldReady = initStatus?.status === 'completed' && initStatus?.version === 130;
+  const isWorldReady = initStatus?.status === 'completed' && initStatus?.version === 131;
   const currentPhase = repairStatus?.phase || 'INITIALIZING';
 
   const t = {
     ru: { 
       title: "СИСТЕМА", 
-      subtitle: "Параметры и сетевая статистика (v130)",
+      subtitle: "Параметры и сетевая статистика (v131)",
       status: "Статус сети",
       online: "Игроков онлайн",
       registered: "Зарегистрировано",
@@ -84,14 +84,14 @@ export default function SystemPage() {
       loading: "Синхронизация...",
       hostId: "ID хоста",
       worldStatus: "Состояние мира",
-      building: "Постройка пирамиды v13...",
-      ready: "Мир v130 полностью готов",
+      building: "Постройка пирамиды v131...",
+      ready: "Мир v131 полностью готов",
       forceBuild: "ФОРСИРОВАТЬ ПОСТРОЙКУ МИРА",
-      forceDesc: "Нажмите для ускорения создания 511 групп"
+      forceDesc: "Нажмите для запуска монолитного цикла (511 групп)"
     },
     en: { 
       title: "SYSTEM", 
-      subtitle: "Parameters and network metrics (v130)",
+      subtitle: "Parameters and network metrics (v131)",
       status: "Network Status",
       online: "Online Managers",
       registered: "Total Registered",
@@ -107,10 +107,10 @@ export default function SystemPage() {
       loading: "Syncing...",
       hostId: "Host ID",
       worldStatus: "World Integrity",
-      building: "Building Pyramid v13...",
-      ready: "World v130 Ready",
+      building: "Building Pyramid v131...",
+      ready: "World v131 Ready",
       forceBuild: "FORCE WORLD BUILD",
-      forceDesc: "Click to accelerate creation of 511 groups"
+      forceDesc: "Click to launch monolithic build cycle (511 groups)"
     }
   }[language === 'ru' ? 'ru' : 'en'];
 
@@ -120,11 +120,12 @@ export default function SystemPage() {
     try {
       const res = await runGlobalEmergencyRepair();
       toast({ 
-        title: language === 'ru' ? "Цикл постройки запущен" : "Build Cycle Initiated",
+        title: language === 'ru' ? "Монолитный цикл запущен" : "Monolithic Cycle Initiated",
         description: `Status: ${res.status} | Progress: ${res.progress || 'N/A'}`
       });
     } catch (e) {
       console.error(e);
+      toast({ variant: "destructive", title: "Build Error", description: "Request timed out or failed. Check console." });
     } finally {
       setIsBuilding(false);
     }
@@ -275,9 +276,9 @@ export default function SystemPage() {
 
         <div className="p-6 bg-primary/5 rounded-2xl border border-dashed border-white/10 text-center opacity-30">
           <Info className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
-          <p className="text-[8px] font-black uppercase tracking-widest">{t.hostId}: v130-UNIVERSE-ARCHITECT</p>
-          <p className="text-[7px] uppercase font-bold text-muted-foreground mt-1">Реестр: v13.0.1</p>
-          <Badge variant="outline" className="text-[8px] border-green-500/30 text-green-400 font-black uppercase tracking-widest mt-2">AUTONOMOUS_CYCLE_ACTIVE</Badge>
+          <p className="text-[8px] font-black uppercase tracking-widest">{t.hostId}: v131-UNIVERSE-ARCHITECT</p>
+          <p className="text-[7px] uppercase font-bold text-muted-foreground mt-1">Реестр: v13.1.0</p>
+          <Badge variant="outline" className="text-[8px] border-green-500/30 text-green-400 font-black uppercase tracking-widest mt-2">MONOLITHIC_CYCLE_ACTIVE</Badge>
         </div>
       </div>
     </div>
