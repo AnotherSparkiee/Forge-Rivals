@@ -1,10 +1,9 @@
-
 'use client';
 
 /**
- * Глобальное локальное хранилище v224 (Hybrid Firestore-Local Sync).
- * Теперь данные не только сохраняются локально, но и автоматически
- * синхронизируются с профилем игрока в Firestore (players_v11).
+ * Глобальное локальное хранилище v225 (Atomic Reset Support).
+ * Теперь при смене версии (NUCLEAR RESET) локальная история матчей 
+ * автоматически очищается.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useMemo } from 'react';
@@ -126,7 +125,7 @@ interface GameState {
   saveToLocal: (state: Partial<GameState>) => void;
 }
 
-const STORAGE_KEY = 'lote_game_state_v224';
+const STORAGE_KEY = 'lote_game_state_v225';
 
 const DEFAULT_STATE: GameState = {
   credits: 1000000, crystals: 50, experiencePoints: 0, managerLevel: 1,
@@ -146,7 +145,7 @@ const DEFAULT_STATE: GameState = {
   arena: { capacity: 5000 }, hq: {}, bootcamp: {}, academy: {}, medical: {},
   country: null, isPremium: false, premiumUntil: null, activeSeasonNumber: 1, seasonNumber: 1, seasonDay: 1, isSyncing: false, language: 'ru',
   isDataReady: false, allSeasonMatches: [], nextMatch: null, isMatchesLoading: true,
-  lastProcessedSeason: 0, trophies: [], version: 224,
+  lastProcessedSeason: 0, trophies: [], version: 225,
   availableGiftsToSend: [], receivedGifts: [], lastGiftGenDate: null,
   addCrystals: () => {}, addCredits: () => {}, updatePlayer: () => {}, removePlayer: () => {}, assignToRole: () => {}, updateLineup: () => {}, updateTactics: () => {},
   claimReward: () => {}, setLanguage: () => {}, purchaseLicense: () => false, purchasePremium: () => false,
@@ -191,6 +190,14 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       try {
         const parsed = JSON.parse(saved);
         
+        // NUCLEAR RESET: Если версия в сторе ниже 225, очищаем историю матчей
+        if (parsed.version < 225) {
+          parsed.matchHistory = [];
+          parsed.lastSeenMatchDay = 0;
+          parsed.trophies = [];
+          parsed.version = 225;
+        }
+
         // Принудительный сброс если ID не совпадает с UID Firebase
         if (user && parsed.id && parsed.id !== user.uid) {
           setState(prev => ({

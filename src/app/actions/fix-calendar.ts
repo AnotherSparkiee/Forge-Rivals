@@ -1,8 +1,8 @@
 'use server';
 
 /**
- * Скрипт-синхронизатор v111 (Autonomous Global Reseeder).
- * Реализует строго последовательный цикл: NUCLEAR_WIPE -> INIT_WORLD -> RESEED_PLAYERS.
+ * Скрипт-синхронизатор v112 (Universal Global Reseeder).
+ * Реализует строго последовательный цикл: NUCLEAR_WIPE (Total) -> INIT_WORLD -> RESEED_PLAYERS.
  */
 
 import { 
@@ -23,8 +23,8 @@ export async function runGlobalEmergencyRepair() {
   const seasonNum = info.activeSeasonNumber;
   const leagueId = "ALPHA";
 
-  // Документ состояния ремонта v111
-  const repairStatusRef = doc(db, 'system_v1', `repair_v111_S${seasonNum}_L${leagueId}`);
+  // Документ состояния ремонта v112 (Новая версия для тотальной очистки)
+  const repairStatusRef = doc(db, 'system_v1', `repair_v112_S${seasonNum}_L${leagueId}`);
   const repairSnap = await getDoc(repairStatusRef);
   const repairData = repairSnap.exists() ? repairSnap.data() : { phase: 'NUCLEAR_WIPE', status: 'processing' };
 
@@ -32,34 +32,34 @@ export async function runGlobalEmergencyRepair() {
     return { status: 'ALL_READY', msg: 'World is fully initialized.' };
   }
 
-  console.log(`[AUTONOMOUS REPAIR] v111, Phase: ${repairData.phase}`);
+  console.log(`[AUTONOMOUS REPAIR] v112, Phase: ${repairData.phase}`);
 
   /**
    * ФАЗА 1: NUCLEAR_WIPE
-   * Удаление старых данных и сброс ВСЕХ игроков.
+   * Тотальное удаление ВСЕХ данных в турнирных коллекциях и сброс игроков.
    */
   if (repairData.phase === 'NUCLEAR_WIPE') {
-    // 1. Удаление таблиц S1
-    const tablesQ = query(collection(db, 'league_tables_v1'), where('season', '==', 1), limit(DELETE_BATCH_SIZE));
+    // 1. Удаление ВСЕХ таблиц (без фильтра по сезону для гарантии чистоты)
+    const tablesQ = query(collection(db, 'league_tables_v1'), limit(DELETE_BATCH_SIZE));
     const tSnap = await getDocs(tablesQ);
     if (!tSnap.empty) {
       const batch = writeBatch(db);
       tSnap.docs.forEach(d => batch.delete(d.ref));
       await batch.commit();
-      return { status: 'WIPING_TABLES', deleted: tSnap.size, msg: "Step 1: Cleaning old league tables..." };
+      return { status: 'WIPING_TABLES', deleted: tSnap.size, msg: "Step 1: Cleaning ALL old league tables..." };
     }
 
-    // 2. Удаление матчей S1
-    const matchesQ = query(collection(db, 'matches_v1'), where('season', '==', 1), limit(DELETE_BATCH_SIZE));
+    // 2. Удаление ВСЕХ матчей
+    const matchesQ = query(collection(db, 'matches_v1'), limit(DELETE_BATCH_SIZE));
     const mSnap = await getDocs(matchesQ);
     if (!mSnap.empty) {
       const batch = writeBatch(db);
       mSnap.docs.forEach(d => batch.delete(d.ref));
       await batch.commit();
-      return { status: 'WIPING_MATCHES', deleted: mSnap.size, msg: "Step 1: Cleaning match calendar (sequential wipe)..." };
+      return { status: 'WIPING_MATCHES', deleted: mSnap.size, msg: "Step 1: Cleaning match calendar (this may take 60-80 cycles)..." };
     }
 
-    // 3. Тотальный сброс игроков (безопасный обход через createdAt)
+    // 3. Тотальный сброс игроков
     let playersResetQ = query(
       collection(db, 'players_v11'),
       orderBy('createdAt', 'asc'),
@@ -78,22 +78,16 @@ export async function runGlobalEmergencyRepair() {
     const pSnap = await getDocs(playersResetQ);
     if (!pSnap.empty) {
       const batch = writeBatch(db);
-      let needsResetCount = 0;
       pSnap.docs.forEach(d => {
-        const p = d.data();
-        // Сбрасываем только если есть что сбрасывать или сезон не 0
-        if (p.leagueLevel !== null || p.lastProcessedSeason !== 0) {
-          batch.update(d.ref, {
-            leagueLevel: null,
-            groupId: null,
-            rank: null,
-            targetLevel: null,
-            targetGroup: null,
-            targetRank: null,
-            lastProcessedSeason: 0
-          });
-          needsResetCount++;
-        }
+        batch.update(d.ref, {
+          leagueLevel: null,
+          groupId: null,
+          rank: null,
+          targetLevel: null,
+          targetGroup: null,
+          targetRank: null,
+          lastProcessedSeason: 0
+        });
       });
       
       const lastResetId = pSnap.docs[pSnap.docs.length - 1].data().createdAt;
@@ -109,11 +103,11 @@ export async function runGlobalEmergencyRepair() {
     await setDoc(repairStatusRef, { 
       phase: 'INIT_WORLD', 
       status: 'processing',
-      lastResetId: null, // очистка для следующего раза
+      lastResetId: null,
       updatedAt: serverTimestamp()
     }, { merge: true });
 
-    return { status: 'WIPE_COMPLETE', next: 'INIT_WORLD', msg: "Step 1 complete. Starting world reconstruction." };
+    return { status: 'WIPE_COMPLETE', next: 'INIT_WORLD', msg: "Step 1 complete. Starting atomic world construction." };
   }
 
   /**
