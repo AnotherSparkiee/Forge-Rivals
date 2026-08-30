@@ -70,6 +70,9 @@ function getGroupCoordinates(index: number) {
   return { tier: 9, group: 256 };
 }
 
+/**
+ * Внутренняя функция для инъекции данных группы.
+ */
 async function injectGroupData(
   writer: ClientBulkWriter, 
   db: Firestore, 
@@ -119,6 +122,24 @@ async function injectGroupData(
   }
 }
 
+/**
+ * Создает структуру одной конкретной группы.
+ */
+export async function createGroupStructure(
+  db: Firestore, 
+  leagueId: string, 
+  tier: number, 
+  group: number, 
+  seasonNum: number
+) {
+  const writer = new ClientBulkWriter(db);
+  await injectGroupData(writer, db, leagueId, tier, group, seasonNum);
+  return await writer.close();
+}
+
+/**
+ * Глобальный процесс инициализации мира по порциям.
+ */
 export async function initializeLeagueWorld(leagueId: string, targetSeason?: number) {
   const { firestore: db } = initializeFirebase();
   const info = getGlobalSeasonInfo();

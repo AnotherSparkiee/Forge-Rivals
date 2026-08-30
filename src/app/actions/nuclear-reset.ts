@@ -12,7 +12,7 @@ import {
 import { initializeFirebase } from '@/firebase';
 
 const DELETE_BATCH_SIZE = 500;
-const BATCHES_PER_CALL = 6; // Удаляем до 3000 доков за вызов
+const BATCHES_PER_CALL = 4; // Снижено до 4 для предотвращения таймаутов
 
 export async function totalNuclearResetV131() {
   const { firestore: db } = initializeFirebase();
