@@ -1,8 +1,9 @@
+
 'use server';
 
 /**
- * Скрипт "Ядерной очистки" v132 (Safe Multi-Collection Purge).
- * Исправлена логика завершения цикла для предотвращения бесконечного вращения в UI.
+ * Скрипт "Ядерной очистки" v133 (High-Speed Multi-Batch Purge).
+ * Увеличена скорость удаления до 1500 доков за один вызов.
  */
 
 import { 
@@ -12,12 +13,13 @@ import {
 import { initializeFirebase } from '@/firebase';
 
 const DELETE_BATCH_SIZE = 500;
+const BATCHES_PER_CALL = 3; // Удаляем до 1500 доков за один вызов
 
 export async function totalNuclearResetV131() {
   const { firestore: db } = initializeFirebase();
-  console.log("[NUCLEAR v132] Initiating Deep Purge...");
+  console.log("[NUCLEAR v133] Initiating High-Speed Purge...");
 
-  // 1. ПРИНУДИТЕЛЬНОЕ УДАЛЕНИЕ СИСТЕМНЫХ ФЛАГОВ
+  // 1. ПРИНУДИТЕЛЬНОЕ УДАЛЕНИЕ СИСТЕМНЫХ ФЛАГОВ (Первый приоритет)
   const systemDocs = [
     'repair_v131_S1_LALPHA',
     'init_v131_S1_LALPHA',
@@ -41,28 +43,35 @@ export async function totalNuclearResetV131() {
     'friend_requests_v4', 
     'private_messages_v3',
     'cup_matches',
-    'notifications_v7'
+    'notifications_v7',
+    'cup_pyramid_v1'
   ];
   
   let totalDeletedInThisCall = 0;
 
-  for (const coll of colls) {
-    // Берем пачку документов из текущей коллекции
-    const q = query(collection(db, coll), limit(DELETE_BATCH_SIZE));
-    const snap = await getDocs(q);
+  // Цикл по пачкам для ускорения (до 3-х батчей по 500)
+  for (let b = 0; b < BATCHES_PER_CALL; b++) {
+    let batchDeleted = 0;
     
-    if (!snap.empty) {
-      const batch = writeBatch(db);
-      snap.docs.forEach(d => batch.delete(d.ref));
-      await batch.commit();
+    for (const coll of colls) {
+      const q = query(collection(db, coll), limit(DELETE_BATCH_SIZE));
+      const snap = await getDocs(q);
       
-      totalDeletedInThisCall += snap.size;
-      // Прерываем цикл по коллекциям, чтобы ответить серверу и не получить таймаут
-      break; 
+      if (!snap.empty) {
+        const batch = writeBatch(db);
+        snap.docs.forEach(d => batch.delete(d.ref));
+        await batch.commit();
+        
+        batchDeleted = snap.size;
+        totalDeletedInThisCall += batchDeleted;
+        break; // Уходим на следующую итерацию BATCHES_PER_CALL
+      }
     }
+    
+    // Если после проверки всех коллекций мы ничего не нашли - выходим совсем
+    if (batchDeleted === 0) break;
   }
 
-  // Если за весь проход по всем коллекциям мы удалили 0 доков — значит база чиста
   const isComplete = totalDeletedInThisCall === 0;
 
   return { 

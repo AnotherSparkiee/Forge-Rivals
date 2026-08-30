@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -85,17 +86,16 @@ export default function RegisterPage() {
       const slug = slugify(trimmedUsername);
       const technicalEmail = `${slug}@${EMAIL_DOMAIN}`;
       
-      // We initiate sign up. The FirebaseProvider will pick up the user state.
-      initiateEmailSignUp(auth, technicalEmail, password);
-      
+      // We initiate sign up.
+      await initiateEmailSignUp(auth, technicalEmail, password);
       toast({ title: t.success });
-      // Redirect happens in useEffect
     } catch (error: any) {
       setIsProcessing(false);
+      const isEmailInUse = error.message?.includes('email-already-in-use') || error.code === 'auth/email-already-in-use';
       toast({ 
         variant: "destructive", 
-        title: "Registration Failed", 
-        description: error.message === 'auth/email-already-exists' ? t.errorExists : error.message 
+        title: language === 'ru' ? "Ошибка инициации" : "Initialization Failed", 
+        description: isEmailInUse ? t.errorExists : (error.message || "Unknown Error")
       });
     }
   };
