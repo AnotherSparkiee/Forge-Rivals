@@ -7,21 +7,19 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { 
   ChevronLeft, Settings, Users, ShieldCheck, 
-  Loader2, Zap, RefreshCw, Globe, 
-  ShieldAlert, AlertTriangle, Construction, 
-  Trash2, Play, Trophy, Database,
-  ChevronRight, CalendarCheck
+  Loader2, Zap, Globe, 
+  Construction, Trash2, Database,
+  ChevronRight, AlertTriangle
 } from 'lucide-react';
 import Link from 'next/link';
 import { useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
 import { collection, query, doc } from 'firebase/firestore';
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { TOTAL_GROUPS } from '../lib/leagues-data';
-import { runGlobalEmergencyRepair } from '../actions/fix-calendar';
+import { initializeLeagueWorld } from '../actions/world-engine';
 import { totalNuclearResetV131 } from '../actions/nuclear-reset';
-import { resolveDailyMatches, performSeasonTransition } from '../actions/autonomous-cycle';
-import { generatePyramidCup } from '../actions/cup-engine';
+import { resolveDailyMatches } from '../actions/autonomous-cycle';
 import { useToast } from '@/hooks/use-toast';
 import {
   Dialog,
@@ -36,12 +34,9 @@ export default function SystemPage() {
   const db = useFirestore();
   const { toast } = useToast();
   
-  const [isBuilding, setIsBuilding] = useState(false);
-  const [autoPilot, setAutoPilot] = useState(false);
-  const [isNuclearActive, setIsNuclearActive] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showNuclearDialog, setShowNuclearDialog] = useState(false);
-  const [purgeStats, setPurgeStats] = useState({ total: 0, lastOp: 0 });
+  const [purgeStats, setPurgeStats] = useState({ total: 0 });
   
   const playersQuery = useMemoFirebase(() => db ? query(collection(db, 'players_v14')) : null, [db]);
   const { data: players } = useCollection(playersQuery);
@@ -67,93 +62,59 @@ export default function SystemPage() {
     ru: { 
       title: "СИСТЕМА", subtitle: "Параметры и сетевая статистика (v140)",
       status: "Статус сети", online: "Игроков онлайн", registered: "Зарегистрировано",
-      worldStatus: "Состояние мира", building: "Подготовка пирамиды к 31.08...", ready: "Мир v140 готов к старту",
-      forceBuild: "ФОРСИРОВАТЬ ПОСТРОЙКУ",
-      autoPilotOn: "АВТОПИЛОТ: ПОСТРОЙКА...",
-      nuclearStatus: "ИДЕТ ОЧИСТКА...",
+      worldStatus: "Состояние мира", building: "Подготовка пирамиды v140...", ready: "Мир v140 готов к старту",
+      forceBuild: "СОЗДАТЬ 8 ГРУПП",
       adminTitle: "ТЕРМИНАЛ АДМИНИСТРАТОРА",
-      nuclear: "ЯДЕРНЫЙ СБРОС v140", nuclearDesc: "Полное удаление данных сезона",
+      nuclear: "ЯДЕРНЫЙ СБРОС v140", nuclearDesc: "Удалить 2500 документов",
       resolve: "РАССЧИТАТЬ ТУР", resolveDesc: "Запустить расчет матчей",
-      cup: "ГЕНЕРАЦИЯ КУБКА", cupDesc: "Создать турнирную сетку",
-      transition: "СМЕНА СЕЗОНА", transitionDesc: "Запустить переход",
-      readyCheck: "ГОТОВНОСТЬ СЕЗОНА 1", readyCheckDesc: "Проверка запуска 31.08",
-      confirmNuclear: "ПОЛНОЕ УДАЛЕНИЕ", confirmNuclearDesc: "Все данные v140 будут стерты навсегда.",
-      btnConfirm: "УНИЧТОЖИТЬ", btnCancel: "ОТМЕНА"
+      confirmNuclear: "ПОЛНОЕ УДАЛЕНИЕ", confirmNuclearDesc: "Все данные v140 будут стерты порциями. Нажмите несколько раз для полной очистки.",
+      btnConfirm: "УНИЧТОЖИТЬ ПАЧКУ", btnCancel: "ОТМЕНА"
     },
     en: { 
       title: "SYSTEM", subtitle: "Parameters and network metrics (v140)",
       status: "Network Status", online: "Online Managers", registered: "Total Registered",
-      worldStatus: "World Integrity", building: "Preparing Pyramid for Aug 31...", ready: "World v140 Ready for Launch",
-      forceBuild: "FORCE WORLD BUILD",
-      autoPilotOn: "AUTOPILOT: BUILDING...",
-      nuclearStatus: "SYSTEM PURGING...",
+      worldStatus: "World Integrity", building: "Preparing Pyramid v140...", ready: "World v140 Ready for Launch",
+      forceBuild: "BUILD 8 GROUPS",
       adminTitle: "ADMIN TERMINAL",
-      nuclear: "NUCLEAR RESET v140", nuclearDesc: "Wipe all season data",
+      nuclear: "NUCLEAR RESET v140", nuclearDesc: "Purge 2500 documents",
       resolve: "RESOLVE DAILY", resolveDesc: "Trigger match calculation",
-      cup: "GENERATE CUP", cupDesc: "Create tournament bracket",
-      transition: "SEASON TRANSITION", transitionDesc: "Trigger promotion/relegation",
-      readyCheck: "SEASON 1 READY CHECK", readyCheckDesc: "Verify Aug 31 launch",
-      confirmNuclear: "FULL DELETION", confirmNuclearDesc: "All v140 data will be wiped permanently.",
-      btnConfirm: "WIPE ALL", btnCancel: "CANCEL"
+      confirmNuclear: "FULL DELETION", confirmNuclearDesc: "All v140 data will be wiped in batches. Click multiple times to clear all.",
+      btnConfirm: "WIPE BATCH", btnCancel: "CANCEL"
     }
   }[language === 'ru' ? 'ru' : 'en'];
 
-  useEffect(() => {
-    if (autoPilot && !isWorldReady && !isProcessing) {
-      const timer = setTimeout(() => handleAction('forceBuild'), 2500);
-      return () => clearTimeout(timer);
-    }
-  }, [autoPilot, isWorldReady, isProcessing]);
-
-  useEffect(() => {
-    if (isNuclearActive && !isProcessing) {
-      const timer = setTimeout(() => handleAction('nuclear'), 2000);
-      return () => clearTimeout(timer);
-    }
-  }, [isNuclearActive, isProcessing]);
-
   const handleAction = async (action: string) => {
-    if (isProcessing && action !== 'forceBuild' && action !== 'nuclear') return;
-
-    if (action === 'forceBuild') setIsBuilding(true);
-    else if (action === 'nuclear') setIsNuclearActive(true);
-    
+    if (isProcessing) return;
     setIsProcessing(true);
     
     try {
       if (action === 'nuclear') {
         const res = await totalNuclearResetV131();
-        if (!res?.success) throw new Error("Purge Action Failed");
-        
-        setPurgeStats(prev => ({ total: prev.total + res.deletedCount, lastOp: res.deletedCount }));
-        
+        if (!res?.success) throw new Error("Purge Failed");
+        setPurgeStats(prev => ({ total: prev.total + res.deletedCount }));
         if (res.isComplete) {
-          setIsNuclearActive(false);
-          toast({ title: "System Purged", description: `Total ${purgeStats.total + res.deletedCount} documents removed.` });
-          setTimeout(() => window.location.reload(), 2000);
+          toast({ title: "System Purged", description: "All versions (v11-v14) cleared." });
+        } else {
+          toast({ title: `Deleted ${res.deletedCount} docs`, description: "Continue purging until zero." });
         }
       }
       else if (action === 'forceBuild') {
-        const res = await runGlobalEmergencyRepair();
-        if (!res || res.status === 'UNKNOWN') throw new Error("Build Logic Failure");
-        if (res.status === 'ALL_READY') {
-          setAutoPilot(false);
+        const res = await initializeLeagueWorld(selectedLeagueId || "ALPHA", seasonNumber);
+        if (res?.status === 'COMPLETE') {
+          toast({ title: "Universe Complete", description: "511 groups initialized." });
+        } else {
+          toast({ title: `Batch Success`, description: `Progress: ${res?.currentIndex} / 511` });
         }
       }
       else if (action === 'resolve') {
         const res = await resolveDailyMatches();
         toast({ title: "Resolve Complete", description: res?.progress });
       }
-      else if (action === 'readyCheck') {
-        toast({ title: "Ready Check Pass", description: "Launch sequence set for Aug 31 18:00 MSK." });
-      }
     } catch (e: any) {
       console.warn("[ADMIN ACTION ERROR]:", e.message);
-      setAutoPilot(false);
-      setIsNuclearActive(false);
+      toast({ variant: "destructive", title: "Action Failed", description: e.message });
     } finally {
       setIsProcessing(false);
-      setIsBuilding(false);
       setShowNuclearDialog(false);
     }
   };
@@ -172,23 +133,15 @@ export default function SystemPage() {
         <section className="space-y-3">
           <div className="flex items-center justify-between px-1">
             <h2 className="text-[10px] font-black uppercase tracking-widest text-accent">{t.worldStatus}</h2>
-            {(autoPilot || isNuclearActive) && (
-              <Badge className={cn(
-                "animate-pulse text-[8px] font-black uppercase shadow-lg",
-                isNuclearActive ? "bg-red-600 text-white" : "bg-primary text-primary-foreground"
-              )}>
-                {isNuclearActive ? `${t.nuclearStatus} (${purgeStats.total})` : "AUTOPILOT ACTIVE"}
-              </Badge>
-            )}
           </div>
-          <Card className={cn("glass-card border-white/5 bg-secondary/10 overflow-hidden", (autoPilot || isNuclearActive) && "border-primary/30")}>
+          <Card className="glass-card border-white/5 bg-secondary/10 overflow-hidden">
             <CardContent className="p-4">
                <div className="flex items-center justify-between mb-3">
                  <div className="flex items-center gap-3">
-                   <div className={cn("p-2 rounded-lg bg-secondary/50", (!isWorldReady || autoPilot) ? "text-primary animate-pulse" : "text-green-400")}>
+                   <div className={cn("p-2 rounded-lg bg-secondary/50", isWorldReady ? "text-green-400" : "text-primary")}>
                      {isWorldReady ? <ShieldCheck className="w-5 h-5" /> : <Construction className="w-5 h-5" />}
                    </div>
-                   <p className="text-xs font-bold uppercase text-white">{isWorldReady ? t.ready : (autoPilot ? t.autoPilotOn : t.building)}</p>
+                   <p className="text-xs font-bold uppercase text-white">{isWorldReady ? t.ready : t.building}</p>
                  </div>
                  <p className="text-sm font-headline font-bold text-primary">{worldProgress} / {TOTAL_GROUPS}</p>
                </div>
@@ -197,15 +150,12 @@ export default function SystemPage() {
                </div>
                
                <Button 
-                className={cn(
-                  "w-full h-14 font-black text-xs uppercase mt-4 shadow-xl transition-all tracking-widest",
-                  autoPilot ? "bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20" : "hero-gradient"
-                )} 
-                onClick={() => setAutoPilot(!autoPilot)} 
-                disabled={isProcessing && !autoPilot}
+                className="w-full h-14 font-black text-xs uppercase mt-4 shadow-xl hero-gradient tracking-widest"
+                onClick={() => handleAction('forceBuild')} 
+                disabled={isProcessing || isWorldReady}
                >
-                  {isBuilding || autoPilot ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Zap className="w-5 h-5 mr-2" />} 
-                  {autoPilot ? (language === 'ru' ? 'ОСТАНОВИТЬ' : 'STOP AUTOPILOT') : t.forceBuild}
+                  {isProcessing ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Zap className="w-5 h-5 mr-2" />} 
+                  {t.forceBuild}
                </Button>
             </CardContent>
           </Card>
@@ -218,9 +168,12 @@ export default function SystemPage() {
               <CardContent className="p-4 flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <div className="p-2.5 rounded-xl bg-red-500/20 text-red-500">
-                    {isNuclearActive ? <Loader2 className="w-5 h-5 animate-spin" /> : <Trash2 className="w-5 h-5" />}
+                    {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Trash2 className="w-5 h-5" />}
                   </div>
-                  <div><h3 className="text-xs font-black uppercase text-white">{t.nuclear}</h3><p className="text-[8px] text-muted-foreground uppercase">{t.nuclearDesc}</p></div>
+                  <div>
+                    <h3 className="text-xs font-black uppercase text-white">{t.nuclear}</h3>
+                    <p className="text-[8px] text-muted-foreground uppercase">{t.nuclearDesc} (Всего: {purgeStats.total})</p>
+                  </div>
                 </div>
                 <ChevronRight className="w-4 h-4 text-red-500/40" />
               </CardContent>

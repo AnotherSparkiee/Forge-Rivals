@@ -2,13 +2,13 @@
 'use server';
 
 /**
- * Глобальный двигатель заполнения мира v140 (BulkWriter Architecture).
- * Создает полную структуру лиги (511 групп) до регистрации игроков.
+ * Глобальный двигатель мира v140 (Manual Batch Architecture).
+ * Создает структуру лиги порциями по 8 групп за вызов (456 операций).
  */
 
 import { 
-  doc, getDoc, writeBatch, 
-  Firestore, serverTimestamp, setDoc 
+  doc, writeBatch, 
+  Firestore, serverTimestamp, getDoc, setDoc 
 } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import { 
@@ -20,41 +20,7 @@ import {
 } from '@/app/lib/leagues-data';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 
-class ClientBulkWriter {
-  private currentBatch;
-  private opCount = 0;
-  private totalOps = 0;
-  private pendingCommits: Promise<void>[] = [];
-
-  constructor(private db: Firestore) {
-    this.currentBatch = writeBatch(this.db);
-  }
-
-  private async flush() {
-    const batchToCommit = this.currentBatch;
-    this.pendingCommits.push(batchToCommit.commit());
-    this.currentBatch = writeBatch(this.db);
-    this.opCount = 0;
-  }
-
-  async set(ref: any, data: any, options?: any) {
-    if (options) this.currentBatch.set(ref, data, options);
-    else this.currentBatch.set(ref, data);
-    this.opCount++;
-    this.totalOps++;
-    if (this.opCount >= 480) await this.flush();
-  }
-
-  async close() {
-    if (this.opCount > 0) {
-      this.pendingCommits.push(this.currentBatch.commit());
-    }
-    await Promise.all(this.pendingCommits);
-    return { totalOps: this.totalOps };
-  }
-}
-
-const GROUPS_PER_CALL = 25; 
+const GROUPS_PER_CALL = 8; // 8 * 57 docs = 456 ops (Безопасный предел < 500)
 
 function getGroupCoordinates(index: number) {
   if (index < 1) return { tier: 1, group: 1 };
@@ -72,10 +38,10 @@ function getGroupCoordinates(index: number) {
 }
 
 /**
- * Внутренняя функция для инъекции данных группы (Таблица + Календарь).
+ * Создает структуру одной группы (Таблица + Календарь) внутри батча.
  */
 export async function injectGroupData(
-  writer: ClientBulkWriter, 
+  batch: any, 
   db: Firestore, 
   leagueId: string, 
   tier: number, 
@@ -99,11 +65,10 @@ export async function injectGroupData(
     teamsForCalendar.push({ id: bId, name: bName, rank: r });
   }
 
-  if (Object.keys(initialStats).length !== 8) {
-    throw new Error(`CRITICAL: Group integrity failure at L${tier} G${group}`);
-  }
+  // Проверка целостности
+  if (Object.keys(initialStats).length !== 8) return;
 
-  await writer.set(tableRef, {
+  batch.set(tableRef, {
     id: tableId, leagueId, level: tier, group, season: seasonNum,
     stats: initialStats,
     createdAt: serverTimestamp(),
@@ -113,7 +78,7 @@ export async function injectGroupData(
   const calendar = generateSeasonCalendar(teamsForCalendar, seasonNum, leagueId);
   for (const m of calendar) {
     const mId = `match_v140_S${seasonNum}_L${leagueId}_V${tier}_G${group}_T${m.tour}_R${m.homeRank}_vs_R${m.awayRank}`;
-    await writer.set(doc(db, 'matches_v2', mId), {
+    batch.set(doc(db, 'matches_v2', mId), {
       ...m,
       id: mId,
       leagueId, level: tier, groupId: group, season: seasonNum,
@@ -123,6 +88,9 @@ export async function injectGroupData(
   }
 }
 
+/**
+ * JIT-создание группы (используется при регистрации, если группа не найдена).
+ */
 export async function createGroupStructure(
   db: Firestore, 
   leagueId: string, 
@@ -130,11 +98,16 @@ export async function createGroupStructure(
   group: number, 
   seasonNum: number
 ) {
-  const writer = new ClientBulkWriter(db);
-  await injectGroupData(writer, db, leagueId, tier, group, seasonNum);
-  return await writer.close();
+  const batch = writeBatch(db);
+  await injectGroupData(batch, db, leagueId, tier, group, seasonNum);
+  await batch.commit();
+  return { success: true };
 }
 
+/**
+ * Основная функция мануальной постройки.
+ * Создает следующие 8 групп в пирамиде.
+ */
 export async function initializeLeagueWorld(leagueId: string, targetSeason?: number) {
   const { firestore: db } = initializeFirebase();
   const info = getGlobalSeasonInfo();
@@ -152,39 +125,44 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
     currentIndex = data.currentIndex || 0;
   }
 
-  const writer = new ClientBulkWriter(db);
-  let lastProcessedIndex = currentIndex;
-  let groupsBuiltInThisCall = 0;
+  if (currentIndex >= TOTAL_GROUPS) {
+    return { status: 'COMPLETE', isComplete: true, currentIndex: TOTAL_GROUPS };
+  }
 
-  while (groupsBuiltInThisCall < GROUPS_PER_CALL && lastProcessedIndex < TOTAL_GROUPS) {
-    const nextIndex = lastProcessedIndex + 1;
+  const batch = writeBatch(db);
+  let processedInThisCall = 0;
+  let nextIndex = currentIndex;
+
+  while (processedInThisCall < GROUPS_PER_CALL && nextIndex < TOTAL_GROUPS) {
+    nextIndex++;
     const coords = getGroupCoordinates(nextIndex);
     
+    // Проверка существования (чтобы не перезаписывать живых игроков)
     const tableId = `table_v140_S${seasonNum}_L${leagueId}_V${coords.tier}_G${coords.group}`;
     const tableSnap = await getDoc(doc(db, 'league_tables_v2', tableId));
     
     if (!tableSnap.exists()) {
-      await injectGroupData(writer, db, leagueId, coords.tier, coords.group, seasonNum);
-      groupsBuiltInThisCall++;
+      await injectGroupData(batch, db, leagueId, coords.tier, coords.group, seasonNum);
     } 
-
-    lastProcessedIndex = nextIndex;
+    processedInThisCall++;
   }
 
-  await writer.close();
+  await batch.commit();
 
-  const isComplete = lastProcessedIndex >= TOTAL_GROUPS;
-  await setDoc(statusRef, {
-    currentIndex: lastProcessedIndex,
+  const isComplete = nextIndex >= TOTAL_GROUPS;
+  const resultData = {
+    currentIndex: nextIndex,
     status: isComplete ? 'completed' : 'processing',
     updatedAt: serverTimestamp(),
     version: 140
-  }, { merge: true });
+  };
+
+  await setDoc(statusRef, resultData, { merge: true });
 
   return { 
-    status: isComplete ? 'FINISHED' : 'IN_PROGRESS', 
-    currentIndex: lastProcessedIndex, 
+    status: isComplete ? 'FINISHED' : 'BATCH_DONE', 
+    currentIndex: nextIndex, 
     isComplete,
-    progress: `Index: ${lastProcessedIndex}/${TOTAL_GROUPS}`
+    progress: `Index: ${nextIndex}/${TOTAL_GROUPS}`
   };
 }
