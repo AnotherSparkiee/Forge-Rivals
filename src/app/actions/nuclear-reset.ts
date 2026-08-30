@@ -2,7 +2,7 @@
 
 /**
  * Скрипт "Ядерной очистки" v131 (Engineered for Total Purge).
- * Возвращает статус завершения, чтобы клиент мог вызывать функцию циклично.
+ * Возвращает точный статус, чтобы клиент видел реальный прогресс удаления.
  */
 
 import { 
@@ -12,13 +12,13 @@ import {
 import { initializeFirebase } from '@/firebase';
 
 const DELETE_BATCH_SIZE = 500;
-const MAX_DOCS_PER_CALL = 2000;
+const MAX_DOCS_PER_CALL = 2000; // Удаляем до 2000 за один проход для стабильности
 
 export async function totalNuclearResetV131() {
   const { firestore: db } = initializeFirebase();
   console.log("[NUCLEAR v131] Force Purge Cycle Initiated...");
 
-  // 1. ПРИНУДИТЕЛЬНОЕ УДАЛЕНИЕ БЛОКИРОВОК (всегда в первую очередь)
+  // 1. ПРИНУДИТЕЛЬНОЕ УДАЛЕНИЕ СИСТЕМНЫХ БЛОКИРОВОК
   const systemDocs = [
     'repair_v131_S1_LALPHA',
     'init_v131_S1_LALPHA',
@@ -43,14 +43,12 @@ export async function totalNuclearResetV131() {
   ];
   
   let totalDeletedInThisCall = 0;
-  let remainingDocsDetected = false;
 
   for (const coll of colls) {
-    if (totalDeletedInThisCall >= MAX_DOCS_PER_CALL) {
-      remainingDocsDetected = true;
-      break;
-    }
+    // Если мы уже набрали лимит в 2000 доков, прерываем проход по коллекциям
+    if (totalDeletedInThisCall >= MAX_DOCS_PER_CALL) break;
     
+    // Берем пачку документов
     const q = query(collection(db, coll), limit(DELETE_BATCH_SIZE));
     const snap = await getDocs(q);
     
@@ -60,18 +58,16 @@ export async function totalNuclearResetV131() {
       await batch.commit();
       
       totalDeletedInThisCall += snap.size;
-      
-      // Если мы удалили пачку, возможно там есть еще
-      if (snap.size === DELETE_BATCH_SIZE) {
-        remainingDocsDetected = true;
-      }
     }
   }
 
+  // Если за весь проход мы не нашли ни одного документа — очистка завершена
+  const isComplete = totalDeletedInThisCall === 0;
+
   return { 
     success: true, 
-    isComplete: !remainingDocsDetected && totalDeletedInThisCall < MAX_DOCS_PER_CALL,
+    isComplete,
     deletedCount: totalDeletedInThisCall,
-    msg: remainingDocsDetected ? `Wiping... ${totalDeletedInThisCall} docs removed.` : "System Fully Purged" 
+    msg: isComplete ? "System Fully Purged" : `Wiping... ${totalDeletedInThisCall} docs removed.` 
   };
 }

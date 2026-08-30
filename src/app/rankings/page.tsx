@@ -80,7 +80,7 @@ export default function RankingsPage() {
     return Object.values(tableData.stats).sort((a: any, b: any) => {
       if (b.points !== a.points) return b.points - a.points;
       if (b.wins !== a.wins) return b.wins - a.wins;
-      return b.diff - a.diff;
+      return (b.diff || 0) - (a.diff || 0);
     });
   }, [tableData]);
 
@@ -203,7 +203,7 @@ export default function RankingsPage() {
                  return (
                   <div key={entry.id} className={cn(
                     "grid grid-cols-[24px_1fr_25px_60px_35px] gap-1 items-center px-3 h-12 rounded-xl border mb-1 transition-all", 
-                    isMe ? "bg-primary/20 border-primary/40 shadow-inner" : 
+                    isMe ? "bg-primary/20 border-primary/40" : 
                     isChampionZone ? "bg-green-500/10 border-green-500/20" :
                     isRelegationZone ? "bg-red-500/10 border-red-500/20" :
                     "bg-secondary/20 border-white/5"
@@ -233,10 +233,10 @@ export default function RankingsPage() {
                       </span>
                     </div>
                     
-                    <div className="text-center font-mono text-[9px] text-muted-foreground">{entry.matchesPlayed}</div>
-                    <div className="text-center font-mono text-[9px] text-muted-foreground/60">{entry.wins}-{entry.draws}-{entry.losses}</div>
+                    <div className="text-center font-mono text-[9px] text-muted-foreground">{entry.matchesPlayed || 0}</div>
+                    <div className="text-center font-mono text-[9px] text-muted-foreground/60">{(entry.wins || 0)}-{(entry.draws || 0)}-{(entry.losses || 0)}</div>
                     <div className="text-right">
-                      <span className="text-lg font-headline font-bold text-primary italic leading-none">{entry.points}</span>
+                      <span className="text-lg font-headline font-bold text-primary italic leading-none">{entry.points || 0}</span>
                     </div>
                   </div>
                  );

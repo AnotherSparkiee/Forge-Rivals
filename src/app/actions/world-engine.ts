@@ -100,8 +100,9 @@ async function injectGroupData(
     teamsForCalendar.push({ id: bId, name: bName, rank: r });
   }
 
+  // Критическая проверка целостности перед записью
   if (Object.keys(initialStats).length !== 8) {
-    throw new Error(`Critical integrity failure: group ${tier}.${group} has only ${Object.keys(initialStats).length} bots`);
+    throw new Error(`CRITICAL INTEGRITY FAILURE: group ${tier}.${group} generated with ${Object.keys(initialStats).length} teams instead of 8.`);
   }
 
   await batcher.set(tableRef, {
@@ -164,6 +165,7 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
     const tableId = `table_v131_S${seasonNum}_L${leagueId}_V${coords.tier}_G${coords.group}`;
     const tableSnap = await getDoc(doc(db, 'league_tables_v2', tableId));
     
+    // Если группы нет — создаем её со всеми проверками 8/8
     if (!tableSnap.exists()) {
       await injectGroupData(batcher, db, leagueId, coords.tier, coords.group, seasonNum);
     } 

@@ -40,7 +40,7 @@ export default function SystemPage() {
   const [isNuclearActive, setIsNuclearActive] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showNuclearDialog, setShowNuclearDialog] = useState(false);
-  const [retryCount, setRetryCount] = useState(0);
+  const [purgeStats, setPurgeStats] = useState({ total: 0, lastOp: 0 });
   
   const playersQuery = useMemoFirebase(() => db ? query(collection(db, 'players_v13')) : null, [db]);
   const { data: players } = useCollection(playersQuery);
@@ -69,15 +69,14 @@ export default function SystemPage() {
       worldStatus: "Состояние мира", building: "Подготовка пирамиды к 31.08...", ready: "Мир v131 готов к старту",
       forceBuild: "ФОРСИРОВАТЬ ПОСТРОЙКУ",
       autoPilotOn: "АВТОПИЛОТ: ПОСТРОЙКА...",
-      nuclearStatus: "ОЧИСТКА СИСТЕМЫ...",
+      nuclearStatus: "ИДЕТ ОЧИСТКА...",
       adminTitle: "ТЕРМИНАЛ АДМИНИСТРАТОРА",
-      nuclear: "ЯДЕРНЫЙ СБРОС v131", nuclearDesc: "Удалить ВСЕХ игроков и таблицы Сезона 1",
-      resolve: "РАССЧИТАТЬ ТУР", resolveDesc: "Запустить расчет матчей сегодняшнего дня",
-      cup: "ГЕНЕРАЦИЯ КУБКА", cupDesc: "Создать турнирную сетку на текущий сезон",
-      transition: "СМЕНА СЕЗОНА", transitionDesc: "Запустить переход в следующий сезон",
-      readyCheck: "ГОТОВНОСТЬ СЕЗОНА 1", readyCheckDesc: "Проверить корректность старта 31.08",
-      error: "Сервер занят. Пробуем снова...",
-      confirmNuclear: "ПОЛНОЕ УДАЛЕНИЕ", confirmNuclearDesc: "Все игроки v131 и данные сезона будут стерты. Это действие необратимо.",
+      nuclear: "ЯДЕРНЫЙ СБРОС v131", nuclearDesc: "Полное удаление данных сезона",
+      resolve: "РАССЧИТАТЬ ТУР", resolveDesc: "Запустить расчет матчей",
+      cup: "ГЕНЕРАЦИЯ КУБКА", cupDesc: "Создать турнирную сетку",
+      transition: "СМЕНА СЕЗОНА", transitionDesc: "Запустить переход",
+      readyCheck: "ГОТОВНОСТЬ СЕЗОНА 1", readyCheckDesc: "Проверка запуска 31.08",
+      confirmNuclear: "ПОЛНОЕ УДАЛЕНИЕ", confirmNuclearDesc: "Все данные v131 будут стерты навсегда.",
       btnConfirm: "УНИЧТОЖИТЬ", btnCancel: "ОТМЕНА"
     },
     en: { 
@@ -88,33 +87,28 @@ export default function SystemPage() {
       autoPilotOn: "AUTOPILOT: BUILDING...",
       nuclearStatus: "SYSTEM PURGING...",
       adminTitle: "ADMIN TERMINAL",
-      nuclear: "NUCLEAR RESET v131", nuclearDesc: "Delete ALL players and tables for Season 1",
-      resolve: "RESOLVE DAILY", resolveDesc: "Trigger match calculation for current tour",
-      cup: "GENERATE CUP", cupDesc: "Create tournament bracket for current season",
-      transition: "SEASON TRANSITION", transitionDesc: "Trigger promotion/relegation logic",
-      readyCheck: "SEASON 1 READY CHECK", readyCheckDesc: "Verify Aug 31 launch parameters",
-      error: "Server busy. Retrying...",
-      confirmNuclear: "FULL DELETION", confirmNuclearDesc: "All v131 players and season data will be wiped. Action is irreversible.",
+      nuclear: "NUCLEAR RESET v131", nuclearDesc: "Wipe all season data",
+      resolve: "RESOLVE DAILY", resolveDesc: "Trigger match calculation",
+      cup: "GENERATE CUP", cupDesc: "Create tournament bracket",
+      transition: "SEASON TRANSITION", transitionDesc: "Trigger promotion/relegation",
+      readyCheck: "SEASON 1 READY CHECK", readyCheckDesc: "Verify Aug 31 launch",
+      confirmNuclear: "FULL DELETION", confirmNuclearDesc: "All v131 data will be wiped permanently.",
       btnConfirm: "WIPE ALL", btnCancel: "CANCEL"
     }
   }[language === 'ru' ? 'ru' : 'en'];
 
-  // Умная логика автопилота постройки
+  // Цикл автопилота постройки
   useEffect(() => {
-    if (autoPilot && !isWorldReady && !isProcessing && !isBuilding) {
-      const timer = setTimeout(() => {
-        handleAction('forceBuild');
-      }, 2500); 
+    if (autoPilot && !isWorldReady && !isProcessing) {
+      const timer = setTimeout(() => handleAction('forceBuild'), 2000);
       return () => clearTimeout(timer);
     }
-  }, [autoPilot, isWorldReady, isProcessing, isBuilding]);
+  }, [autoPilot, isWorldReady, isProcessing]);
 
-  // Умная логика ядерного сброса (цикличная)
+  // Цикл ядерной очистки
   useEffect(() => {
     if (isNuclearActive && !isProcessing) {
-      const timer = setTimeout(() => {
-        handleAction('nuclear');
-      }, 1500);
+      const timer = setTimeout(() => handleAction('nuclear'), 1000);
       return () => clearTimeout(timer);
     }
   }, [isNuclearActive, isProcessing]);
@@ -130,11 +124,16 @@ export default function SystemPage() {
     try {
       if (action === 'nuclear') {
         const res = await totalNuclearResetV131();
+        setPurgeStats(prev => ({ total: prev.total + res.deletedCount, lastOp: res.deletedCount }));
+        
         if (res.isComplete) {
           setIsNuclearActive(false);
-          toast({ title: "System Purged", description: "All data cleared successfully." });
-          window.location.reload();
+          toast({ title: "System Purged", description: `Total ${purgeStats.total + res.deletedCount} documents removed.` });
+          setTimeout(() => window.location.reload(), 2000);
         }
+      }
+      else if (action === 'forceBuild') {
+        await runGlobalEmergencyRepair();
       }
       else if (action === 'resolve') {
         const res = await resolveDailyMatches();
@@ -148,16 +147,11 @@ export default function SystemPage() {
         await performSeasonTransition();
         toast({ title: "Transition Success" });
       }
-      else if (action === 'forceBuild') {
-        await runGlobalEmergencyRepair();
-        setRetryCount(0);
-      }
       else if (action === 'readyCheck') {
         toast({ title: "Ready Check Pass", description: "Launch sequence set for Aug 31 18:00 MSK." });
       }
     } catch (e: any) {
-      console.warn("[ADMIN ACTION DELAY]:", e.message);
-      setRetryCount(prev => prev + 1);
+      console.warn("[ADMIN ACTION ERROR]:", e.message);
     } finally {
       setIsProcessing(false);
       setIsBuilding(false);
@@ -176,6 +170,7 @@ export default function SystemPage() {
       </header>
 
       <div className="space-y-8">
+        {/* WORLD INTEGRITY CARD */}
         <section className="space-y-3">
           <div className="flex items-center justify-between px-1">
             <h2 className="text-[10px] font-black uppercase tracking-widest text-accent">{t.worldStatus}</h2>
@@ -184,7 +179,7 @@ export default function SystemPage() {
                 "animate-pulse text-[8px] font-black uppercase shadow-lg",
                 isNuclearActive ? "bg-red-600 text-white" : "bg-primary text-primary-foreground"
               )}>
-                {isNuclearActive ? t.nuclearStatus : "AUTOPILOT ACTIVE"}
+                {isNuclearActive ? `${t.nuclearStatus} (${purgeStats.total})` : "AUTOPILOT ACTIVE"}
               </Badge>
             )}
           </div>
@@ -218,6 +213,7 @@ export default function SystemPage() {
           </Card>
         </section>
 
+        {/* ADMIN TERMINAL */}
         <section className="space-y-3">
           <h2 className="text-[10px] font-black uppercase tracking-widest text-red-500 px-1 flex items-center gap-2"><Database className="w-4 h-4" /> {t.adminTitle}</h2>
           <div className="grid grid-cols-1 gap-2">
@@ -252,19 +248,10 @@ export default function SystemPage() {
                 {isProcessing && !isBuilding && !isNuclearActive ? <Loader2 className="w-4 h-4 animate-spin text-primary" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
               </CardContent>
             </Card>
-
-            <Card className="glass-card border-white/5 hover:bg-white/5 transition-all cursor-pointer" onClick={() => handleAction('cup')}>
-              <CardContent className="p-4 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="p-2.5 rounded-xl bg-secondary/50 text-yellow-500"><Trophy className="w-5 h-5" /></div>
-                  <div><h3 className="text-xs font-black uppercase text-white">{t.cup}</h3><p className="text-[8px] text-muted-foreground uppercase">{t.cupDesc}</p></div>
-                </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground" />
-              </CardContent>
-            </Card>
           </div>
         </section>
 
+        {/* NETWORK STATUS */}
         <section className="space-y-3">
           <h2 className="text-[10px] font-black uppercase tracking-widest text-accent px-1">{t.status}</h2>
           <div className="grid grid-cols-2 gap-3">
