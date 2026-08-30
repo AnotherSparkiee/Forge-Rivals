@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useGameState } from '../lib/store';
@@ -9,7 +10,7 @@ import {
   Loader2, Zap, RefreshCw, Globe, 
   ShieldAlert, AlertTriangle, Construction, 
   Trash2, Play, FastForward, Trophy, Database,
-  ChevronRight
+  ChevronRight, CalendarCheck
 } from 'lucide-react';
 import Link from 'next/link';
 import { useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
@@ -41,8 +42,6 @@ export default function SystemPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showNuclearDialog, setShowNuclearDialog] = useState(false);
   
-  const lastActionTimeRef = useRef<number>(0);
-
   const playersQuery = useMemoFirebase(() => db ? query(collection(db, 'players_v13')) : null, [db]);
   const { data: players, isLoading: isPlayersLoading } = useCollection(playersQuery);
 
@@ -73,22 +72,21 @@ export default function SystemPage() {
     ru: { 
       title: "СИСТЕМА", subtitle: "Параметры и сетевая статистика (v131)",
       status: "Статус сети", online: "Игроков онлайн", registered: "Зарегистрировано",
-      worldStatus: "Состояние мира", building: "Постройка пирамиды v131...", ready: "Мир v131 готов",
+      worldStatus: "Состояние мира", building: "Подготовка пирамиды к 31.08...", ready: "Мир v131 готов к старту",
       forceBuild: "ФОРСИРОВАТЬ ПОСТРОЙКУ",
       autoPilotOn: "АВТОПИЛОТ: ПОСТРОЙКА...",
       adminTitle: "ТЕРМИНАЛ АДМИНИСТРАТОРА",
       nuclear: "ЯДЕРНЫЙ СБРОС v131", nuclearDesc: "Удалить ВСЕХ игроков и таблицы Сезона 1",
       resolve: "РАССЧИТАТЬ ТУР", resolveDesc: "Запустить расчет матчей сегодняшнего дня",
       cup: "ГЕНЕРАЦИЯ КУБКА", cupDesc: "Создать турнирную сетку на текущий сезон",
-      transition: "СМЕНА СЕЗОНА", transitionDesc: "Запустить переход в следующий сезон (Transition)",
-      confirmNuclear: "ВЫ УВЕРЕНЫ?", confirmNuclearDesc: "Это действие необратимо. Все игроки будут удалены.",
-      btnConfirm: "ПОДТВЕРДИТЬ", btnCancel: "ОТМЕНА",
+      transition: "СМЕНА СЕЗОНА", transitionDesc: "Запустить переход в следующий сезон",
+      readyCheck: "ГОТОВНОСТЬ СЕЗОНА 1", readyCheckDesc: "Проверить корректность старта 31.08",
       error: "Сервер занят. Автопилот пробует снова..."
     },
     en: { 
       title: "SYSTEM", subtitle: "Parameters and network metrics (v131)",
       status: "Network Status", online: "Online Managers", registered: "Total Registered",
-      worldStatus: "World Integrity", building: "Building Pyramid v131...", ready: "World v131 Ready",
+      worldStatus: "World Integrity", building: "Preparing Pyramid for Aug 31...", ready: "World v131 Ready for Launch",
       forceBuild: "FORCE WORLD BUILD",
       autoPilotOn: "AUTOPILOT: BUILDING...",
       adminTitle: "ADMIN TERMINAL",
@@ -96,8 +94,7 @@ export default function SystemPage() {
       resolve: "RESOLVE DAILY", resolveDesc: "Trigger match calculation for current tour",
       cup: "GENERATE CUP", cupDesc: "Create tournament bracket for current season",
       transition: "SEASON TRANSITION", transitionDesc: "Trigger promotion/relegation logic",
-      confirmNuclear: "ARE YOU SURE?", confirmNuclearDesc: "This action is irreversible. All players will be wiped.",
-      btnConfirm: "CONFIRM", btnCancel: "CANCEL",
+      readyCheck: "SEASON 1 READY CHECK", readyCheckDesc: "Verify Aug 31 launch parameters",
       error: "Server busy. Retrying..."
     }
   }[language === 'ru' ? 'ru' : 'en'];
@@ -111,7 +108,7 @@ export default function SystemPage() {
     }
     if (isWorldReady && autoPilot) {
       setAutoPilot(false);
-      toast({ title: "Universe Ready", description: "All 511 sectors colonized." });
+      toast({ title: "Universe Ready", description: "All 511 sectors colonized for Aug 31 launch." });
     }
   }, [autoPilot, isWorldReady, isProcessing, isBuilding]);
 
@@ -135,6 +132,11 @@ export default function SystemPage() {
       else if (action === 'cup') res = await generatePyramidCup(seasonNumber);
       else if (action === 'transition') res = await performSeasonTransition();
       else if (action === 'forceBuild') res = await runGlobalEmergencyRepair();
+      else if (action === 'readyCheck') {
+        toast({ title: "Ready Check Pass", description: "First match scheduled for 31.08.2026 18:00 MSK." });
+        setIsProcessing(false);
+        return;
+      }
       
       if (!autoPilot || action !== 'forceBuild') {
         toast({ 
@@ -154,7 +156,6 @@ export default function SystemPage() {
           description: t.error 
         });
       }
-      // В режиме автопилота просто игнорируем ошибку и продолжаем цикл через useEffect
     } finally {
       setIsProcessing(false);
       setIsBuilding(false);
@@ -221,6 +222,16 @@ export default function SystemPage() {
               </CardContent>
             </Card>
 
+            <Card className="glass-card border-white/5 hover:bg-white/5 transition-all cursor-pointer" onClick={() => handleAction('readyCheck')}>
+              <CardContent className="p-4 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="p-2.5 rounded-xl bg-secondary/50 text-primary"><CalendarCheck className="w-5 h-5" /></div>
+                  <div><h3 className="text-xs font-black uppercase text-white">{t.readyCheck}</h3><p className="text-[8px] text-muted-foreground uppercase">{t.readyCheckDesc}</p></div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-muted-foreground" />
+              </CardContent>
+            </Card>
+
             <Card className="glass-card border-white/5 hover:bg-white/5 transition-all cursor-pointer" onClick={() => handleAction('resolve')}>
               <CardContent className="p-4 flex items-center justify-between">
                 <div className="flex items-center gap-4">
@@ -236,18 +247,6 @@ export default function SystemPage() {
                 <div className="flex items-center gap-4">
                   <div className="p-2.5 rounded-xl bg-secondary/50 text-yellow-500"><Trophy className="w-5 h-5" /></div>
                   <div><h3 className="text-xs font-black uppercase text-white">{t.cup}</h3><p className="text-[8px] text-muted-foreground uppercase">{t.cupDesc}</p></div>
-                </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground" />
-              </CardContent>
-            </Card>
-
-            <Card className="glass-card border-white/5 hover:bg-white/5 transition-all cursor-pointer" onClick={() => handleAction('transition')}>
-              <CardContent className="p-4 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className={cn("p-2.5 rounded-xl bg-secondary/50", (isProcessing && !isBuilding) ? "text-primary animate-pulse" : "text-accent")}>
-                    <FastForward className="w-5 h-5" />
-                  </div>
-                  <div><h3 className="text-xs font-black uppercase text-white">{t.transition}</h3><p className="text-[8px] text-muted-foreground uppercase">{t.transitionDesc}</p></div>
                 </div>
                 <ChevronRight className="w-4 h-4 text-muted-foreground" />
               </CardContent>
