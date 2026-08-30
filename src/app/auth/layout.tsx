@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useGameState } from '@/app/lib/store';
@@ -79,7 +78,7 @@ export default function AuthLayout({
         <div className="text-center">
           <div className="mx-auto w-24 h-24 mb-6 relative">
             <div className="absolute inset-0 bg-primary/20 blur-2xl rounded-full" />
-            <img src="https://i.postimg.cc/8cpvcNZ9/logo-lote.png" alt="Logo" className="w-full h-full object-contain relative z-10" />
+            <img src="https://i.ibb.co/tpcQnnj1/1000078926-no-bg-preview-carve-photos.png" alt="Logo" className="w-full h-full object-contain relative z-10" />
           </div>
           <h1 className="text-3xl font-headline font-bold tracking-tighter text-primary">LINES OF ENMITY</h1>
           <p className="text-muted-foreground mt-2 text-[10px] uppercase tracking-[0.3em] font-black">{t.subtitle}</p>

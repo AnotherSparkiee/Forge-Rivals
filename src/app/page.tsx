@@ -153,7 +153,7 @@ export default function Home() {
                   />
                 ) : (
                   <img 
-                    src="https://i.postimg.cc/8cpvcNZ9/logo-lote.png"
+                    src="https://i.ibb.co/tpcQnnj1/1000078926-no-bg-preview-carve-photos.png"
                     alt="Bot Logo"
                     className="w-full h-full object-contain drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]"
                   />
@@ -185,7 +185,7 @@ export default function Home() {
                 {item.isSystem ? (
                   <div className="relative w-12 h-12 transition-transform duration-300 group-hover:scale-110">
                      <img 
-                        src={systemIconUrl || "https://i.ibb.cc/07QQCFT/1787830105436.png"} 
+                        src={systemIconUrl || "https://i.ibb.co/07QQCFT/1787830105436.png"} 
                         alt="System" 
                         className="w-full h-full object-contain"
                      />

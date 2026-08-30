@@ -285,7 +285,7 @@ export default function IronKettlePage() {
         <CardContent className="p-0">
           <div className="p-6 text-center border-b border-white/5">
             <div className="w-24 h-24 mx-auto mb-4 flex items-center justify-center relative">
-               <img src="https://i.postimg.cc/8cpvcNZ9/logo-lote.png" alt="Cup" className={cn("w-full h-full object-contain drop-shadow-[0_0_15px_rgba(var(--primary),0.3)]", status === 'LIVE' && "animate-pulse")} />
+               <img src="https://i.ibb.co/tpcQnnj1/1000078926-no-bg-preview-carve-photos.png" alt="Cup" className={cn("w-full h-full object-contain drop-shadow-[0_0_15px_rgba(var(--primary),0.3)]", status === 'LIVE' && "animate-pulse")} />
             </div>
             <Badge variant={status === 'LIVE' ? "destructive" : "outline"} className="mb-2 uppercase text-[8px] tracking-widest">
               {status === 'REG_OPEN' ? t.regOpen : status === 'REG_CLOSED' ? t.regClosed : status === 'LIVE' ? t.live : t.idle}

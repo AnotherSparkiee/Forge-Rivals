@@ -72,7 +72,7 @@ export default function RankingsPage() {
         if (p.clubLogo) map[p.id] = p.clubLogo;
       });
     }
-    return map;
+    return { names: {}, logos: map };
   }, [groupPlayers]);
 
   const standings = useMemo(() => {
@@ -196,7 +196,7 @@ export default function RankingsPage() {
                {standings.map((entry: any, i: number) => {
                  const pos = i + 1;
                  const isMe = entry.id === user?.uid;
-                 const clubLogo = logoMap[entry.id] || entry.clubLogo;
+                 const clubLogo = logoMap.logos[entry.id] || entry.clubLogo;
                  
                  const isChampionZone = pos === 1;
                  const isRelegationZone = pos >= 7;
@@ -220,7 +220,7 @@ export default function RankingsPage() {
                        {clubLogo ? (
                          <img src={clubLogo} alt="" className="w-6 h-6 object-contain shrink-0" />
                        ) : entry.isBot ? (
-                         <img src="https://i.postimg.cc/8cpvcNZ9/logo-lote.png" alt="Bot" className="w-7 h-7 object-contain shrink-0 drop-shadow-[0_0_10px_rgba(var(--primary),0.3)]" />
+                         <img src="https://i.ibb.co/tpcQnnj1/1000078926-no-bg-preview-carve-photos.png" alt="Bot" className="w-7 h-7 object-contain shrink-0 drop-shadow-[0_0_10px_rgba(var(--primary),0.3)]" />
                        ) : (
                          <Shield className="w-4 h-4 text-primary/30 shrink-0" />
                        )}

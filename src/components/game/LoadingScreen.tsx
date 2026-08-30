@@ -43,7 +43,7 @@ export function LoadingScreen() {
         <div className="relative">
           <div className="absolute -inset-8 bg-primary/10 rounded-full blur-2xl animate-pulse"></div>
           <img 
-            src="https://i.postimg.cc/8cpvcNZ9/logo-lote.png" 
+            src="https://i.ibb.co/tpcQnnj1/1000078926-no-bg-preview-carve-photos.png" 
             alt="Logo" 
             className="w-36 h-36 object-contain animate-pulse" 
           />
