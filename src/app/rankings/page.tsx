@@ -203,7 +203,7 @@ export default function RankingsPage() {
                  return (
                   <div key={entry.id} className={cn(
                     "grid grid-cols-[24px_1fr_25px_60px_35px] gap-1 items-center p-2.5 rounded-xl border mb-1 transition-all", 
-                    isMe ? "bg-primary/20 border-primary/40 shadow-[0_0_15px_rgba(var(--primary),0.1)]" : 
+                    isMe ? "bg-primary/20 border-primary/40" : 
                     isChampionZone ? "bg-green-500/10 border-green-500/20" :
                     isRelegationZone ? "bg-red-500/10 border-red-500/20" :
                     "bg-secondary/20 border-white/5"
@@ -219,7 +219,7 @@ export default function RankingsPage() {
                        {clubLogo ? (
                          <img src={clubLogo} alt="" className="w-6 h-6 object-contain shrink-0" />
                        ) : entry.isBot ? (
-                         <img src="https://i.ibb.co/tpcQnnj1/1000078926-no-bg-preview-carve-photos.png" alt="Bot" className="w-9 h-9 object-contain shrink-0 drop-shadow-[0_0_10px_rgba(0,0,0,0.3)]" />
+                         <img src="https://i.ibb.co/tpcQnnj1/1000078926-no-bg-preview-carve-photos.png" alt="Bot" className="w-6 h-6 object-contain shrink-0 opacity-70" />
                        ) : (
                          <Shield className="w-4 h-4 text-primary/30 shrink-0" />
                        )}
@@ -234,7 +234,7 @@ export default function RankingsPage() {
                     <div className="text-center font-mono text-[9px] text-muted-foreground">{entry.matchesPlayed}</div>
                     <div className="text-center font-mono text-[9px] text-muted-foreground/60">{entry.wins}-{entry.draws}-{entry.losses}</div>
                     <div className="text-right pr-1">
-                      <span className="text-lg font-headline font-black text-primary italic leading-none">{entry.points}</span>
+                      <span className="text-lg font-headline font-bold text-primary italic leading-none">{entry.points}</span>
                     </div>
                   </div>
                  );
