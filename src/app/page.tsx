@@ -143,8 +143,8 @@ export default function Home() {
           
           <CardContent className="p-4 flex items-center justify-between relative z-10 h-full min-h-[110px]">
             <div className="flex items-center gap-4">
-              {/* Opponent Logo */}
-              <div className="w-18 h-18 flex items-center justify-center shrink-0">
+              {/* Opponent Logo - Reduced size for better balance */}
+              <div className="w-14 h-14 flex items-center justify-center shrink-0">
                 {resolvedNextMatch?.opponentLogo ? (
                   <img 
                     src={resolvedNextMatch.opponentLogo} 
