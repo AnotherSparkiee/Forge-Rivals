@@ -3,6 +3,7 @@
 /**
  * Глобальный двигатель мира v141 (Ultra-Safe Batch Architecture).
  * Оптимизирован для предотвращения таймаутов (2 группы за клик).
+ * Создает структуру Лиги: Таблица + Полный календарь сезона.
  */
 
 import { 
@@ -19,7 +20,7 @@ import {
 } from '@/app/lib/leagues-data';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 
-const GROUPS_PER_CALL = 2; // 2 * 57 docs = 114 ops (Абсолютно безопасно для таймаута)
+const GROUPS_PER_CALL = 2; // 2 группы * 57 документов = 114 операций (Абсолютно безопасно для таймаута)
 
 function getGroupCoordinates(index: number) {
   if (index < 1) return { tier: 1, group: 1 };
@@ -136,7 +137,7 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
     nextIndex++;
     const coords = getGroupCoordinates(nextIndex);
     
-    // Проверка существования
+    // Проверка существования, чтобы не тратить лимиты и время на дубликаты
     const tableId = `table_v140_S${seasonNum}_L${leagueId}_V${coords.tier}_G${coords.group}`;
     const tableSnap = await getDoc(doc(db, 'league_tables_v2', tableId));
     
