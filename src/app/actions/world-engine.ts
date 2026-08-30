@@ -2,7 +2,7 @@
 
 /**
  * Глобальный двигатель заполнения мира v131 (Universe Architect).
- * Оптимизирован для предотвращения таймаутов: порции по 3 группы.
+ * Использует FirestoreBatcher для автоматического управления лимитом 500 операций.
  */
 
 import { 
@@ -19,8 +19,39 @@ import {
 } from '@/app/lib/leagues-data';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 
-const MAX_CREATIONS_PER_CALL = 3; // Минимальная порция для 100% стабильности
-const MAX_LOOKUPS_PER_CALL = 20;   // Быстрый пропуск существующих групп
+/**
+ * Внутренний помощник для управления массовыми записями.
+ * Имитирует поведение BulkWriter для Client SDK.
+ */
+class FirestoreBatcher {
+  private count = 0;
+  private batch;
+  constructor(private db: Firestore) {
+    this.batch = writeBatch(db);
+  }
+
+  async set(ref: any, data: any) {
+    this.batch.set(ref, data);
+    this.count++;
+    if (this.count >= 480) await this.commit();
+  }
+
+  async update(ref: any, data: any) {
+    this.batch.update(ref, data);
+    this.count++;
+    if (this.count >= 480) await this.commit();
+  }
+
+  async commit() {
+    if (this.count > 0) {
+      await this.batch.commit();
+      this.batch = writeBatch(this.db);
+      this.count = 0;
+    }
+  }
+}
+
+const GROUPS_PER_CALL = 8; // Оптимально для ~450 операций (57 на группу)
 
 function getGroupCoordinates(index: number) {
   if (index < 1) return { tier: 1, group: 1 };
@@ -37,8 +68,8 @@ function getGroupCoordinates(index: number) {
   return { tier: 9, group: 256 };
 }
 
-function injectGroupData(
-  batch: any, 
+async function injectGroupData(
+  batcher: FirestoreBatcher, 
   db: Firestore, 
   leagueId: string, 
   tier: number, 
@@ -62,7 +93,7 @@ function injectGroupData(
     teamsForCalendar.push({ id: bId, name: bName, rank: r });
   }
 
-  batch.set(tableRef, {
+  await batcher.set(tableRef, {
     id: tableId, leagueId, level: tier, group, season: seasonNum,
     stats: initialStats,
     createdAt: serverTimestamp(),
@@ -72,7 +103,7 @@ function injectGroupData(
   const calendar = generateSeasonCalendar(teamsForCalendar, seasonNum, leagueId);
   for (const m of calendar) {
     const mId = `match_v131_S${seasonNum}_L${leagueId}_V${tier}_G${group}_T${m.tour}_R${m.homeRank}_vs_R${m.awayRank}`;
-    batch.set(doc(db, 'matches_v2', mId), {
+    await batcher.set(doc(db, 'matches_v2', mId), {
       ...m,
       id: mId,
       leagueId, level: tier, groupId: group, season: seasonNum,
@@ -89,9 +120,9 @@ export async function createGroupStructure(
   group: number, 
   seasonNum: number
 ) {
-  const batch = writeBatch(db);
-  injectGroupData(batch, db, leagueId, tier, group, seasonNum);
-  await batch.commit();
+  const batcher = new FirestoreBatcher(db);
+  await injectGroupData(batcher, db, leagueId, tier, group, seasonNum);
+  await batcher.commit();
 }
 
 export async function initializeLeagueWorld(leagueId: string, targetSeason?: number) {
@@ -111,11 +142,11 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
     currentIndex = data.currentIndex || 0;
   }
 
-  let createdInThisCall = 0;
-  let lookupsInThisCall = 0;
+  const batcher = new FirestoreBatcher(db);
+  let processedInThisCall = 0;
   let lastProcessedIndex = currentIndex;
 
-  while (createdInThisCall < MAX_CREATIONS_PER_CALL && lookupsInThisCall < MAX_LOOKUPS_PER_CALL && lastProcessedIndex < TOTAL_GROUPS) {
+  while (processedInThisCall < GROUPS_PER_CALL && lastProcessedIndex < TOTAL_GROUPS) {
     const nextIndex = lastProcessedIndex + 1;
     const coords = getGroupCoordinates(nextIndex);
     
@@ -123,15 +154,14 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
     const tableSnap = await getDoc(doc(db, 'league_tables_v2', tableId));
     
     if (!tableSnap.exists()) {
-      const batch = writeBatch(db);
-      injectGroupData(batch, db, leagueId, coords.tier, coords.group, seasonNum);
-      await batch.commit();
-      createdInThisCall++;
+      await injectGroupData(batcher, db, leagueId, coords.tier, coords.group, seasonNum);
     } 
 
     lastProcessedIndex = nextIndex;
-    lookupsInThisCall++;
+    processedInThisCall++;
   }
+
+  await batcher.commit();
 
   const isComplete = lastProcessedIndex >= TOTAL_GROUPS;
   await setDoc(statusRef, {

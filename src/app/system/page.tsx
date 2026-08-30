@@ -40,6 +40,7 @@ export default function SystemPage() {
   const [autoPilot, setAutoPilot] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showNuclearDialog, setShowNuclearDialog] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
   
   const playersQuery = useMemoFirebase(() => db ? query(collection(db, 'players_v13')) : null, [db]);
   const { data: players, isLoading: isPlayersLoading } = useCollection(playersQuery);
@@ -49,12 +50,6 @@ export default function SystemPage() {
     [db, selectedLeagueId, seasonNumber]
   );
   const { data: initStatus } = useDoc(initStatusRef);
-
-  const repairStatusRef = useMemoFirebase(() => 
-    (db && selectedLeagueId) ? doc(db, 'system_v1', `repair_v131_S${seasonNumber}_L${selectedLeagueId}`) : null, 
-    [db, selectedLeagueId, seasonNumber]
-  );
-  const { data: repairStatus } = useDoc(repairStatusRef);
 
   const stats = useMemo(() => {
     if (!players) return { total: 0, online: 0 };
@@ -80,7 +75,8 @@ export default function SystemPage() {
       cup: "ГЕНЕРАЦИЯ КУБКА", cupDesc: "Создать турнирную сетку на текущий сезон",
       transition: "СМЕНА СЕЗОНА", transitionDesc: "Запустить переход в следующий сезон",
       readyCheck: "ГОТОВНОСТЬ СЕЗОНА 1", readyCheckDesc: "Проверить корректность старта 31.08",
-      error: "Сервер занят. Автопилот пробует снова...",
+      error: "Сервер занят. Пробуем снова...",
+      retrying: "Сбой сети. Повтор...",
       confirmNuclear: "ПОЛНОЕ УДАЛЕНИЕ", confirmNuclearDesc: "Все игроки v131 и данные сезона будут стерты. Это действие необратимо.",
       btnConfirm: "УНИЧТОЖИТЬ", btnCancel: "ОТМЕНА"
     },
@@ -97,17 +93,18 @@ export default function SystemPage() {
       transition: "SEASON TRANSITION", transitionDesc: "Trigger promotion/relegation logic",
       readyCheck: "SEASON 1 READY CHECK", readyCheckDesc: "Verify Aug 31 launch parameters",
       error: "Server busy. Retrying...",
+      retrying: "Network lag. Retrying...",
       confirmNuclear: "FULL DELETION", confirmNuclearDesc: "All v131 players and season data will be wiped. Action is irreversible.",
       btnConfirm: "WIPE ALL", btnCancel: "CANCEL"
     }
   }[language === 'ru' ? 'ru' : 'en'];
 
-  // Умная логика автопилота
+  // Умная логика автопилота с обработкой ошибок
   useEffect(() => {
     if (autoPilot && !isWorldReady && !isProcessing && !isBuilding) {
       const timer = setTimeout(() => {
         handleAction('forceBuild');
-      }, 1500); // Чаще проверяем при автопилоте
+      }, 2000); 
       return () => clearTimeout(timer);
     }
     if (isWorldReady && autoPilot) {
@@ -119,11 +116,8 @@ export default function SystemPage() {
   const handleAction = async (action: string) => {
     if (isProcessing && action !== 'forceBuild') return;
 
-    if (action === 'forceBuild') {
-      setIsBuilding(true);
-    } else {
-      setIsProcessing(true);
-    }
+    if (action === 'forceBuild') setIsBuilding(true);
+    else setIsProcessing(true);
     
     try {
       if (action === 'nuclear') {
@@ -146,12 +140,16 @@ export default function SystemPage() {
       }
       else if (action === 'forceBuild') {
         await runGlobalEmergencyRepair();
+        setRetryCount(0); // Сброс счетчика ошибок при успехе
       }
       else if (action === 'readyCheck') {
         toast({ title: "Ready Check Pass", description: "Launch sequence set for Aug 31 18:00 MSK." });
       }
     } catch (e: any) {
-      if (!autoPilot) {
+      console.error("[ADMIN ACTION ERROR]:", e.message);
+      if (autoPilot) {
+        setRetryCount(prev => prev + 1);
+      } else {
         toast({ variant: "destructive", title: "API Delay", description: t.error });
       }
     } finally {
@@ -175,7 +173,14 @@ export default function SystemPage() {
         <section className="space-y-3">
           <div className="flex items-center justify-between px-1">
             <h2 className="text-[10px] font-black uppercase tracking-widest text-accent">{t.worldStatus}</h2>
-            {autoPilot && <Badge className="bg-primary animate-pulse text-[8px] font-black uppercase shadow-[0_0_10px_rgba(var(--primary),0.4)]">AUTOPILOT ACTIVE</Badge>}
+            {autoPilot && (
+              <Badge className={cn(
+                "animate-pulse text-[8px] font-black uppercase shadow-lg transition-colors",
+                retryCount > 0 ? "bg-red-600 text-white" : "bg-primary text-primary-foreground"
+              )}>
+                {retryCount > 0 ? t.retrying : "AUTOPILOT ACTIVE"}
+              </Badge>
+            )}
           </div>
           <Card className={cn("glass-card border-white/5 bg-secondary/10 overflow-hidden", (!isWorldReady || autoPilot) && "border-primary/30")}>
             <CardContent className="p-4">
