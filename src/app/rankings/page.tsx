@@ -71,7 +71,7 @@ export default function RankingsPage() {
         if (p.clubLogo) map[p.id] = p.clubLogo;
       });
     }
-    return { names: {}, logos: map };
+    return { logos: map };
   }, [groupPlayers]);
 
   const standings = useMemo(() => {
@@ -202,8 +202,8 @@ export default function RankingsPage() {
 
                  return (
                   <div key={entry.id} className={cn(
-                    "grid grid-cols-[24px_1fr_25px_60px_35px] gap-1 items-center p-2.5 rounded-xl border mb-1 transition-all h-[44px]", 
-                    isMe ? "bg-primary/20 border-primary/40" : 
+                    "grid grid-cols-[24px_1fr_25px_60px_35px] gap-1 items-center px-3 h-12 rounded-xl border mb-1 transition-all", 
+                    isMe ? "bg-primary/20 border-primary/40 ring-1 ring-primary/20" : 
                     isChampionZone ? "bg-green-500/10 border-green-500/20" :
                     isRelegationZone ? "bg-red-500/10 border-red-500/20" :
                     "bg-secondary/20 border-white/5"
@@ -216,7 +216,7 @@ export default function RankingsPage() {
                     )}>{pos}</div>
                     
                     <div className="truncate flex items-center gap-2 min-w-0">
-                       <div className="w-6 h-6 shrink-0 flex items-center justify-center overflow-hidden bg-background/40 rounded-sm p-0.5 border border-white/5">
+                       <div className="w-6 h-6 shrink-0 flex items-center justify-center overflow-hidden bg-background/40 rounded-lg p-0.5 border border-white/5">
                          {clubLogo ? (
                            <img src={clubLogo} alt="" className="w-full h-full object-contain" />
                          ) : entry.isBot ? (
@@ -235,7 +235,7 @@ export default function RankingsPage() {
                     
                     <div className="text-center font-mono text-[9px] text-muted-foreground">{entry.matchesPlayed}</div>
                     <div className="text-center font-mono text-[9px] text-muted-foreground/60">{entry.wins}-{entry.draws}-{entry.losses}</div>
-                    <div className="text-right pr-1">
+                    <div className="text-right">
                       <span className="text-lg font-headline font-bold text-primary italic leading-none">{entry.points}</span>
                     </div>
                   </div>

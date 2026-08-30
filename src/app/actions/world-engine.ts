@@ -2,7 +2,7 @@
 
 /**
  * Глобальный двигатель заполнения мира v131 (Universe Architect).
- * Оптимизирован для предотвращения таймаутов и ускоренного пропуска.
+ * Оптимизирован для предотвращения таймаутов: порции по 3 группы.
  */
 
 import { 
@@ -19,8 +19,8 @@ import {
 } from '@/app/lib/leagues-data';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 
-const MAX_CREATIONS_PER_CALL = 10; // Сколько новых групп создаем
-const MAX_LOOKUPS_PER_CALL = 100;   // Сколько существующих групп можем пропустить за раз
+const MAX_CREATIONS_PER_CALL = 3; // Минимальная порция для 100% стабильности
+const MAX_LOOKUPS_PER_CALL = 20;   // Быстрый пропуск существующих групп
 
 function getGroupCoordinates(index: number) {
   if (index < 1) return { tier: 1, group: 1 };
@@ -133,7 +133,6 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
     lookupsInThisCall++;
   }
 
-  // Финальное обновление статуса (всего ОДИН раз за вызов)
   const isComplete = lastProcessedIndex >= TOTAL_GROUPS;
   await setDoc(statusRef, {
     currentIndex: lastProcessedIndex,
