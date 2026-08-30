@@ -2,7 +2,7 @@
 
 /**
  * Глобальный двигатель заполнения мира v131 (Universe Architect).
- * Оптимизирован для предотвращения таймаутов (5 групп за вызов).
+ * Оптимизирован для предотвращения таймаутов и ускоренного пропуска.
  */
 
 import { 
@@ -19,7 +19,8 @@ import {
 } from '@/app/lib/leagues-data';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 
-const GROUPS_TO_CREATE_PER_CALL = 5; 
+const MAX_CREATIONS_PER_CALL = 10; // Сколько новых групп создаем
+const MAX_LOOKUPS_PER_CALL = 100;   // Сколько существующих групп можем пропустить за раз
 
 function getGroupCoordinates(index: number) {
   if (index < 1) return { tier: 1, group: 1 };
@@ -110,10 +111,12 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
     currentIndex = data.currentIndex || 0;
   }
 
-  let processedInThisCall = 0;
+  let createdInThisCall = 0;
+  let lookupsInThisCall = 0;
+  let lastProcessedIndex = currentIndex;
 
-  while (processedInThisCall < GROUPS_TO_CREATE_PER_CALL && currentIndex < TOTAL_GROUPS) {
-    const nextIndex = currentIndex + 1;
+  while (createdInThisCall < MAX_CREATIONS_PER_CALL && lookupsInThisCall < MAX_LOOKUPS_PER_CALL && lastProcessedIndex < TOTAL_GROUPS) {
+    const nextIndex = lastProcessedIndex + 1;
     const coords = getGroupCoordinates(nextIndex);
     
     const tableId = `table_v131_S${seasonNum}_L${leagueId}_V${coords.tier}_G${coords.group}`;
@@ -122,34 +125,27 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
     if (!tableSnap.exists()) {
       const batch = writeBatch(db);
       injectGroupData(batch, db, leagueId, coords.tier, coords.group, seasonNum);
-      
-      batch.set(statusRef, {
-        currentIndex: nextIndex,
-        status: nextIndex >= TOTAL_GROUPS ? 'completed' : 'processing',
-        updatedAt: serverTimestamp(),
-        version: 131
-      }, { merge: true });
-
       await batch.commit();
-    } else {
-      // Если группа уже есть, просто обновляем прогресс в документе статуса
-      await setDoc(statusRef, {
-        currentIndex: nextIndex,
-        status: nextIndex >= TOTAL_GROUPS ? 'completed' : 'processing',
-        updatedAt: serverTimestamp(),
-        version: 131
-      }, { merge: true });
-    }
+      createdInThisCall++;
+    } 
 
-    currentIndex = nextIndex;
-    processedInThisCall++;
+    lastProcessedIndex = nextIndex;
+    lookupsInThisCall++;
   }
 
-  const isComplete = currentIndex >= TOTAL_GROUPS;
+  // Финальное обновление статуса (всего ОДИН раз за вызов)
+  const isComplete = lastProcessedIndex >= TOTAL_GROUPS;
+  await setDoc(statusRef, {
+    currentIndex: lastProcessedIndex,
+    status: isComplete ? 'completed' : 'processing',
+    updatedAt: serverTimestamp(),
+    version: 131
+  }, { merge: true });
+
   return { 
     status: isComplete ? 'FINISHED' : 'IN_PROGRESS', 
-    currentIndex, 
+    currentIndex: lastProcessedIndex, 
     isComplete,
-    progress: `Built: ${currentIndex}/${TOTAL_GROUPS}`
+    progress: `Index: ${lastProcessedIndex}/${TOTAL_GROUPS}`
   };
 }

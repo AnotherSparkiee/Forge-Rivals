@@ -202,7 +202,7 @@ export default function RankingsPage() {
 
                  return (
                   <div key={entry.id} className={cn(
-                    "grid grid-cols-[24px_1fr_25px_60px_35px] gap-1 items-center p-2.5 rounded-xl border mb-1 transition-all", 
+                    "grid grid-cols-[24px_1fr_25px_60px_35px] gap-1 items-center p-2.5 rounded-xl border mb-1 transition-all h-[44px]", 
                     isMe ? "bg-primary/20 border-primary/40" : 
                     isChampionZone ? "bg-green-500/10 border-green-500/20" :
                     isRelegationZone ? "bg-red-500/10 border-red-500/20" :
@@ -216,13 +216,15 @@ export default function RankingsPage() {
                     )}>{pos}</div>
                     
                     <div className="truncate flex items-center gap-2 min-w-0">
-                       {clubLogo ? (
-                         <img src={clubLogo} alt="" className="w-6 h-6 object-contain shrink-0" />
-                       ) : entry.isBot ? (
-                         <img src="https://i.ibb.co/tpcQnnj1/1000078926-no-bg-preview-carve-photos.png" alt="Bot" className="w-6 h-6 object-contain shrink-0 opacity-70" />
-                       ) : (
-                         <Shield className="w-4 h-4 text-primary/30 shrink-0" />
-                       )}
+                       <div className="w-6 h-6 shrink-0 flex items-center justify-center overflow-hidden bg-background/40 rounded-sm p-0.5 border border-white/5">
+                         {clubLogo ? (
+                           <img src={clubLogo} alt="" className="w-full h-full object-contain" />
+                         ) : entry.isBot ? (
+                           <img src="https://i.ibb.co/tpcQnnj1/1000078926-no-bg-preview-carve-photos.png" alt="Bot" className="w-full h-full object-contain opacity-70" />
+                         ) : (
+                           <Shield className="w-3 h-3 text-primary/30" />
+                         )}
+                       </div>
                       <span className={cn(
                         "text-[10px] font-bold uppercase truncate", 
                         isMe ? "text-primary font-black" : "text-white/90"

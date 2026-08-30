@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useGameState } from '../lib/store';
@@ -66,7 +65,7 @@ export default function SystemPage() {
   }, [players]);
 
   const worldProgress = initStatus?.currentIndex || 0;
-  const isWorldReady = repairStatus?.phase === 'COMPLETED' || worldProgress >= TOTAL_GROUPS;
+  const isWorldReady = worldProgress >= TOTAL_GROUPS;
 
   const t = {
     ru: { 
@@ -81,7 +80,9 @@ export default function SystemPage() {
       cup: "ГЕНЕРАЦИЯ КУБКА", cupDesc: "Создать турнирную сетку на текущий сезон",
       transition: "СМЕНА СЕЗОНА", transitionDesc: "Запустить переход в следующий сезон",
       readyCheck: "ГОТОВНОСТЬ СЕЗОНА 1", readyCheckDesc: "Проверить корректность старта 31.08",
-      error: "Сервер занят. Автопилот пробует снова..."
+      error: "Сервер занят. Автопилот пробует снова...",
+      confirmNuclear: "ПОЛНОЕ УДАЛЕНИЕ", confirmNuclearDesc: "Все игроки v131 и данные сезона будут стерты. Это действие необратимо.",
+      btnConfirm: "УНИЧТОЖИТЬ", btnCancel: "ОТМЕНА"
     },
     en: { 
       title: "SYSTEM", subtitle: "Parameters and network metrics (v131)",
@@ -95,20 +96,23 @@ export default function SystemPage() {
       cup: "GENERATE CUP", cupDesc: "Create tournament bracket for current season",
       transition: "SEASON TRANSITION", transitionDesc: "Trigger promotion/relegation logic",
       readyCheck: "SEASON 1 READY CHECK", readyCheckDesc: "Verify Aug 31 launch parameters",
-      error: "Server busy. Retrying..."
+      error: "Server busy. Retrying...",
+      confirmNuclear: "FULL DELETION", confirmNuclearDesc: "All v131 players and season data will be wiped. Action is irreversible.",
+      btnConfirm: "WIPE ALL", btnCancel: "CANCEL"
     }
   }[language === 'ru' ? 'ru' : 'en'];
 
+  // Умная логика автопилота
   useEffect(() => {
     if (autoPilot && !isWorldReady && !isProcessing && !isBuilding) {
       const timer = setTimeout(() => {
         handleAction('forceBuild');
-      }, 2000);
+      }, 1500); // Чаще проверяем при автопилоте
       return () => clearTimeout(timer);
     }
     if (isWorldReady && autoPilot) {
       setAutoPilot(false);
-      toast({ title: "Universe Ready", description: "All 511 sectors colonized for Aug 31 launch." });
+      toast({ title: "Universe v131 Complete", description: "All 511 groups initialized." });
     }
   }, [autoPilot, isWorldReady, isProcessing, isBuilding]);
 
@@ -117,44 +121,38 @@ export default function SystemPage() {
 
     if (action === 'forceBuild') {
       setIsBuilding(true);
-      if (!autoPilot) setAutoPilot(true);
     } else {
       setIsProcessing(true);
     }
     
     try {
-      let res: any;
       if (action === 'nuclear') {
-        res = await totalNuclearResetV131();
+        await totalNuclearResetV131();
         setAutoPilot(false); 
-      }
-      else if (action === 'resolve') res = await resolveDailyMatches();
-      else if (action === 'cup') res = await generatePyramidCup(seasonNumber);
-      else if (action === 'transition') res = await performSeasonTransition();
-      else if (action === 'forceBuild') res = await runGlobalEmergencyRepair();
-      else if (action === 'readyCheck') {
-        toast({ title: "Ready Check Pass", description: "First match scheduled for 31.08.2026 18:00 MSK." });
-        setIsProcessing(false);
-        return;
-      }
-      
-      if (!autoPilot || action !== 'forceBuild') {
-        toast({ 
-          title: res?.status || "Success", 
-          description: res?.progress || res?.msg || "Action executed" 
-        });
-      }
-
-      if (action === 'nuclear' && res?.success) {
+        toast({ title: "System Purged", description: "All flags and players removed." });
         window.location.reload();
+      }
+      else if (action === 'resolve') {
+        const res = await resolveDailyMatches();
+        toast({ title: "Resolve Complete", description: res?.progress });
+      }
+      else if (action === 'cup') {
+        await generatePyramidCup(seasonNumber);
+        toast({ title: "Cup Generated" });
+      }
+      else if (action === 'transition') {
+        await performSeasonTransition();
+        toast({ title: "Transition Success" });
+      }
+      else if (action === 'forceBuild') {
+        await runGlobalEmergencyRepair();
+      }
+      else if (action === 'readyCheck') {
+        toast({ title: "Ready Check Pass", description: "Launch sequence set for Aug 31 18:00 MSK." });
       }
     } catch (e: any) {
       if (!autoPilot) {
-        toast({ 
-          variant: "destructive", 
-          title: "Network Latency", 
-          description: t.error 
-        });
+        toast({ variant: "destructive", title: "API Delay", description: t.error });
       }
     } finally {
       setIsProcessing(false);
@@ -177,16 +175,16 @@ export default function SystemPage() {
         <section className="space-y-3">
           <div className="flex items-center justify-between px-1">
             <h2 className="text-[10px] font-black uppercase tracking-widest text-accent">{t.worldStatus}</h2>
-            {autoPilot && <Badge className="bg-primary animate-pulse text-[8px] font-black uppercase shadow-[0_0_10px_rgba(var(--primary),0.4)]">AUTOPILOT ON</Badge>}
+            {autoPilot && <Badge className="bg-primary animate-pulse text-[8px] font-black uppercase shadow-[0_0_10px_rgba(var(--primary),0.4)]">AUTOPILOT ACTIVE</Badge>}
           </div>
           <Card className={cn("glass-card border-white/5 bg-secondary/10 overflow-hidden", (!isWorldReady || autoPilot) && "border-primary/30")}>
             <CardContent className="p-4">
                <div className="flex items-center justify-between mb-3">
                  <div className="flex items-center gap-3">
                    <div className={cn("p-2 rounded-lg bg-secondary/50", (!isWorldReady || autoPilot) ? "text-primary animate-pulse" : "text-green-400")}>
-                     {isWorldReady && !autoPilot ? <ShieldCheck className="w-5 h-5" /> : <Construction className="w-5 h-5" />}
+                     {isWorldReady ? <ShieldCheck className="w-5 h-5" /> : <Construction className="w-5 h-5" />}
                    </div>
-                   <p className="text-xs font-bold uppercase text-white">{isWorldReady && !autoPilot ? t.ready : (autoPilot ? t.autoPilotOn : (repairStatus?.progress || t.building))}</p>
+                   <p className="text-xs font-bold uppercase text-white">{isWorldReady ? t.ready : (autoPilot ? t.autoPilotOn : t.building)}</p>
                  </div>
                  <p className="text-sm font-headline font-bold text-primary">{worldProgress} / {TOTAL_GROUPS}</p>
                </div>
@@ -199,11 +197,11 @@ export default function SystemPage() {
                   "w-full h-14 font-black text-xs uppercase mt-4 shadow-xl transition-all tracking-widest",
                   autoPilot ? "bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20" : "hero-gradient"
                 )} 
-                onClick={() => autoPilot ? setAutoPilot(false) : handleAction('forceBuild')} 
+                onClick={() => autoPilot ? setAutoPilot(false) : setAutoPilot(true)} 
                 disabled={isProcessing && !autoPilot}
                >
                   {isBuilding || autoPilot ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Zap className="w-5 h-5 mr-2" />} 
-                  {autoPilot ? (language === 'ru' ? 'ОСТАНОВИТЬ АВТОПИЛОТ' : 'STOP AUTOPILOT') : t.forceBuild}
+                  {autoPilot ? (language === 'ru' ? 'ОСТАНОВИТЬ' : 'STOP AUTOPILOT') : t.forceBuild}
                </Button>
             </CardContent>
           </Card>
