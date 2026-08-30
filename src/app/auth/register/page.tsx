@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -9,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, UserPlus, ArrowRight } from 'lucide-react';
+import { Loader2, UserPlus } from 'lucide-react';
 import { useGameState } from '@/app/lib/store';
 import { useAuth, useUser, initiateEmailSignUp } from '@/firebase';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
@@ -60,7 +59,6 @@ export default function RegisterPage() {
     }
   }[language as 'en' | 'ru'] || { title: "Register", subtitle: "Join", callsign: "Team", passLabel: "Pass", submitBtn: "Join", alreadyRegistered: "Have account?", loginLink: "Login" };
 
-  // If user appears (sign up success), redirect to setup
   useEffect(() => {
     if (user) {
       router.push('/setup');
@@ -69,7 +67,7 @@ export default function RegisterPage() {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!auth) return;
+    if (!auth || isProcessing) return;
 
     const trimmedUsername = username.trim();
     if (trimmedUsername.length < 3) {
@@ -86,16 +84,16 @@ export default function RegisterPage() {
       const slug = slugify(trimmedUsername);
       const technicalEmail = `${slug}@${EMAIL_DOMAIN}`;
       
-      // We initiate sign up.
       await initiateEmailSignUp(auth, technicalEmail, password);
       toast({ title: t.success });
     } catch (error: any) {
       setIsProcessing(false);
-      const isEmailInUse = error.message?.includes('email-already-in-use') || error.code === 'auth/email-already-in-use';
+      const isEmailInUse = error.code === 'auth/email-already-in-use' || error.message?.includes('already-in-use');
+      
       toast({ 
         variant: "destructive", 
         title: language === 'ru' ? "Ошибка инициации" : "Initialization Failed", 
-        description: isEmailInUse ? t.errorExists : (error.message || "Unknown Error")
+        description: isEmailInUse ? t.errorExists : (error.message || "Unknown Auth Error")
       });
     }
   };
@@ -118,6 +116,7 @@ export default function RegisterPage() {
               required 
               className="bg-secondary/50" 
               placeholder="MyTeamName"
+              disabled={isProcessing}
             />
           </div>
           <div className="space-y-2">
@@ -128,6 +127,7 @@ export default function RegisterPage() {
               onChange={e => setPassword(e.target.value)} 
               required 
               className="bg-secondary/50" 
+              disabled={isProcessing}
             />
           </div>
         </CardContent>

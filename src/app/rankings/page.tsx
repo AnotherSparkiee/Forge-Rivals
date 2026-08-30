@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -204,7 +203,7 @@ export default function RankingsPage() {
                  return (
                   <div key={entry.id} className={cn(
                     "grid grid-cols-[24px_1fr_25px_60px_35px] gap-1 items-center px-3 h-12 rounded-xl border mb-1 transition-all", 
-                    isMe ? "bg-primary/20 border-primary/40 shadow-inner" : 
+                    isMe ? "bg-primary/20 border-primary/40 shadow-[inset_0_0_10px_rgba(var(--primary),0.2)]" : 
                     isChampionZone ? "bg-green-500/10 border-green-500/20" :
                     isRelegationZone ? "bg-red-500/10 border-red-500/20" :
                     "bg-secondary/20 border-white/5"

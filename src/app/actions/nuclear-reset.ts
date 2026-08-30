@@ -1,9 +1,8 @@
-
 'use server';
 
 /**
- * Скрипт "Ядерной очистки" v133 (High-Speed Multi-Batch Purge).
- * Увеличена скорость удаления до 1500 доков за один вызов.
+ * Скрипт "Ядерной очистки" v134 (Ultra-Speed Multi-Batch Purge).
+ * Увеличена скорость удаления до 2500 доков за один вызов для предотвращения зависаний.
  */
 
 import { 
@@ -13,11 +12,11 @@ import {
 import { initializeFirebase } from '@/firebase';
 
 const DELETE_BATCH_SIZE = 500;
-const BATCHES_PER_CALL = 3; // Удаляем до 1500 доков за один вызов
+const BATCHES_PER_CALL = 5; // Удаляем до 2500 доков за один вызов для макс. скорости
 
 export async function totalNuclearResetV131() {
   const { firestore: db } = initializeFirebase();
-  console.log("[NUCLEAR v133] Initiating High-Speed Purge...");
+  console.log("[NUCLEAR v134] Initiating Ultra-Speed Purge...");
 
   // 1. ПРИНУДИТЕЛЬНОЕ УДАЛЕНИЕ СИСТЕМНЫХ ФЛАГОВ (Первый приоритет)
   const systemDocs = [
@@ -44,14 +43,16 @@ export async function totalNuclearResetV131() {
     'private_messages_v3',
     'cup_matches',
     'notifications_v7',
-    'cup_pyramid_v1'
+    'cup_pyramid_v1',
+    'cw_basket_v2',
+    'friendly_lobbies_v3'
   ];
   
   let totalDeletedInThisCall = 0;
 
-  // Цикл по пачкам для ускорения (до 3-х батчей по 500)
+  // Цикл по пачкам для ускорения
   for (let b = 0; b < BATCHES_PER_CALL; b++) {
-    let batchDeleted = 0;
+    let batchDeletedCount = 0;
     
     for (const coll of colls) {
       const q = query(collection(db, coll), limit(DELETE_BATCH_SIZE));
@@ -62,14 +63,13 @@ export async function totalNuclearResetV131() {
         snap.docs.forEach(d => batch.delete(d.ref));
         await batch.commit();
         
-        batchDeleted = snap.size;
-        totalDeletedInThisCall += batchDeleted;
-        break; // Уходим на следующую итерацию BATCHES_PER_CALL
+        batchDeletedCount = snap.size;
+        totalDeletedInThisCall += batchDeletedCount;
+        break; // Нашли что удалять - переходим к следующему батчу в цикле BATCHES_PER_CALL
       }
     }
     
-    // Если после проверки всех коллекций мы ничего не нашли - выходим совсем
-    if (batchDeleted === 0) break;
+    if (batchDeletedCount === 0) break; // Все коллекции пусты
   }
 
   const isComplete = totalDeletedInThisCall === 0;
