@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef, useMemo } from 'react';
@@ -39,7 +40,7 @@ export default function GlobalChatPage() {
 
   const userRef = useMemoFirebase(() => {
     if (!db || !user) return null;
-    return doc(db, 'players_v13', user.uid);
+    return doc(db, 'players_v14', user.uid);
   }, [db, user]);
   
   const { data: profile } = useDoc(userRef);
@@ -82,12 +83,6 @@ export default function GlobalChatPage() {
     inFriends?.forEach(f => ids.add(f.fromId));
     return ids;
   }, [outFriends, inFriends]);
-
-  useEffect(() => {
-    if (!userIsLoading && !user) {
-      router.push('/auth/login');
-    }
-  }, [user, userIsLoading, router]);
 
   useEffect(() => {
     if (scrollRef.current) {

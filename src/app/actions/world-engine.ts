@@ -1,7 +1,8 @@
+
 'use server';
 
 /**
- * Глобальный двигатель заполнения мира v131 (BulkWriter Architecture).
+ * Глобальный двигатель заполнения мира v140 (BulkWriter Architecture).
  * Создает полную структуру лиги (511 групп) до регистрации игроков.
  */
 
@@ -81,7 +82,7 @@ export async function injectGroupData(
   group: number, 
   seasonNum: number
 ) {
-  const tableId = `table_v131_S${seasonNum}_L${leagueId}_V${tier}_G${group}`;
+  const tableId = `table_v140_S${seasonNum}_L${leagueId}_V${tier}_G${group}`;
   const tableRef = doc(db, 'league_tables_v2', tableId);
   
   const initialStats: any = {};
@@ -98,29 +99,30 @@ export async function injectGroupData(
     teamsForCalendar.push({ id: bId, name: bName, rank: r });
   }
 
+  if (Object.keys(initialStats).length !== 8) {
+    throw new Error(`CRITICAL: Group integrity failure at L${tier} G${group}`);
+  }
+
   await writer.set(tableRef, {
     id: tableId, leagueId, level: tier, group, season: seasonNum,
     stats: initialStats,
     createdAt: serverTimestamp(),
-    version: 131
+    version: 140
   });
 
   const calendar = generateSeasonCalendar(teamsForCalendar, seasonNum, leagueId);
   for (const m of calendar) {
-    const mId = `match_v131_S${seasonNum}_L${leagueId}_V${tier}_G${group}_T${m.tour}_R${m.homeRank}_vs_R${m.awayRank}`;
+    const mId = `match_v140_S${seasonNum}_L${leagueId}_V${tier}_G${group}_T${m.tour}_R${m.homeRank}_vs_R${m.awayRank}`;
     await writer.set(doc(db, 'matches_v2', mId), {
       ...m,
       id: mId,
       leagueId, level: tier, groupId: group, season: seasonNum,
       isFinished: false, scoreA: 0, scoreB: 0,
-      version: 131
+      version: 140
     });
   }
 }
 
-/**
- * Создает структуру одной конкретной группы (используется при JIT).
- */
 export async function createGroupStructure(
   db: Firestore, 
   leagueId: string, 
@@ -133,21 +135,18 @@ export async function createGroupStructure(
   return await writer.close();
 }
 
-/**
- * Глобальный процесс инициализации мира по порциям.
- */
 export async function initializeLeagueWorld(leagueId: string, targetSeason?: number) {
   const { firestore: db } = initializeFirebase();
   const info = getGlobalSeasonInfo();
   const seasonNum = targetSeason || info.activeSeasonNumber;
 
-  const statusRef = doc(db, 'system_v1', `init_v131_S${seasonNum}_L${leagueId}`);
+  const statusRef = doc(db, 'system_v1', `init_v140_S${seasonNum}_L${leagueId}`);
   const statusSnap = await getDoc(statusRef);
   
   let currentIndex = 0;
   if (statusSnap.exists()) {
     const data = statusSnap.data();
-    if (data.status === 'completed' && data.version === 131) {
+    if (data.status === 'completed' && data.version === 140) {
       return { status: 'COMPLETE', isComplete: true, currentIndex: TOTAL_GROUPS };
     }
     currentIndex = data.currentIndex || 0;
@@ -157,13 +156,11 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
   let lastProcessedIndex = currentIndex;
   let groupsBuiltInThisCall = 0;
 
-  // Цикл постройки порции групп
   while (groupsBuiltInThisCall < GROUPS_PER_CALL && lastProcessedIndex < TOTAL_GROUPS) {
     const nextIndex = lastProcessedIndex + 1;
     const coords = getGroupCoordinates(nextIndex);
     
-    // Проверка существования (пропуск уже созданных)
-    const tableId = `table_v131_S${seasonNum}_L${leagueId}_V${coords.tier}_G${coords.group}`;
+    const tableId = `table_v140_S${seasonNum}_L${leagueId}_V${coords.tier}_G${coords.group}`;
     const tableSnap = await getDoc(doc(db, 'league_tables_v2', tableId));
     
     if (!tableSnap.exists()) {
@@ -174,7 +171,6 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
     lastProcessedIndex = nextIndex;
   }
 
-  // Ждем завершения всех операций записи
   await writer.close();
 
   const isComplete = lastProcessedIndex >= TOTAL_GROUPS;
@@ -182,7 +178,7 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
     currentIndex: lastProcessedIndex,
     status: isComplete ? 'completed' : 'processing',
     updatedAt: serverTimestamp(),
-    version: 131
+    version: 140
   }, { merge: true });
 
   return { 

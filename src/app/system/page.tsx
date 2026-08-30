@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useGameState } from '../lib/store';
@@ -42,11 +43,11 @@ export default function SystemPage() {
   const [showNuclearDialog, setShowNuclearDialog] = useState(false);
   const [purgeStats, setPurgeStats] = useState({ total: 0, lastOp: 0 });
   
-  const playersQuery = useMemoFirebase(() => db ? query(collection(db, 'players_v13')) : null, [db]);
+  const playersQuery = useMemoFirebase(() => db ? query(collection(db, 'players_v14')) : null, [db]);
   const { data: players } = useCollection(playersQuery);
 
   const initStatusRef = useMemoFirebase(() => 
-    (db && selectedLeagueId) ? doc(db, 'system_v1', `init_v131_S${seasonNumber}_L${selectedLeagueId}`) : null, 
+    (db && selectedLeagueId) ? doc(db, 'system_v1', `init_v140_S${seasonNumber}_L${selectedLeagueId}`) : null, 
     [db, selectedLeagueId, seasonNumber]
   );
   const { data: initStatus } = useDoc(initStatusRef);
@@ -64,40 +65,39 @@ export default function SystemPage() {
 
   const t = {
     ru: { 
-      title: "СИСТЕМА", subtitle: "Параметры и сетевая статистика (v131)",
+      title: "СИСТЕМА", subtitle: "Параметры и сетевая статистика (v140)",
       status: "Статус сети", online: "Игроков онлайн", registered: "Зарегистрировано",
-      worldStatus: "Состояние мира", building: "Подготовка пирамиды к 31.08...", ready: "Мир v131 готов к старту",
+      worldStatus: "Состояние мира", building: "Подготовка пирамиды к 31.08...", ready: "Мир v140 готов к старту",
       forceBuild: "ФОРСИРОВАТЬ ПОСТРОЙКУ",
       autoPilotOn: "АВТОПИЛОТ: ПОСТРОЙКА...",
       nuclearStatus: "ИДЕТ ОЧИСТКА...",
       adminTitle: "ТЕРМИНАЛ АДМИНИСТРАТОРА",
-      nuclear: "ЯДЕРНЫЙ СБРОС v131", nuclearDesc: "Полное удаление данных сезона",
+      nuclear: "ЯДЕРНЫЙ СБРОС v140", nuclearDesc: "Полное удаление данных сезона",
       resolve: "РАССЧИТАТЬ ТУР", resolveDesc: "Запустить расчет матчей",
       cup: "ГЕНЕРАЦИЯ КУБКА", cupDesc: "Создать турнирную сетку",
       transition: "СМЕНА СЕЗОНА", transitionDesc: "Запустить переход",
       readyCheck: "ГОТОВНОСТЬ СЕЗОНА 1", readyCheckDesc: "Проверка запуска 31.08",
-      confirmNuclear: "ПОЛНОЕ УДАЛЕНИЕ", confirmNuclearDesc: "Все данные v131 будут стерты навсегда.",
+      confirmNuclear: "ПОЛНОЕ УДАЛЕНИЕ", confirmNuclearDesc: "Все данные v140 будут стерты навсегда.",
       btnConfirm: "УНИЧТОЖИТЬ", btnCancel: "ОТМЕНА"
     },
     en: { 
-      title: "SYSTEM", subtitle: "Parameters and network metrics (v131)",
+      title: "SYSTEM", subtitle: "Parameters and network metrics (v140)",
       status: "Network Status", online: "Online Managers", registered: "Total Registered",
-      worldStatus: "World Integrity", building: "Preparing Pyramid for Aug 31...", ready: "World v131 Ready for Launch",
+      worldStatus: "World Integrity", building: "Preparing Pyramid for Aug 31...", ready: "World v140 Ready for Launch",
       forceBuild: "FORCE WORLD BUILD",
       autoPilotOn: "AUTOPILOT: BUILDING...",
       nuclearStatus: "SYSTEM PURGING...",
       adminTitle: "ADMIN TERMINAL",
-      nuclear: "NUCLEAR RESET v131", nuclearDesc: "Wipe all season data",
+      nuclear: "NUCLEAR RESET v140", nuclearDesc: "Wipe all season data",
       resolve: "RESOLVE DAILY", resolveDesc: "Trigger match calculation",
       cup: "GENERATE CUP", cupDesc: "Create tournament bracket",
       transition: "SEASON TRANSITION", transitionDesc: "Trigger promotion/relegation",
       readyCheck: "SEASON 1 READY CHECK", readyCheckDesc: "Verify Aug 31 launch",
-      confirmNuclear: "FULL DELETION", confirmNuclearDesc: "All v131 data will be wiped permanently.",
+      confirmNuclear: "FULL DELETION", confirmNuclearDesc: "All v140 data will be wiped permanently.",
       btnConfirm: "WIPE ALL", btnCancel: "CANCEL"
     }
   }[language === 'ru' ? 'ru' : 'en'];
 
-  // Цикл автопилота постройки
   useEffect(() => {
     if (autoPilot && !isWorldReady && !isProcessing) {
       const timer = setTimeout(() => handleAction('forceBuild'), 2500);
@@ -105,7 +105,6 @@ export default function SystemPage() {
     }
   }, [autoPilot, isWorldReady, isProcessing]);
 
-  // Цикл ядерной очистки
   useEffect(() => {
     if (isNuclearActive && !isProcessing) {
       const timer = setTimeout(() => handleAction('nuclear'), 2000);
@@ -170,7 +169,6 @@ export default function SystemPage() {
       </header>
 
       <div className="space-y-8">
-        {/* WORLD INTEGRITY CARD */}
         <section className="space-y-3">
           <div className="flex items-center justify-between px-1">
             <h2 className="text-[10px] font-black uppercase tracking-widest text-accent">{t.worldStatus}</h2>
@@ -213,7 +211,6 @@ export default function SystemPage() {
           </Card>
         </section>
 
-        {/* ADMIN TERMINAL */}
         <section className="space-y-3">
           <h2 className="text-[10px] font-black uppercase tracking-widest text-red-500 px-1 flex items-center gap-2"><Database className="w-4 h-4" /> {t.adminTitle}</h2>
           <div className="grid grid-cols-1 gap-2">
@@ -228,30 +225,9 @@ export default function SystemPage() {
                 <ChevronRight className="w-4 h-4 text-red-500/40" />
               </CardContent>
             </Card>
-
-            <Card className="glass-card border-white/5 hover:bg-white/5 transition-all cursor-pointer" onClick={() => handleAction('readyCheck')}>
-              <CardContent className="p-4 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="p-2.5 rounded-xl bg-secondary/50 text-primary"><CalendarCheck className="w-5 h-5" /></div>
-                  <div><h3 className="text-xs font-black uppercase text-white">{t.readyCheck}</h3><p className="text-[8px] text-muted-foreground uppercase">{t.readyCheckDesc}</p></div>
-                </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground" />
-              </CardContent>
-            </Card>
-
-            <Card className="glass-card border-white/5 hover:bg-white/5 transition-all cursor-pointer" onClick={() => handleAction('resolve')}>
-              <CardContent className="p-4 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="p-2.5 rounded-xl bg-secondary/50 text-green-400"><Play className="w-5 h-5" /></div>
-                  <div><h3 className="text-xs font-black uppercase text-white">{t.resolve}</h3><p className="text-[8px] text-muted-foreground uppercase">{t.resolveDesc}</p></div>
-                </div>
-                {isProcessing && !isBuilding && !isNuclearActive ? <Loader2 className="w-4 h-4 animate-spin text-primary" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
-              </CardContent>
-            </Card>
           </div>
         </section>
 
-        {/* NETWORK STATUS */}
         <section className="space-y-3">
           <h2 className="text-[10px] font-black uppercase tracking-widest text-accent px-1">{t.status}</h2>
           <div className="grid grid-cols-2 gap-3">

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
@@ -92,17 +93,17 @@ export default function IronGlobePage() {
   const activeRecordRef = useRef(false);
   const finalResultRef = useRef(false);
 
-  // Strictly use players_v12
+  // Strictly use players_v14
   const userRef = useMemoFirebase(() => {
     if (!db || !user) return null;
-    return doc(db, 'players_v12', user.uid);
+    return doc(db, 'players_v14', user.uid);
   }, [db, user]);
   
   const { data: profile } = useDoc(userRef);
 
   const participantsQuery = useMemoFirebase(() => {
     if (!db) return null;
-    return query(collection(db, 'players_v12'), where('tournaments', 'array-contains', 'iron-globe'));
+    return query(collection(db, 'players_v14'), where('tournaments', 'array-contains', 'iron-globe'));
   }, [db]);
 
   const { data: participants, isLoading: isParticipantsLoading } = useCollection(participantsQuery);

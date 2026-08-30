@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect, useRef } from 'react';
@@ -66,8 +67,8 @@ export default function SquadPage() {
     return () => clearInterval(timer);
   }, []);
 
-  // Use players_v13 for active profile
-  const userRef = useMemoFirebase(() => (user?.uid ? doc(db, 'players_v13', user.uid) : null), [db, user?.uid]);
+  // Use players_v14 for active profile
+  const userRef = useMemoFirebase(() => (user?.uid ? doc(db, 'players_v14', user.uid) : null), [db, user?.uid]);
   const { data: profile } = useDoc(userRef);
 
   const squadLimit = useMemo(() => {

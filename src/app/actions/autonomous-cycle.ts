@@ -1,8 +1,9 @@
+
 'use server';
 
 /**
- * @fileOverview ГЛОБАЛЬНЫЙ АВТОНОМНЫЙ ДВИГАТЕЛЬ ЛИГИ v131 (V2 COLLECTIONS).
- * Обрабатывает матчи версии 131 и переходы между сезонами.
+ * @fileOverview ГЛОБАЛЬНЫЙ АВТОНОМНЫЙ ДВИГАТЕЛЬ ЛИГИ v140 (V2 COLLECTIONS).
+ * Обрабатывает матчи версии 140 и переходы между сезонами.
  */
 
 import { 
@@ -42,12 +43,12 @@ export async function resolveDailyMatches() {
   const info = getGlobalSeasonInfo();
   const currentSeason = info.activeSeasonNumber;
   
-  const repairStatusRef = doc(db, 'system_v1', `repair_v131_S${currentSeason}_LALPHA`);
+  const repairStatusRef = doc(db, 'system_v1', `repair_v140_S${currentSeason}_LALPHA`);
   const repairSnap = await getDoc(repairStatusRef);
   const isRepairComplete = repairSnap.exists() && repairSnap.data().phase === 'COMPLETED';
 
   if (!isRepairComplete) {
-    console.log(`[HEARTBEAT] World v131 not ready for S${currentSeason}. Skipping resolve.`);
+    console.log(`[HEARTBEAT] World v140 not ready for S${currentSeason}. Skipping resolve.`);
     return { success: true, status: "INITIALIZING_WORLD", progress: "0%" };
   }
 
@@ -58,7 +59,7 @@ export async function resolveDailyMatches() {
     where('season', '==', currentSeason),
     where('tour', '==', info.dayOfCycle),
     where('isFinished', '==', false),
-    where('version', '==', 131),
+    where('version', '==', 140),
     limit(100) 
   );
 
@@ -76,10 +77,10 @@ export async function resolveDailyMatches() {
     await batcher.update(matchDoc.ref, {
       scoreA: sA, scoreB: sB, winnerId,
       status: 'finished', isFinished: true,
-      resolvedAt: serverTimestamp(), version: 131
+      resolvedAt: serverTimestamp(), version: 140
     });
 
-    const tableId = `table_v131_S${currentSeason}_L${m.leagueId}_V${m.level}_G${m.groupId}`;
+    const tableId = `table_v140_S${currentSeason}_L${m.leagueId}_V${m.level}_G${m.groupId}`;
     const tableRef = doc(db, 'league_tables_v2', tableId);
     
     const statsUpdate: any = {};
@@ -110,7 +111,6 @@ export async function resolveDailyMatches() {
 
 /**
  * Переход между сезонами (Повышение/Понижение).
- * Пока заглушка для соответствия импортам в API.
  */
 export async function performSeasonTransition() {
   return { success: true, status: "TRANSITION_READY", progress: "100%" };

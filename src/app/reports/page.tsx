@@ -1,8 +1,9 @@
+
 'use client';
 
 /**
  * @fileOverview ЦЕНТР ОТЧЕТОВ МАТЧЕЙ v130.
- * Обновлен для работы с игроками v13 и коллекциями v2.
+ * Обновлен для работы с игроками v14 и коллекциями v2.
  */
 
 import { useGameState } from '@/app/lib/store';
@@ -38,10 +39,10 @@ export default function ReportsPage() {
     if (!isUserLoading && !user) router.push('/auth/login');
   }, [user, isUserLoading, router]);
 
-  // Загрузка участников группы для разрешения имен (v13)
+  // Загрузка участников группы для разрешения имен (v14)
   const groupPlayersQuery = useMemoFirebase(() => {
     if (!db || !selectedLeagueId) return null;
-    return query(collection(db, 'players_v13'), 
+    return query(collection(db, 'players_v14'), 
       where('selectedLeagueId', '==', selectedLeagueId),
       where('leagueLevel', '==', leagueLevel),
       where('groupId', '==', groupId)
@@ -285,7 +286,7 @@ export default function ReportsPage() {
             <FileText className="w-12 h-12" />
             <div className="space-y-1">
               <p className="text-sm font-bold uppercase text-white">{t.empty}</p>
-              <p className="text-[9px] uppercase font-black tracking-widest max-w-[200px] leading-relaxed">
+              <p className="text-[9px] uppercase font-black tracking-widest max-w-[200px] font-medium leading-relaxed">
                 {t.emptyDesc}
               </p>
             </div>

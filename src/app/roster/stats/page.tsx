@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useMemo, useEffect } from 'react';
@@ -21,8 +22,8 @@ export default function PlayerStatsPage() {
   const db = useFirestore();
   const { ownedPlayers, matchHistory, language, isLoaded } = useGameState();
 
-  // Use players_v13 for active profile
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v13', user.uid) : null, [db, user]);
+  // Use players_v14 for active profile
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v14', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
   const playerStats = useMemo(() => {

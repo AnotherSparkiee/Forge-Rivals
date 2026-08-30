@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -55,7 +56,7 @@ export default function AllManagersPage() {
 
   const userRef = useMemoFirebase(() => {
     if (!db || !user) return null;
-    return doc(db, 'players_v13', user.uid);
+    return doc(db, 'players_v14', user.uid);
   }, [db, user]);
   
   const { data: profile } = useDoc(userRef);
@@ -63,7 +64,7 @@ export default function AllManagersPage() {
   const managersQuery = useMemoFirebase(() => {
     if (!db) return null;
     return query(
-      collection(db, 'players_v13'),
+      collection(db, 'players_v14'),
       limit(100)
     );
   }, [db]);

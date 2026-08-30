@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useGameState } from '@/app/lib/store';
@@ -19,10 +20,10 @@ export default function TournamentHistoryPage() {
   const db = useFirestore();
   const { language, isLoaded } = useGameState();
 
-  // Updated to strictly use players_v13
+  // Updated to strictly use players_v14
   const userRef = useMemoFirebase(() => {
     if (!db || !user) return null;
-    return doc(db, 'players_v13', user.uid);
+    return doc(db, 'players_v14', user.uid);
   }, [db, user]);
   
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);

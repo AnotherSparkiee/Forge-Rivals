@@ -1,7 +1,8 @@
+
 'use server';
 
 /**
- * @fileOverview Серверный модуль инициализации v131 (Absolute Isolation).
+ * @fileOverview Серверный модуль инициализации v140 (Absolute Isolation).
  * Ищет свободное место в уже созданной 511-групповой пирамиде.
  */
 
@@ -16,7 +17,7 @@ import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 import { createGroupStructure } from './world-engine';
 
 /**
- * Находит свободное место в текущем сезоне v13.
+ * Находит свободное место в текущем сезоне v14.
  * Приоритет: 1 Дивизион (Элита).
  */
 export async function findStrategicPlacement(leagueId: string) {
@@ -24,7 +25,7 @@ export async function findStrategicPlacement(leagueId: string) {
 
   try {
     const q = query(
-      collection(db, 'players_v13'), 
+      collection(db, 'players_v14'), 
       where('selectedLeagueId', '==', leagueId)
     );
     const snap = await getDocs(q);
@@ -58,7 +59,7 @@ export async function findStrategicPlacement(leagueId: string) {
 }
 
 /**
- * Атомарная инициализация клуба v131.
+ * Атомарная инициализация клуба v140.
  * Заменяет бота в существующей таблице на реального игрока.
  */
 export async function initializeClubV13(userId: string, data: any) {
@@ -69,14 +70,14 @@ export async function initializeClubV13(userId: string, data: any) {
   const { tier, group, rank, clubName, clubLogo } = data;
   const leagueId = data.selectedLeagueId || "ALPHA";
   
-  const tableId = `table_v131_S${seasonNum}_L${leagueId}_V${tier}_G${group}`;
+  const tableId = `table_v140_S${seasonNum}_L${leagueId}_V${tier}_G${group}`;
   const tableRef = doc(db, 'league_tables_v2', tableId);
   
   let tableSnap = await getDoc(tableRef);
 
   // Если админ еще не создал мир, создаем группу JIT (для безопасности)
   if (!tableSnap.exists()) {
-    console.warn(`[JIT v131] Table ${tableId} missing. Creating...`);
+    console.warn(`[JIT v140] Table ${tableId} missing. Creating...`);
     await createGroupStructure(db, leagueId, tier, group, seasonNum);
     tableSnap = await getDoc(tableRef);
   } 
@@ -91,7 +92,7 @@ export async function initializeClubV13(userId: string, data: any) {
     : Object.keys(stats).find(id => stats[id].isBot === true) || null;
 
   if (!botToReplaceId && !stats[userId]) {
-    console.error(`[OVERFLOW v131] Group ${tier}.${group} is full!`);
+    console.error(`[OVERFLOW v140] Group ${tier}.${group} is full!`);
     return { success: false, error: "GROUP_FULL" };
   }
 
@@ -118,7 +119,7 @@ export async function initializeClubV13(userId: string, data: any) {
       where('level', '==', tier),
       where('groupId', '==', group),
       where('season', '==', seasonNum),
-      where('version', '==', 131)
+      where('version', '==', 140)
     );
     const matchesSnap = await getDocs(matchesQ);
 
@@ -139,7 +140,7 @@ export async function initializeClubV13(userId: string, data: any) {
     });
   }
 
-  const playerRef = doc(db, 'players_v13', userId);
+  const playerRef = doc(db, 'players_v14', userId);
   batch.set(playerRef, {
     ...data,
     id: userId,
@@ -151,7 +152,7 @@ export async function initializeClubV13(userId: string, data: any) {
     rank,
     lastProcessedSeason: seasonNum,
     lastLoginDate: new Date().toISOString(),
-    version: 131
+    version: 140
   }, { merge: true });
 
   await batch.commit();

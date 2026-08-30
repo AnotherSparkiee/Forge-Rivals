@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -36,7 +37,7 @@ export default function RankingsPage() {
 
   const userProfileRef = useMemoFirebase(() => {
     if (!db || !user?.uid) return null;
-    return doc(db, 'players_v13', user.uid);
+    return doc(db, 'players_v14', user.uid);
   }, [db, user?.uid]);
 
   const { data: profile, isLoading: isProfileLoading } = useDoc(userProfileRef);
@@ -45,7 +46,7 @@ export default function RankingsPage() {
   const contextLevel = Number(navLevel || profile?.leagueLevel || 9);
   const contextGroup = Number(navGroup || profile?.groupId || 1);
 
-  const tableId = `table_v131_S${seasonNumber}_L${contextLeagueId}_V${contextLevel}_G${contextGroup}`;
+  const tableId = `table_v140_S${seasonNumber}_L${contextLeagueId}_V${contextLevel}_G${contextGroup}`;
   const tableRef = useMemoFirebase(() => {
     if (!db || !isLoaded) return null;
     return doc(db, 'league_tables_v2', tableId);
@@ -55,7 +56,7 @@ export default function RankingsPage() {
 
   const groupPlayersQuery = useMemoFirebase(() => {
     if (!db) return null;
-    return query(collection(db, 'players_v13'), 
+    return query(collection(db, 'players_v14'), 
       where('selectedLeagueId', '==', contextLeagueId),
       where('leagueLevel', '==', contextLevel),
       where('groupId', '==', contextGroup)

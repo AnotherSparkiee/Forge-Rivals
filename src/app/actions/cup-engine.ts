@@ -1,7 +1,8 @@
+
 'use server';
 
 /**
- * @fileOverview Ультимативный антикризисный двигатель Кубка v13.
+ * @fileOverview Ультимативный антикризисный двигатель Кубка v14.
  */
 
 import { 
@@ -43,9 +44,9 @@ export async function generatePyramidCup(targetSeasonNumber?: number) {
   const SEASON_ID = String(SEASON_NUM);
   const TIMESTAMP_NOW = Timestamp.now();
 
-  console.log(`[CUP ENGINE v13] Initializing Season ${SEASON_ID} Brackets...`);
+  console.log(`[CUP ENGINE v14] Initializing Season ${SEASON_ID} Brackets...`);
 
-  const playersSnap = await getDocs(collection(db, 'players_v13'));
+  const playersSnap = await getDocs(collection(db, 'players_v14'));
   const allGlobalPlayers = playersSnap.docs.map(d => ({ id: d.id, ...d.data() } as any));
 
   for (let i = 0; i < LEAGUES.length; i++) {
@@ -101,7 +102,7 @@ export async function generatePyramidCup(targetSeasonNumber?: number) {
         isFinished: false,
         winnerId: null,
         createdAt: serverTimestamp(),
-        version: 13
+        version: 140
       });
 
       left++;

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
@@ -46,10 +47,10 @@ export default function IronKettlePage() {
   const simLockRef = useRef<Set<string>>(new Set());
   const rewardClaimedRef = useRef<string | null>(null);
 
-  // Strictly use players_v13
+  // Strictly use players_v14
   const userRef = useMemoFirebase(() => {
     if (!db || !user) return null;
-    return doc(db, 'players_v13', user.uid);
+    return doc(db, 'players_v14', user.uid);
   }, [db, user]);
   
   const { data: profile } = useDoc(userRef);
@@ -70,7 +71,7 @@ export default function IronKettlePage() {
 
   const participantsQuery = useMemoFirebase(() => {
     if (!db) return null;
-    return query(collection(db, 'players_v13'), where('tournaments', 'array-contains', tournamentInstanceId));
+    return query(collection(db, 'players_v14'), where('tournaments', 'array-contains', tournamentInstanceId));
   }, [db, tournamentInstanceId]);
 
   const { data: participants, isLoading: isParticipantsLoading } = useCollection(participantsQuery);

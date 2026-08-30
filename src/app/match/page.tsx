@@ -1,8 +1,9 @@
+
 'use client';
 
 /**
  * @fileOverview ОФИЦИАЛЬНЫЙ ПЛЕЕР МАТЧЕЙ v130 (V2 COLLECTIONS).
- * Работает с матчами из matches_v2 и игроками v13.
+ * Работает с матчами из matches_v2 и игроками v14.
  */
 
 import { useState, useEffect, useMemo, Suspense, useRef } from 'react';
@@ -49,7 +50,7 @@ function MatchContent() {
 
   const groupPlayersQuery = useMemoFirebase(() => {
     if (!db || !selectedLeagueId) return null;
-    return query(collection(db, 'players_v13'), 
+    return query(collection(db, 'players_v14'), 
       where('selectedLeagueId', '==', selectedLeagueId),
       where('leagueLevel', '==', leagueLevel),
       where('groupId', '==', groupId)

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useGameState, LineupSlot } from '../../lib/store';
@@ -22,8 +23,8 @@ export default function SynergyPage() {
   const db = useFirestore();
   const { matchHistory, language, isLoaded, lineup, ownedPlayers } = useGameState();
 
-  // Strictly use players_v13
-  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v13', user.uid) : null, [db, user]);
+  // Strictly use players_v14
+  const userRef = useMemoFirebase(() => user ? doc(db, 'players_v14', user.uid) : null, [db, user]);
   const { data: profile } = useDoc(userRef);
 
   // Расчет общей статистики матчей для сыгранности
