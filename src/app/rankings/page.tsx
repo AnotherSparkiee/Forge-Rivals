@@ -189,7 +189,7 @@ export default function RankingsPage() {
              </div>
            ) : standings.length > 0 ? (
              <div className="space-y-1">
-               <div className="grid grid-cols-[24px_1fr_25px_60px_35px] gap-1 px-3 py-2 text-[8px] font-black text-muted-foreground uppercase tracking-widest border-b border-white/5">
+               <div className="grid grid-cols-[28px_1fr_25px_70px_35px] gap-1 px-3 py-2 text-[8px] font-black text-muted-foreground uppercase tracking-widest border-b border-white/5">
                  <span>#</span><span>{t.team}</span><span className="text-center">{t.m}</span><span className="text-center">{t.winLoss}</span><span className="text-right">{t.pts}</span>
                </div>
                {standings.map((entry: any, i: number) => {
@@ -202,10 +202,10 @@ export default function RankingsPage() {
 
                  return (
                   <div key={entry.id} className={cn(
-                    "grid grid-cols-[24px_1fr_25px_60px_35px] gap-1 items-center px-3 h-12 rounded-xl border mb-1 transition-all", 
-                    isMe ? "bg-primary/20 border-primary/40 shadow-inner" : 
-                    isChampionZone ? "bg-green-500/10 border-green-500/20" :
-                    isRelegationZone ? "bg-red-500/10 border-red-500/20" :
+                    "grid grid-cols-[28px_1fr_25px_70px_35px] gap-1 items-center px-3 h-12 rounded-xl border transition-all", 
+                    isMe ? "bg-primary/10 border-primary/30 shadow-inner" : 
+                    isChampionZone ? "bg-green-500/5 border-green-500/20" :
+                    isRelegationZone ? "bg-red-500/5 border-red-500/20" :
                     "bg-secondary/20 border-white/5"
                   )}>
                     <div className={cn(

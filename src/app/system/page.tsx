@@ -100,15 +100,15 @@ export default function SystemPage() {
   // Цикл автопилота постройки
   useEffect(() => {
     if (autoPilot && !isWorldReady && !isProcessing) {
-      const timer = setTimeout(() => handleAction('forceBuild'), 2000);
+      const timer = setTimeout(() => handleAction('forceBuild'), 2500);
       return () => clearTimeout(timer);
     }
   }, [autoPilot, isWorldReady, isProcessing]);
 
-  // Цикл ядерной очистки (Safe Retry Loop)
+  // Цикл ядерной очистки
   useEffect(() => {
     if (isNuclearActive && !isProcessing) {
-      const timer = setTimeout(() => handleAction('nuclear'), 1500);
+      const timer = setTimeout(() => handleAction('nuclear'), 2000);
       return () => clearTimeout(timer);
     }
   }, [isNuclearActive, isProcessing]);
@@ -124,6 +124,8 @@ export default function SystemPage() {
     try {
       if (action === 'nuclear') {
         const res = await totalNuclearResetV131();
+        if (!res?.success) throw new Error("Purge Action Failed");
+        
         setPurgeStats(prev => ({ total: prev.total + res.deletedCount, lastOp: res.deletedCount }));
         
         if (res.isComplete) {
@@ -133,26 +135,23 @@ export default function SystemPage() {
         }
       }
       else if (action === 'forceBuild') {
-        await runGlobalEmergencyRepair();
+        const res = await runGlobalEmergencyRepair();
+        if (!res || res.status === 'UNKNOWN') throw new Error("Build Logic Failure");
+        if (res.status === 'ALL_READY') {
+          setAutoPilot(false);
+        }
       }
       else if (action === 'resolve') {
         const res = await resolveDailyMatches();
         toast({ title: "Resolve Complete", description: res?.progress });
-      }
-      else if (action === 'cup') {
-        await generatePyramidCup(seasonNumber);
-        toast({ title: "Cup Generated" });
-      }
-      else if (action === 'transition') {
-        await performSeasonTransition();
-        toast({ title: "Transition Success" });
       }
       else if (action === 'readyCheck') {
         toast({ title: "Ready Check Pass", description: "Launch sequence set for Aug 31 18:00 MSK." });
       }
     } catch (e: any) {
       console.warn("[ADMIN ACTION ERROR]:", e.message);
-      // При ошибке просто разблокируем, useEffect сам попробует снова если активен статус
+      setAutoPilot(false);
+      setIsNuclearActive(false);
     } finally {
       setIsProcessing(false);
       setIsBuilding(false);

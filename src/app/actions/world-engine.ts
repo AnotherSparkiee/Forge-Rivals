@@ -1,8 +1,8 @@
 'use server';
 
 /**
- * Глобальный двигатель заполнения мира v131 (BulkWriter Architecture).
- * Реализует автоматическое управление батчами и параллельную запись.
+ * Глобальный двигатель заполнения мира v132 (BulkWriter Architecture).
+ * Оптимизирована скорость пропуска и добавлена защита 8/8.
  */
 
 import { 
@@ -19,10 +19,6 @@ import {
 } from '@/app/lib/leagues-data';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 
-/**
- * Клиентская реализация BulkWriter для обхода лимита в 500 операций.
- * Автоматически сбрасывает батчи при достижении порога безопасности.
- */
 class ClientBulkWriter {
   private currentBatch;
   private opCount = 0;
@@ -33,13 +29,11 @@ class ClientBulkWriter {
     this.currentBatch = writeBatch(this.db);
   }
 
-  private async checkAndFlush() {
-    if (this.opCount >= 480) {
-      const batchToCommit = this.currentBatch;
-      this.pendingCommits.push(batchToCommit.commit());
-      this.currentBatch = writeBatch(this.db);
-      this.opCount = 0;
-    }
+  private async flush() {
+    const batchToCommit = this.currentBatch;
+    this.pendingCommits.push(batchToCommit.commit());
+    this.currentBatch = writeBatch(this.db);
+    this.opCount = 0;
   }
 
   async set(ref: any, data: any, options?: any) {
@@ -47,26 +41,9 @@ class ClientBulkWriter {
     else this.currentBatch.set(ref, data);
     this.opCount++;
     this.totalOps++;
-    await this.checkAndFlush();
+    if (this.opCount >= 480) await this.flush();
   }
 
-  async update(ref: any, data: any) {
-    this.currentBatch.update(ref, data);
-    this.opCount++;
-    this.totalOps++;
-    await this.checkAndFlush();
-  }
-
-  async delete(ref: any) {
-    this.currentBatch.delete(ref);
-    this.opCount++;
-    this.totalOps++;
-    await this.checkAndFlush();
-  }
-
-  /**
-   * Дожидается завершения всех отправленных батчей и фиксирует остаток.
-   */
   async close() {
     if (this.opCount > 0) {
       this.pendingCommits.push(this.currentBatch.commit());
@@ -76,7 +53,7 @@ class ClientBulkWriter {
   }
 }
 
-const GROUPS_PER_CALL = 25; // Обрабатываем ~1425 документов за один вызов благодаря BulkWriter
+const GROUPS_PER_CALL = 20; 
 
 function getGroupCoordinates(index: number) {
   if (index < 1) return { tier: 1, group: 1 };
@@ -107,7 +84,6 @@ async function injectGroupData(
   const initialStats: any = {};
   const teamsForCalendar = [];
 
-  // ГАРАНТИЯ 8/8: Всегда ровно 8 ботов
   for (let r = 1; r <= TEAMS_PER_GROUP; r++) {
     const bId = getBotId(leagueId, tier, group, r);
     const bName = getBotName(tier, group, r);
@@ -119,9 +95,8 @@ async function injectGroupData(
     teamsForCalendar.push({ id: bId, name: bName, rank: r });
   }
 
-  // Критическая проверка целостности перед записью
   if (Object.keys(initialStats).length !== 8) {
-    throw new Error(`CRITICAL INTEGRITY FAILURE: group ${tier}.${group} generated with ${Object.keys(initialStats).length} teams instead of 8.`);
+    throw new Error(`CRITICAL INTEGRITY FAILURE: group ${tier}.${group} stats count mismatch.`);
   }
 
   await writer.set(tableRef, {
@@ -144,18 +119,6 @@ async function injectGroupData(
   }
 }
 
-export async function createGroupStructure(
-  db: Firestore, 
-  leagueId: string, 
-  tier: number, 
-  group: number, 
-  seasonNum: number
-) {
-  const writer = new ClientBulkWriter(db);
-  await injectGroupData(writer, db, leagueId, tier, group, seasonNum);
-  await writer.close();
-}
-
 export async function initializeLeagueWorld(leagueId: string, targetSeason?: number) {
   const { firestore: db } = initializeFirebase();
   const info = getGlobalSeasonInfo();
@@ -174,31 +137,27 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
   }
 
   const writer = new ClientBulkWriter(db);
-  let processedInThisCall = 0;
   let lastProcessedIndex = currentIndex;
+  let actualWorkDone = 0;
 
-  while (processedInThisCall < GROUPS_PER_CALL && lastProcessedIndex < TOTAL_GROUPS) {
+  while (actualWorkDone < GROUPS_PER_CALL && lastProcessedIndex < TOTAL_GROUPS) {
     const nextIndex = lastProcessedIndex + 1;
     const coords = getGroupCoordinates(nextIndex);
     
     const tableId = `table_v131_S${seasonNum}_L${leagueId}_V${coords.tier}_G${coords.group}`;
     const tableSnap = await getDoc(doc(db, 'league_tables_v2', tableId));
     
-    // Если группы нет — создаем её со всеми проверками 8/8
     if (!tableSnap.exists()) {
       await injectGroupData(writer, db, leagueId, coords.tier, coords.group, seasonNum);
+      actualWorkDone++;
     } 
 
     lastProcessedIndex = nextIndex;
-    processedInThisCall++;
   }
 
-  // Финализируем все батчи этой порции
   await writer.close();
 
   const isComplete = lastProcessedIndex >= TOTAL_GROUPS;
-  
-  // Обновляем чекпойнт только после успешного завершения всех записей
   await setDoc(statusRef, {
     currentIndex: lastProcessedIndex,
     status: isComplete ? 'completed' : 'processing',
