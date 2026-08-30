@@ -105,10 +105,10 @@ export default function SystemPage() {
     }
   }, [autoPilot, isWorldReady, isProcessing]);
 
-  // Цикл ядерной очистки
+  // Цикл ядерной очистки (Safe Retry Loop)
   useEffect(() => {
     if (isNuclearActive && !isProcessing) {
-      const timer = setTimeout(() => handleAction('nuclear'), 1000);
+      const timer = setTimeout(() => handleAction('nuclear'), 1500);
       return () => clearTimeout(timer);
     }
   }, [isNuclearActive, isProcessing]);
@@ -152,6 +152,7 @@ export default function SystemPage() {
       }
     } catch (e: any) {
       console.warn("[ADMIN ACTION ERROR]:", e.message);
+      // При ошибке просто разблокируем, useEffect сам попробует снова если активен статус
     } finally {
       setIsProcessing(false);
       setIsBuilding(false);

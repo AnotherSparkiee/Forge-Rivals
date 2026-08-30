@@ -1,8 +1,8 @@
 'use server';
 
 /**
- * Скрипт "Ядерной очистки" v131 (Engineered for Total Purge).
- * Возвращает точный статус, чтобы клиент видел реальный прогресс удаления.
+ * Скрипт "Ядерной очистки" v132 (Safe Multi-Collection Purge).
+ * Исправлена логика завершения цикла для предотвращения бесконечного вращения в UI.
  */
 
 import { 
@@ -12,13 +12,12 @@ import {
 import { initializeFirebase } from '@/firebase';
 
 const DELETE_BATCH_SIZE = 500;
-const MAX_DOCS_PER_CALL = 2000; // Удаляем до 2000 за один проход для стабильности
 
 export async function totalNuclearResetV131() {
   const { firestore: db } = initializeFirebase();
-  console.log("[NUCLEAR v131] Force Purge Cycle Initiated...");
+  console.log("[NUCLEAR v132] Initiating Deep Purge...");
 
-  // 1. ПРИНУДИТЕЛЬНОЕ УДАЛЕНИЕ СИСТЕМНЫХ БЛОКИРОВОК
+  // 1. ПРИНУДИТЕЛЬНОЕ УДАЛЕНИЕ СИСТЕМНЫХ ФЛАГОВ
   const systemDocs = [
     'repair_v131_S1_LALPHA',
     'init_v131_S1_LALPHA',
@@ -32,6 +31,7 @@ export async function totalNuclearResetV131() {
     } catch (e) {}
   }
 
+  // 2. СПИСОК ВСЕХ КОЛЛЕКЦИЙ ДЛЯ ОЧИСТКИ
   const colls = [
     'league_tables_v2', 
     'matches_v2', 
@@ -39,16 +39,15 @@ export async function totalNuclearResetV131() {
     'global_chat_v2', 
     'market_v7', 
     'friend_requests_v4', 
-    'private_messages_v3'
+    'private_messages_v3',
+    'cup_matches',
+    'notifications_v7'
   ];
   
   let totalDeletedInThisCall = 0;
 
   for (const coll of colls) {
-    // Если мы уже набрали лимит в 2000 доков, прерываем проход по коллекциям
-    if (totalDeletedInThisCall >= MAX_DOCS_PER_CALL) break;
-    
-    // Берем пачку документов
+    // Берем пачку документов из текущей коллекции
     const q = query(collection(db, coll), limit(DELETE_BATCH_SIZE));
     const snap = await getDocs(q);
     
@@ -58,16 +57,18 @@ export async function totalNuclearResetV131() {
       await batch.commit();
       
       totalDeletedInThisCall += snap.size;
+      // Прерываем цикл по коллекциям, чтобы ответить серверу и не получить таймаут
+      break; 
     }
   }
 
-  // Если за весь проход мы не нашли ни одного документа — очистка завершена
+  // Если за весь проход по всем коллекциям мы удалили 0 доков — значит база чиста
   const isComplete = totalDeletedInThisCall === 0;
 
   return { 
     success: true, 
     isComplete,
     deletedCount: totalDeletedInThisCall,
-    msg: isComplete ? "System Fully Purged" : `Wiping... ${totalDeletedInThisCall} docs removed.` 
+    msg: isComplete ? "System Fully Purged" : `Purging... ${totalDeletedInThisCall} docs removed.` 
   };
 }
