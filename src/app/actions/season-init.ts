@@ -17,7 +17,7 @@ import { createGroupStructure } from './world-engine';
 
 /**
  * Находит свободное место в текущем сезоне v13.
- * Начинает поиск с ПЕРВОГО (1) дивизиона.
+ * Начинает поиск с ПЕРВОГО (1) дивизиона (Элита).
  */
 export async function findStrategicPlacement(leagueId: string) {
   const { firestore: db } = initializeFirebase();
@@ -38,7 +38,7 @@ export async function findStrategicPlacement(leagueId: string) {
       }
     });
 
-    // Начинаем с 1 дивизиона (Элита) и идем вниз до 9
+    // Приоритет 1-му дивизиону (Элита)
     for (let tier = 1; tier <= 9; tier++) {
       const groupsInTier = getGroupsCountInLevel(tier);
       for (let group = 1; group <= groupsInTier; group++) {

@@ -1,8 +1,8 @@
 'use server';
 
 /**
- * Глобальный двигатель заполнения мира v131 (Universe Architect).
- * Реализован класс FirestoreBatcher для надежной записи 8 ботов в каждую группу.
+ * Глобальный двигатель заполнения мира v131 (BulkWriter Architecture).
+ * Реализует автоматическое управление батчами и параллельную запись.
  */
 
 import { 
@@ -20,44 +20,63 @@ import {
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 
 /**
- * Внутренний помощник для управления массовыми записями.
- * Автоматически сбрасывает батч при достижении 500 операций.
+ * Клиентская реализация BulkWriter для обхода лимита в 500 операций.
+ * Автоматически сбрасывает батчи при достижении порога безопасности.
  */
-class FirestoreBatcher {
-  private count = 0;
-  private batch;
+class ClientBulkWriter {
+  private currentBatch;
+  private opCount = 0;
+  private totalOps = 0;
+  private pendingCommits: Promise<void>[] = [];
+
   constructor(private db: Firestore) {
-    this.batch = writeBatch(db);
+    this.currentBatch = writeBatch(this.db);
   }
 
-  async set(ref: any, data: any) {
-    this.batch.set(ref, data);
-    this.count++;
-    if (this.count >= 480) await this.commit();
+  private async checkAndFlush() {
+    if (this.opCount >= 480) {
+      const batchToCommit = this.currentBatch;
+      this.pendingCommits.push(batchToCommit.commit());
+      this.currentBatch = writeBatch(this.db);
+      this.opCount = 0;
+    }
+  }
+
+  async set(ref: any, data: any, options?: any) {
+    if (options) this.currentBatch.set(ref, data, options);
+    else this.currentBatch.set(ref, data);
+    this.opCount++;
+    this.totalOps++;
+    await this.checkAndFlush();
   }
 
   async update(ref: any, data: any) {
-    this.batch.update(ref, data);
-    this.count++;
-    if (this.count >= 480) await this.commit();
+    this.currentBatch.update(ref, data);
+    this.opCount++;
+    this.totalOps++;
+    await this.checkAndFlush();
   }
 
   async delete(ref: any) {
-    this.batch.delete(ref);
-    this.count++;
-    if (this.count >= 480) await this.commit();
+    this.currentBatch.delete(ref);
+    this.opCount++;
+    this.totalOps++;
+    await this.checkAndFlush();
   }
 
-  async commit() {
-    if (this.count > 0) {
-      await this.batch.commit();
-      this.batch = writeBatch(this.db);
-      this.count = 0;
+  /**
+   * Дожидается завершения всех отправленных батчей и фиксирует остаток.
+   */
+  async close() {
+    if (this.opCount > 0) {
+      this.pendingCommits.push(this.currentBatch.commit());
     }
+    await Promise.all(this.pendingCommits);
+    return { totalOps: this.totalOps };
   }
 }
 
-const GROUPS_PER_CALL = 8; // ~456 документов за вызов (57 на группу)
+const GROUPS_PER_CALL = 25; // Обрабатываем ~1425 документов за один вызов благодаря BulkWriter
 
 function getGroupCoordinates(index: number) {
   if (index < 1) return { tier: 1, group: 1 };
@@ -75,7 +94,7 @@ function getGroupCoordinates(index: number) {
 }
 
 async function injectGroupData(
-  batcher: FirestoreBatcher, 
+  writer: ClientBulkWriter, 
   db: Firestore, 
   leagueId: string, 
   tier: number, 
@@ -105,7 +124,7 @@ async function injectGroupData(
     throw new Error(`CRITICAL INTEGRITY FAILURE: group ${tier}.${group} generated with ${Object.keys(initialStats).length} teams instead of 8.`);
   }
 
-  await batcher.set(tableRef, {
+  await writer.set(tableRef, {
     id: tableId, leagueId, level: tier, group, season: seasonNum,
     stats: initialStats,
     createdAt: serverTimestamp(),
@@ -115,7 +134,7 @@ async function injectGroupData(
   const calendar = generateSeasonCalendar(teamsForCalendar, seasonNum, leagueId);
   for (const m of calendar) {
     const mId = `match_v131_S${seasonNum}_L${leagueId}_V${tier}_G${group}_T${m.tour}_R${m.homeRank}_vs_R${m.awayRank}`;
-    await batcher.set(doc(db, 'matches_v2', mId), {
+    await writer.set(doc(db, 'matches_v2', mId), {
       ...m,
       id: mId,
       leagueId, level: tier, groupId: group, season: seasonNum,
@@ -132,9 +151,9 @@ export async function createGroupStructure(
   group: number, 
   seasonNum: number
 ) {
-  const batcher = new FirestoreBatcher(db);
-  await injectGroupData(batcher, db, leagueId, tier, group, seasonNum);
-  await batcher.commit();
+  const writer = new ClientBulkWriter(db);
+  await injectGroupData(writer, db, leagueId, tier, group, seasonNum);
+  await writer.close();
 }
 
 export async function initializeLeagueWorld(leagueId: string, targetSeason?: number) {
@@ -154,7 +173,7 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
     currentIndex = data.currentIndex || 0;
   }
 
-  const batcher = new FirestoreBatcher(db);
+  const writer = new ClientBulkWriter(db);
   let processedInThisCall = 0;
   let lastProcessedIndex = currentIndex;
 
@@ -167,16 +186,19 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
     
     // Если группы нет — создаем её со всеми проверками 8/8
     if (!tableSnap.exists()) {
-      await injectGroupData(batcher, db, leagueId, coords.tier, coords.group, seasonNum);
+      await injectGroupData(writer, db, leagueId, coords.tier, coords.group, seasonNum);
     } 
 
     lastProcessedIndex = nextIndex;
     processedInThisCall++;
   }
 
-  await batcher.commit();
+  // Финализируем все батчи этой порции
+  await writer.close();
 
   const isComplete = lastProcessedIndex >= TOTAL_GROUPS;
+  
+  // Обновляем чекпойнт только после успешного завершения всех записей
   await setDoc(statusRef, {
     currentIndex: lastProcessedIndex,
     status: isComplete ? 'completed' : 'processing',
