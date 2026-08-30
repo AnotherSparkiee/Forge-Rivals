@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useGameState } from '../lib/store';
@@ -63,7 +62,7 @@ export default function SystemPage() {
       title: "СИСТЕМА", subtitle: "Параметры и сетевая статистика (v140)",
       status: "Статус сети", online: "Игроков онлайн", registered: "Зарегистрировано",
       worldStatus: "Состояние мира", building: "Подготовка пирамиды v140...", ready: "Мир v140 готов к старту",
-      forceBuild: "СОЗДАТЬ 4 ГРУППЫ",
+      forceBuild: "СОЗДАТЬ 2 ГРУППЫ",
       adminTitle: "ТЕРМИНАЛ АДМИНИСТРАТОРА",
       nuclear: "ЯДЕРНЫЙ СБРОС v140", nuclearDesc: "Удалить 2500 документов",
       resolve: "РАССЧИТАТЬ ТУР", resolveDesc: "Запустить расчет матчей",
@@ -74,7 +73,7 @@ export default function SystemPage() {
       title: "SYSTEM", subtitle: "Parameters and network metrics (v140)",
       status: "Network Status", online: "Online Managers", registered: "Total Registered",
       worldStatus: "World Integrity", building: "Preparing Pyramid v140...", ready: "World v140 Ready for Launch",
-      forceBuild: "BUILD 4 GROUPS",
+      forceBuild: "BUILD 2 GROUPS",
       adminTitle: "ADMIN TERMINAL",
       nuclear: "NUCLEAR RESET v140", nuclearDesc: "Purge 2500 documents",
       resolve: "RESOLVE DAILY", resolveDesc: "Trigger match calculation",
@@ -91,7 +90,7 @@ export default function SystemPage() {
       if (action === 'nuclear') {
         const res = await totalNuclearResetV131();
         if (!res?.success) throw new Error("Purge Failed");
-        setPurgeStats(prev => ({ total: prev.total + res.deletedCount }));
+        setPurgeStats(prev => ({ total: prev.total + (res.deletedCount || 0) }));
         if (res.isComplete) {
           toast({ title: "System Purged", description: "All versions (v11-v14) cleared." });
         } else {
@@ -112,7 +111,7 @@ export default function SystemPage() {
       }
     } catch (e: any) {
       console.warn("[ADMIN ACTION ERROR]:", e.message);
-      toast({ variant: "destructive", title: "Action Failed", description: e.message });
+      toast({ variant: "destructive", title: "Action Failed", description: e.message || "Unknown error" });
     } finally {
       setIsProcessing(false);
       setShowNuclearDialog(false);
@@ -172,7 +171,7 @@ export default function SystemPage() {
                   </div>
                   <div>
                     <h3 className="text-xs font-black uppercase text-white">{t.nuclear}</h3>
-                    <p className="text-[8px] text-muted-foreground uppercase">{t.nuclearDesc} (Всего: {purgeStats.total})</p>
+                    <p className="text-[8px] text-muted-foreground uppercase">{t.nuclearDesc} (Total: {purgeStats.total})</p>
                   </div>
                 </div>
                 <ChevronRight className="w-4 h-4 text-red-500/40" />

@@ -1,8 +1,7 @@
-
 'use client';
 
 /**
- * Глобальное локальное хранилище v240 (V140 GLOBAL TRANSITION).
+ * Глобальное локальное хранилище v241 (V140 GLOBAL TRANSITION).
  * Исправлена критическая ошибка payStaffSalaries ReferenceError.
  */
 
@@ -125,7 +124,7 @@ interface GameState {
   saveToLocal: (state: Partial<GameState>) => void;
 }
 
-const STORAGE_KEY = 'lote_game_state_v240';
+const STORAGE_KEY = 'lote_game_state_v241';
 
 const DEFAULT_STATE: GameState = {
   credits: 1000000, crystals: 50, experiencePoints: 0, managerLevel: 1,
@@ -145,7 +144,7 @@ const DEFAULT_STATE: GameState = {
   arena: { capacity: 5000 }, hq: {}, bootcamp: {}, academy: {}, medical: {},
   country: null, isPremium: false, premiumUntil: null, activeSeasonNumber: 1, seasonNumber: 1, seasonDay: 1, isSyncing: false, language: 'ru',
   isDataReady: false, allSeasonMatches: [], nextMatch: null, isMatchesLoading: true,
-  lastProcessedSeason: 0, trophies: [], version: 240,
+  lastProcessedSeason: 0, trophies: [], version: 241,
   availableGiftsToSend: [], receivedGifts: [], lastGiftGenDate: null,
   addCrystals: () => {}, addCredits: () => {}, updatePlayer: () => {}, removePlayer: () => {}, assignToRole: () => {}, updateLineup: () => {}, updateTactics: () => {},
   claimReward: () => {}, setLanguage: () => {}, purchaseLicense: () => false, purchasePremium: () => false,
@@ -166,7 +165,7 @@ const DEFAULT_STATE: GameState = {
   saveToLocal: () => {}
 };
 
-const GameStateContext = createContext<GameState | undefined>(DEFAULT_STATE);
+const GameStateContext = createContext<GameState | undefined>(undefined);
 
 export function GameStateProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<GameState>(DEFAULT_STATE);
@@ -176,7 +175,9 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const saveToLocal = useCallback((updates: Partial<GameState>) => {
     setState(prev => {
       const newState = { ...prev, ...updates };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(newState));
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(newState));
+      }
       return newState;
     });
   }, []);
@@ -188,7 +189,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (parsed.version < 240) {
+        if (parsed.version < 241) {
           localStorage.removeItem(STORAGE_KEY);
           window.location.reload();
           return;
@@ -300,7 +301,10 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const healPlayer = useCallback((pId: string, t: 'credits' | 'crystals', c: number) => { updatePlayer(pId, { isInjured: false, injuredUntil: null }); saveToLocal({ [t]: (state as any)[t] - c }); }, [state.credits, state.crystals, updatePlayer, saveToLocal]);
   const launchFanCampaign = useCallback((t: string, c: number, f: number, l: number) => saveToLocal({ credits: (state.credits || 0) - c, arena: { ...state.arena, fanCount: (state.arena.fanCount || 5000) + f, loyalty: (state.arena.loyalty || 30) + l } }), [state.credits, state.arena, saveToLocal]);
   const addTrophy = useCallback((trophy: TrophyRecord) => saveToLocal({ trophies: [...(state.trophies || []), trophy] }), [state.trophies, saveToLocal]);
-  const resetProfile = useCallback(async () => { localStorage.removeItem(STORAGE_KEY); setState({ ...DEFAULT_STATE, id: user?.uid || '', isLoaded: true }); }, [user?.uid]);
+  const resetProfile = useCallback(async () => { 
+    if (typeof window !== 'undefined') localStorage.removeItem(STORAGE_KEY);
+    setState({ ...DEFAULT_STATE, id: user?.uid || '', isLoaded: true }); 
+  }, [user?.uid]);
 
   const recordMatch = useCallback((w: string, res: any, rew: number, opp: string, t: string, p: string, mId?: string, extra?: any) => {
     const id = mId || `match_${Date.now()}`; let newLvl = state.managerLevel; let newXp = state.experiencePoints + (t === 'league' ? 200 : 50);
@@ -401,6 +405,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     if (p) saveToLocal({ scoutingCandidates: state.scoutingCandidates.filter(pl => pl.id !== playerId), youthAcademyPlayers: [...state.youthAcademyPlayers, p] });
   }, [state.scoutingCandidates, state.youthAcademyPlayers, saveToLocal]);
 
+  const clearScoutingReport = useCallback(() => saveToLocal({ scoutingCandidates: [] }), [saveToLocal]);
+
   const payStaffSalaries = useCallback(async () => {
     const totalS = state.ownedPlayers.reduce((acc, p) => acc + (p.salary || 0), 0);
     const finalC = Math.round(totalS * 0.55); // 45% subsidy
@@ -419,8 +425,8 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   }, [state, recordMatch]);
 
   const value = useMemo(() => ({
-    ...state, addCrystals, addCredits, updatePlayer, removePlayer, assignToRole, updateLineup, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage, setTrainingFocus, startDailyPlayerTraining, claimDailyPlayerTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, trainHeroSkill, addPlayerDirectly, addYouthPlayerDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, healPlayer, launchFanCampaign, scoutCandidates, recruitCandidate, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, startCapacityExpansion, accelerateConstruction, checkConstructions, payStaffSalaries, addTrophy, resetProfile, setWorldReady, markMatchIdAsSeen, deleteMatchHistoryEntry, clearMatchHistory, generateDailyGifts: (g: Gift[]) => saveToLocal({ availableGiftsToSend: g, lastGiftGenDate: getMoscowDateString() }), sendGift: async () => true, claimGift: async () => true, runTrialMatch, saveToLocal
-  }), [state, addCrystals, addCredits, updatePlayer, removePlayer, assignToRole, updateLineup, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage, setTrainingFocus, startDailyPlayerTraining, claimDailyPlayerTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, trainHeroSkill, addPlayerDirectly, addYouthPlayerDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, healPlayer, launchFanCampaign, scoutCandidates, recruitCandidate, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, startCapacityExpansion, accelerateConstruction, checkConstructions, payStaffSalaries, addTrophy, resetProfile, setWorldReady, markMatchIdAsSeen, deleteMatchHistoryEntry, clearMatchHistory, runTrialMatch, saveToLocal]);
+    ...state, addCrystals, addCredits, updatePlayer, removePlayer, assignToRole, updateLineup, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage, setTrainingFocus, startDailyPlayerTraining, claimDailyPlayerTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, trainHeroSkill, addPlayerDirectly, addYouthPlayerDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, healPlayer, launchFanCampaign, scoutCandidates, recruitCandidate, clearScoutingReport, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, startCapacityExpansion, accelerateConstruction, checkConstructions, payStaffSalaries, addTrophy, resetProfile, setWorldReady, markMatchIdAsSeen, deleteMatchHistoryEntry, clearMatchHistory, generateDailyGifts: (g: Gift[]) => saveToLocal({ availableGiftsToSend: g, lastGiftGenDate: getMoscowDateString() }), sendGift: async () => true, claimGift: async () => true, runTrialMatch, saveToLocal
+  }), [state, addCrystals, addCredits, updatePlayer, removePlayer, assignToRole, updateLineup, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage, setTrainingFocus, startDailyPlayerTraining, claimDailyPlayerTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, trainHeroSkill, addPlayerDirectly, addYouthPlayerDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, healPlayer, launchFanCampaign, scoutCandidates, recruitCandidate, clearScoutingReport, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, startCapacityExpansion, accelerateConstruction, checkConstructions, payStaffSalaries, addTrophy, resetProfile, setWorldReady, markMatchIdAsSeen, deleteMatchHistoryEntry, clearMatchHistory, runTrialMatch, saveToLocal]);
 
   return <GameStateContext.Provider value={value}>{children}</GameStateContext.Provider>;
 }

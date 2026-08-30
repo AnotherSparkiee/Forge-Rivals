@@ -1,9 +1,8 @@
-
 'use server';
 
 /**
- * Глобальный двигатель мира v140 (Stable Batch Architecture).
- * Оптимизирован для предотвращения таймаутов (4 группы за клик).
+ * Глобальный двигатель мира v141 (Ultra-Safe Batch Architecture).
+ * Оптимизирован для предотвращения таймаутов (2 группы за клик).
  */
 
 import { 
@@ -20,7 +19,7 @@ import {
 } from '@/app/lib/leagues-data';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 
-const GROUPS_PER_CALL = 4; // 4 * 57 docs = 228 ops (Безопасный предел для таймаута)
+const GROUPS_PER_CALL = 2; // 2 * 57 docs = 114 ops (Абсолютно безопасно для таймаута)
 
 function getGroupCoordinates(index: number) {
   if (index < 1) return { tier: 1, group: 1 };
@@ -106,7 +105,7 @@ export async function createGroupStructure(
 
 /**
  * Основная функция мануальной постройки.
- * Создает следующие 4 группы в пирамиде.
+ * Создает следующие 2 группы в пирамиде.
  */
 export async function initializeLeagueWorld(leagueId: string, targetSeason?: number) {
   const { firestore: db } = initializeFirebase();
@@ -137,7 +136,7 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
     nextIndex++;
     const coords = getGroupCoordinates(nextIndex);
     
-    // Проверка существования (чтобы не перезаписывать живых игроков)
+    // Проверка существования
     const tableId = `table_v140_S${seasonNum}_L${leagueId}_V${coords.tier}_G${coords.group}`;
     const tableSnap = await getDoc(doc(db, 'league_tables_v2', tableId));
     
