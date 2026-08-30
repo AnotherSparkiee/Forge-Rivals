@@ -46,7 +46,7 @@ export default function Loading() {
           <img 
             src="https://i.ibb.co/tpcQnnj1/1000078926-no-bg-preview-carve-photos.png" 
             alt="Logo" 
-            className="w-36 h-36 object-contain animate-pulse" 
+            className="w-48 h-48 object-contain animate-pulse" 
           />
         </div>
 

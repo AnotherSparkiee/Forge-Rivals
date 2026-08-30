@@ -76,7 +76,7 @@ export default function AuthLayout({
 
       <div className="w-full max-w-sm space-y-8 relative z-10">
         <div className="text-center">
-          <div className="mx-auto w-24 h-24 mb-6 relative">
+          <div className="mx-auto w-32 h-32 mb-6 relative">
             <div className="absolute inset-0 bg-primary/20 blur-2xl rounded-full" />
             <img src="https://i.ibb.co/tpcQnnj1/1000078926-no-bg-preview-carve-photos.png" alt="Logo" className="w-full h-full object-contain relative z-10" />
           </div>

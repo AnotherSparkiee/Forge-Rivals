@@ -284,7 +284,7 @@ export default function IronKettlePage() {
       <Card className={cn("glass-card mb-6 border-primary/30 overflow-hidden", status === 'LIVE' && "bg-primary/5 shadow-[0_0_20px_rgba(var(--primary),0.1)]")}>
         <CardContent className="p-0">
           <div className="p-6 text-center border-b border-white/5">
-            <div className="w-24 h-24 mx-auto mb-4 flex items-center justify-center relative">
+            <div className="w-32 h-32 mx-auto mb-4 flex items-center justify-center relative">
                <img src="https://i.ibb.co/tpcQnnj1/1000078926-no-bg-preview-carve-photos.png" alt="Cup" className={cn("w-full h-full object-contain drop-shadow-[0_0_15px_rgba(var(--primary),0.3)]", status === 'LIVE' && "animate-pulse")} />
             </div>
             <Badge variant={status === 'LIVE' ? "destructive" : "outline"} className="mb-2 uppercase text-[8px] tracking-widest">

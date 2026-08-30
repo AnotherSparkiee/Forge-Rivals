@@ -193,7 +193,7 @@ export default function RankingsPage() {
                <div className="grid grid-cols-[24px_1fr_25px_60px_35px] gap-1 px-3 py-2 text-[8px] font-black text-muted-foreground uppercase tracking-widest border-b border-white/5">
                  <span>#</span><span>{t.team}</span><span className="text-center">{t.m}</span><span className="text-center">{t.winLoss}</span><span className="text-right">{t.pts}</span>
                </div>
-               {standings.map((entry: any, i: number) => {
+                Standings.map((entry: any, i: number) => {
                  const pos = i + 1;
                  const isMe = entry.id === user?.uid;
                  const clubLogo = logoMap.logos[entry.id] || entry.clubLogo;
@@ -204,7 +204,7 @@ export default function RankingsPage() {
                  return (
                   <div key={entry.id} className={cn(
                     "grid grid-cols-[24px_1fr_25px_60px_35px] gap-1 items-center p-2.5 rounded-xl border mb-1 transition-all", 
-                    isMe ? "bg-primary/20 border-primary/40 shadow-[0_0_15px_rgba(var(--primary),0.1)] z-10" : 
+                    isMe ? "bg-primary/20 border-primary/40 shadow-[0_0_15px_rgba(var(--primary),0.1)]" : 
                     isChampionZone ? "bg-green-500/10 border-green-500/20" :
                     isRelegationZone ? "bg-red-500/10 border-red-500/20" :
                     "bg-secondary/20 border-white/5"
@@ -220,7 +220,7 @@ export default function RankingsPage() {
                        {clubLogo ? (
                          <img src={clubLogo} alt="" className="w-6 h-6 object-contain shrink-0" />
                        ) : entry.isBot ? (
-                         <img src="https://i.ibb.co/tpcQnnj1/1000078926-no-bg-preview-carve-photos.png" alt="Bot" className="w-7 h-7 object-contain shrink-0 drop-shadow-[0_0_10px_rgba(var(--primary),0.3)]" />
+                         <img src="https://i.ibb.co/tpcQnnj1/1000078926-no-bg-preview-carve-photos.png" alt="Bot" className="w-9 h-9 object-contain shrink-0 drop-shadow-[0_0_10px_rgba(var(--primary),0.3)]" />
                        ) : (
                          <Shield className="w-4 h-4 text-primary/30 shrink-0" />
                        )}
