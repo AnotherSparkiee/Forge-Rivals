@@ -2,7 +2,7 @@
 
 /**
  * @fileOverview Серверный модуль инициализации v131 (Absolute Isolation).
- * Использует коллекции v2 и профили v13 для исключения конфликтов.
+ * Ищет свободное место в уже созданной 511-групповой пирамиде.
  */
 
 import { collection, getDocs, query, where, doc, getDoc, writeBatch, serverTimestamp } from 'firebase/firestore';
@@ -17,7 +17,7 @@ import { createGroupStructure } from './world-engine';
 
 /**
  * Находит свободное место в текущем сезоне v13.
- * Начинает поиск с ПЕРВОГО (1) дивизиона (Элита).
+ * Приоритет: 1 Дивизион (Элита).
  */
 export async function findStrategicPlacement(leagueId: string) {
   const { firestore: db } = initializeFirebase();
@@ -38,7 +38,7 @@ export async function findStrategicPlacement(leagueId: string) {
       }
     });
 
-    // Приоритет 1-му дивизиону (Элита)
+    // Поиск свободного места сверху вниз (от Элиты к низу)
     for (let tier = 1; tier <= 9; tier++) {
       const groupsInTier = getGroupsCountInLevel(tier);
       for (let group = 1; group <= groupsInTier; group++) {
@@ -58,7 +58,8 @@ export async function findStrategicPlacement(leagueId: string) {
 }
 
 /**
- * Атомарная инициализация клуба v131 в коллекциях v2.
+ * Атомарная инициализация клуба v131.
+ * Заменяет бота в существующей таблице на реального игрока.
  */
 export async function initializeClubV13(userId: string, data: any) {
   const { firestore: db } = initializeFirebase();
@@ -73,6 +74,7 @@ export async function initializeClubV13(userId: string, data: any) {
   
   let tableSnap = await getDoc(tableRef);
 
+  // Если админ еще не создал мир, создаем группу JIT (для безопасности)
   if (!tableSnap.exists()) {
     console.warn(`[JIT v131] Table ${tableId} missing. Creating...`);
     await createGroupStructure(db, leagueId, tier, group, seasonNum);
@@ -82,15 +84,11 @@ export async function initializeClubV13(userId: string, data: any) {
   const tableData = tableSnap.data();
   const stats = { ...tableData!.stats };
 
-  // ГАРАНТИЯ 8/8: Всегда заменяем бота.
+  // ГАРАНТИЯ 8/8: Заменяем бота по рангу или любого свободного бота
   const targetBotId = getBotId(leagueId, tier, group, rank);
-  let botToReplaceId = null;
-
-  if (stats[targetBotId] && stats[targetBotId].isBot === true) {
-    botToReplaceId = targetBotId;
-  } else {
-    botToReplaceId = Object.keys(stats).find(id => stats[id].isBot === true) || null;
-  }
+  let botToReplaceId = (stats[targetBotId]?.isBot === true) 
+    ? targetBotId 
+    : Object.keys(stats).find(id => stats[id].isBot === true) || null;
 
   if (!botToReplaceId && !stats[userId]) {
     console.error(`[OVERFLOW v131] Group ${tier}.${group} is full!`);
@@ -101,8 +99,6 @@ export async function initializeClubV13(userId: string, data: any) {
 
   if (botToReplaceId) {
     const baseStats = stats[botToReplaceId];
-    
-    // Удаляем бота ПЕРЕД добавлением игрока для точности
     delete stats[botToReplaceId];
     
     stats[userId] = {
@@ -116,7 +112,7 @@ export async function initializeClubV13(userId: string, data: any) {
 
     batch.update(tableRef, { stats, updatedAt: serverTimestamp() });
 
-    // Обновляем календарь v131
+    // Обновляем календарь (заменяем ID бота на ID игрока)
     const matchesQ = query(collection(db, 'matches_v2'), 
       where('leagueId', '==', leagueId),
       where('level', '==', tier),

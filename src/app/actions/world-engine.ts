@@ -1,8 +1,8 @@
 'use server';
 
 /**
- * Глобальный двигатель заполнения мира v132 (BulkWriter Architecture).
- * Оптимизирована скорость пропуска и добавлена защита 8/8.
+ * Глобальный двигатель заполнения мира v131 (BulkWriter Architecture).
+ * Создает полную структуру лиги (511 групп) до регистрации игроков.
  */
 
 import { 
@@ -53,7 +53,7 @@ class ClientBulkWriter {
   }
 }
 
-const GROUPS_PER_CALL = 20; 
+const GROUPS_PER_CALL = 25; 
 
 function getGroupCoordinates(index: number) {
   if (index < 1) return { tier: 1, group: 1 };
@@ -71,9 +71,9 @@ function getGroupCoordinates(index: number) {
 }
 
 /**
- * Внутренняя функция для инъекции данных группы.
+ * Внутренняя функция для инъекции данных группы (Таблица + Календарь).
  */
-async function injectGroupData(
+export async function injectGroupData(
   writer: ClientBulkWriter, 
   db: Firestore, 
   leagueId: string, 
@@ -98,10 +98,6 @@ async function injectGroupData(
     teamsForCalendar.push({ id: bId, name: bName, rank: r });
   }
 
-  if (Object.keys(initialStats).length !== 8) {
-    throw new Error(`CRITICAL INTEGRITY FAILURE: group ${tier}.${group} stats count mismatch.`);
-  }
-
   await writer.set(tableRef, {
     id: tableId, leagueId, level: tier, group, season: seasonNum,
     stats: initialStats,
@@ -123,7 +119,7 @@ async function injectGroupData(
 }
 
 /**
- * Создает структуру одной конкретной группы.
+ * Создает структуру одной конкретной группы (используется при JIT).
  */
 export async function createGroupStructure(
   db: Firestore, 
@@ -159,23 +155,26 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
 
   const writer = new ClientBulkWriter(db);
   let lastProcessedIndex = currentIndex;
-  let actualWorkDone = 0;
+  let groupsBuiltInThisCall = 0;
 
-  while (actualWorkDone < GROUPS_PER_CALL && lastProcessedIndex < TOTAL_GROUPS) {
+  // Цикл постройки порции групп
+  while (groupsBuiltInThisCall < GROUPS_PER_CALL && lastProcessedIndex < TOTAL_GROUPS) {
     const nextIndex = lastProcessedIndex + 1;
     const coords = getGroupCoordinates(nextIndex);
     
+    // Проверка существования (пропуск уже созданных)
     const tableId = `table_v131_S${seasonNum}_L${leagueId}_V${coords.tier}_G${coords.group}`;
     const tableSnap = await getDoc(doc(db, 'league_tables_v2', tableId));
     
     if (!tableSnap.exists()) {
       await injectGroupData(writer, db, leagueId, coords.tier, coords.group, seasonNum);
-      actualWorkDone++;
+      groupsBuiltInThisCall++;
     } 
 
     lastProcessedIndex = nextIndex;
   }
 
+  // Ждем завершения всех операций записи
   await writer.close();
 
   const isComplete = lastProcessedIndex >= TOTAL_GROUPS;

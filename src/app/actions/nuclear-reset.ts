@@ -1,7 +1,7 @@
 'use server';
 
 /**
- * Скрипт "Ядерной очистки" v135 (Extreme Force Purge).
+ * Скрипт "Ядерной очистки" v135 (Safe Force Purge).
  * Принудительно удаляет системные блокировки и очищает коллекции.
  */
 
@@ -12,13 +12,13 @@ import {
 import { initializeFirebase } from '@/firebase';
 
 const DELETE_BATCH_SIZE = 500;
-const BATCHES_PER_CALL = 4; // Снижено до 4 для предотвращения таймаутов
+const BATCHES_PER_CALL = 4; 
 
 export async function totalNuclearResetV131() {
   const { firestore: db } = initializeFirebase();
   console.log("[NUCLEAR v135] Force Purging System...");
 
-  // 1. ПРИНУДИТЕЛЬНОЕ УДАЛЕНИЕ ВСЕХ СИСТЕМНЫХ ФЛАГОВ ДЛЯ РАЗБЛОКИРОВКИ
+  // 1. ПРИНУДИТЕЛЬНОЕ УДАЛЕНИЕ СИСТЕМНЫХ ФЛАГОВ (чтобы разблокировать world-engine)
   const systemDocs = [
     'repair_v131_S1_LALPHA',
     'init_v131_S1_LALPHA',
@@ -33,7 +33,7 @@ export async function totalNuclearResetV131() {
     } catch (e) {}
   }
 
-  // 2. СПИСОК КОЛЛЕКЦИЙ
+  // 2. СПИСОК КОЛЛЕКЦИЙ ДЛЯ ЗАЧИСТКИ
   const colls = [
     'league_tables_v2', 
     'matches_v2', 
@@ -65,10 +65,12 @@ export async function totalNuclearResetV131() {
         
         batchDeletedCount = snap.size;
         totalDeletedInThisCall += batchDeletedCount;
+        // После успешного удаления одной коллекции в батче, переходим к следующему циклу b
         break; 
       }
     }
     
+    // Если ни в одной коллекции документов больше нет
     if (batchDeletedCount === 0) break;
   }
 

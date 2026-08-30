@@ -219,10 +219,8 @@ export default function RankingsPage() {
                        <div className="w-6 h-6 shrink-0 flex items-center justify-center overflow-hidden bg-background/40 rounded-lg p-0.5 border border-white/5">
                          {clubLogo ? (
                            <img src={clubLogo} alt="" className="w-full h-full object-contain" />
-                         ) : entry.isBot ? (
-                           <img src="https://i.ibb.co/tpcQnnj1/1000078926-no-bg-preview-carve-photos.png" alt="Bot" className="w-full h-full object-contain opacity-70" />
                          ) : (
-                           <Shield className="w-3 h-3 text-primary/30" />
+                           <img src="https://i.ibb.co/tpcQnnj1/1000078926-no-bg-preview-carve-photos.png" alt="Bot" className="w-full h-full object-contain opacity-40" />
                          )}
                        </div>
                       <span className={cn(
