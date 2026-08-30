@@ -1,8 +1,8 @@
 'use server';
 
 /**
- * Скрипт "Ядерной очистки" v131.
- * Оптимизирован для предотвращения таймаутов (макс 1000 доков за вызов).
+ * Скрипт "Ядерной очистки" v131 (Engineered for Total Purge).
+ * Возвращает статус завершения, чтобы клиент мог вызывать функцию циклично.
  */
 
 import { 
@@ -11,19 +11,17 @@ import {
 } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 
-const WIPE_BATCH_SIZE = 400;
-const LIMIT_PER_CALL = 1000;
+const DELETE_BATCH_SIZE = 500;
+const MAX_DOCS_PER_CALL = 2000;
 
 export async function totalNuclearResetV131() {
   const { firestore: db } = initializeFirebase();
-  console.log("[NUCLEAR v131] Starting Force Purge...");
+  console.log("[NUCLEAR v131] Force Purge Cycle Initiated...");
 
-  // ПРИНУДИТЕЛЬНОЕ УДАЛЕНИЕ ФЛАГОВ БЛОКИРОВКИ
+  // 1. ПРИНУДИТЕЛЬНОЕ УДАЛЕНИЕ БЛОКИРОВОК (всегда в первую очередь)
   const systemDocs = [
     'repair_v131_S1_LALPHA',
     'init_v131_S1_LALPHA',
-    'repair_v130_S1_LALPHA',
-    'init_v130_S1_LALPHA',
     'repair_v131_S2_LALPHA',
     'init_v131_S2_LALPHA'
   ];
@@ -44,13 +42,16 @@ export async function totalNuclearResetV131() {
     'private_messages_v3'
   ];
   
-  let totalDeleted = 0;
-  const results: any = {};
+  let totalDeletedInThisCall = 0;
+  let remainingDocsDetected = false;
 
   for (const coll of colls) {
-    if (totalDeleted >= LIMIT_PER_CALL) break;
+    if (totalDeletedInThisCall >= MAX_DOCS_PER_CALL) {
+      remainingDocsDetected = true;
+      break;
+    }
     
-    const q = query(collection(db, coll), limit(WIPE_BATCH_SIZE));
+    const q = query(collection(db, coll), limit(DELETE_BATCH_SIZE));
     const snap = await getDocs(q);
     
     if (!snap.empty) {
@@ -58,16 +59,19 @@ export async function totalNuclearResetV131() {
       snap.docs.forEach(d => batch.delete(d.ref));
       await batch.commit();
       
-      results[coll] = snap.size;
-      totalDeleted += snap.size;
-    } else {
-      results[coll] = 0;
+      totalDeletedInThisCall += snap.size;
+      
+      // Если мы удалили пачку, возможно там есть еще
+      if (snap.size === DELETE_BATCH_SIZE) {
+        remainingDocsDetected = true;
+      }
     }
   }
 
   return { 
     success: true, 
-    details: results, 
-    msg: totalDeleted > 0 ? `Wiping: ${totalDeleted} docs removed...` : "System Fully Purged" 
+    isComplete: !remainingDocsDetected && totalDeletedInThisCall < MAX_DOCS_PER_CALL,
+    deletedCount: totalDeletedInThisCall,
+    msg: remainingDocsDetected ? `Wiping... ${totalDeletedInThisCall} docs removed.` : "System Fully Purged" 
   };
 }

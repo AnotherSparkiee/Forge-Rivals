@@ -2,7 +2,7 @@
 
 /**
  * Глобальный двигатель заполнения мира v131 (Universe Architect).
- * Использует FirestoreBatcher для автоматического управления лимитом 500 операций.
+ * Реализован класс FirestoreBatcher для надежной записи 8 ботов в каждую группу.
  */
 
 import { 
@@ -21,7 +21,7 @@ import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 
 /**
  * Внутренний помощник для управления массовыми записями.
- * Имитирует поведение BulkWriter для Client SDK.
+ * Автоматически сбрасывает батч при достижении 500 операций.
  */
 class FirestoreBatcher {
   private count = 0;
@@ -42,6 +42,12 @@ class FirestoreBatcher {
     if (this.count >= 480) await this.commit();
   }
 
+  async delete(ref: any) {
+    this.batch.delete(ref);
+    this.count++;
+    if (this.count >= 480) await this.commit();
+  }
+
   async commit() {
     if (this.count > 0) {
       await this.batch.commit();
@@ -51,7 +57,7 @@ class FirestoreBatcher {
   }
 }
 
-const GROUPS_PER_CALL = 8; // Оптимально для ~450 операций (57 на группу)
+const GROUPS_PER_CALL = 8; // ~456 документов за вызов (57 на группу)
 
 function getGroupCoordinates(index: number) {
   if (index < 1) return { tier: 1, group: 1 };
@@ -82,6 +88,7 @@ async function injectGroupData(
   const initialStats: any = {};
   const teamsForCalendar = [];
 
+  // ГАРАНТИЯ 8/8: Всегда ровно 8 ботов
   for (let r = 1; r <= TEAMS_PER_GROUP; r++) {
     const bId = getBotId(leagueId, tier, group, r);
     const bName = getBotName(tier, group, r);
@@ -91,6 +98,10 @@ async function injectGroupData(
       isBot: true, clubLogo: null
     };
     teamsForCalendar.push({ id: bId, name: bName, rank: r });
+  }
+
+  if (Object.keys(initialStats).length !== 8) {
+    throw new Error(`Critical integrity failure: group ${tier}.${group} has only ${Object.keys(initialStats).length} bots`);
   }
 
   await batcher.set(tableRef, {

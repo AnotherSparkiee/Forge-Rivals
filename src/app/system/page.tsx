@@ -8,13 +8,13 @@ import {
   ChevronLeft, Settings, Users, ShieldCheck, 
   Loader2, Zap, RefreshCw, Globe, 
   ShieldAlert, AlertTriangle, Construction, 
-  Trash2, Play, FastForward, Trophy, Database,
+  Trash2, Play, Trophy, Database,
   ChevronRight, CalendarCheck
 } from 'lucide-react';
 import Link from 'next/link';
 import { useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
 import { collection, query, doc } from 'firebase/firestore';
-import { useMemo, useState, useEffect, useRef } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { TOTAL_GROUPS } from '../lib/leagues-data';
 import { runGlobalEmergencyRepair } from '../actions/fix-calendar';
@@ -28,7 +28,6 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-  DialogFooter,
 } from "@/components/ui/dialog";
 
 export default function SystemPage() {
@@ -38,12 +37,13 @@ export default function SystemPage() {
   
   const [isBuilding, setIsBuilding] = useState(false);
   const [autoPilot, setAutoPilot] = useState(false);
+  const [isNuclearActive, setIsNuclearActive] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showNuclearDialog, setShowNuclearDialog] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   
   const playersQuery = useMemoFirebase(() => db ? query(collection(db, 'players_v13')) : null, [db]);
-  const { data: players, isLoading: isPlayersLoading } = useCollection(playersQuery);
+  const { data: players } = useCollection(playersQuery);
 
   const initStatusRef = useMemoFirebase(() => 
     (db && selectedLeagueId) ? doc(db, 'system_v1', `init_v131_S${seasonNumber}_L${selectedLeagueId}`) : null, 
@@ -69,6 +69,7 @@ export default function SystemPage() {
       worldStatus: "Состояние мира", building: "Подготовка пирамиды к 31.08...", ready: "Мир v131 готов к старту",
       forceBuild: "ФОРСИРОВАТЬ ПОСТРОЙКУ",
       autoPilotOn: "АВТОПИЛОТ: ПОСТРОЙКА...",
+      nuclearStatus: "ОЧИСТКА СИСТЕМЫ...",
       adminTitle: "ТЕРМИНАЛ АДМИНИСТРАТОРА",
       nuclear: "ЯДЕРНЫЙ СБРОС v131", nuclearDesc: "Удалить ВСЕХ игроков и таблицы Сезона 1",
       resolve: "РАССЧИТАТЬ ТУР", resolveDesc: "Запустить расчет матчей сегодняшнего дня",
@@ -76,7 +77,6 @@ export default function SystemPage() {
       transition: "СМЕНА СЕЗОНА", transitionDesc: "Запустить переход в следующий сезон",
       readyCheck: "ГОТОВНОСТЬ СЕЗОНА 1", readyCheckDesc: "Проверить корректность старта 31.08",
       error: "Сервер занят. Пробуем снова...",
-      retrying: "Сбой сети. Повтор...",
       confirmNuclear: "ПОЛНОЕ УДАЛЕНИЕ", confirmNuclearDesc: "Все игроки v131 и данные сезона будут стерты. Это действие необратимо.",
       btnConfirm: "УНИЧТОЖИТЬ", btnCancel: "ОТМЕНА"
     },
@@ -86,6 +86,7 @@ export default function SystemPage() {
       worldStatus: "World Integrity", building: "Preparing Pyramid for Aug 31...", ready: "World v131 Ready for Launch",
       forceBuild: "FORCE WORLD BUILD",
       autoPilotOn: "AUTOPILOT: BUILDING...",
+      nuclearStatus: "SYSTEM PURGING...",
       adminTitle: "ADMIN TERMINAL",
       nuclear: "NUCLEAR RESET v131", nuclearDesc: "Delete ALL players and tables for Season 1",
       resolve: "RESOLVE DAILY", resolveDesc: "Trigger match calculation for current tour",
@@ -93,38 +94,47 @@ export default function SystemPage() {
       transition: "SEASON TRANSITION", transitionDesc: "Trigger promotion/relegation logic",
       readyCheck: "SEASON 1 READY CHECK", readyCheckDesc: "Verify Aug 31 launch parameters",
       error: "Server busy. Retrying...",
-      retrying: "Network lag. Retrying...",
       confirmNuclear: "FULL DELETION", confirmNuclearDesc: "All v131 players and season data will be wiped. Action is irreversible.",
       btnConfirm: "WIPE ALL", btnCancel: "CANCEL"
     }
   }[language === 'ru' ? 'ru' : 'en'];
 
-  // Умная логика автопилота с обработкой ошибок
+  // Умная логика автопилота постройки
   useEffect(() => {
     if (autoPilot && !isWorldReady && !isProcessing && !isBuilding) {
       const timer = setTimeout(() => {
         handleAction('forceBuild');
-      }, 2000); 
+      }, 2500); 
       return () => clearTimeout(timer);
-    }
-    if (isWorldReady && autoPilot) {
-      setAutoPilot(false);
-      toast({ title: "Universe v131 Complete", description: "All 511 groups initialized." });
     }
   }, [autoPilot, isWorldReady, isProcessing, isBuilding]);
 
+  // Умная логика ядерного сброса (цикличная)
+  useEffect(() => {
+    if (isNuclearActive && !isProcessing) {
+      const timer = setTimeout(() => {
+        handleAction('nuclear');
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [isNuclearActive, isProcessing]);
+
   const handleAction = async (action: string) => {
-    if (isProcessing && action !== 'forceBuild') return;
+    if (isProcessing && action !== 'forceBuild' && action !== 'nuclear') return;
 
     if (action === 'forceBuild') setIsBuilding(true);
-    else setIsProcessing(true);
+    else if (action === 'nuclear') setIsNuclearActive(true);
+    
+    setIsProcessing(true);
     
     try {
       if (action === 'nuclear') {
-        await totalNuclearResetV131();
-        setAutoPilot(false); 
-        toast({ title: "System Purged", description: "All flags and players removed." });
-        window.location.reload();
+        const res = await totalNuclearResetV131();
+        if (res.isComplete) {
+          setIsNuclearActive(false);
+          toast({ title: "System Purged", description: "All data cleared successfully." });
+          window.location.reload();
+        }
       }
       else if (action === 'resolve') {
         const res = await resolveDailyMatches();
@@ -140,18 +150,14 @@ export default function SystemPage() {
       }
       else if (action === 'forceBuild') {
         await runGlobalEmergencyRepair();
-        setRetryCount(0); // Сброс счетчика ошибок при успехе
+        setRetryCount(0);
       }
       else if (action === 'readyCheck') {
         toast({ title: "Ready Check Pass", description: "Launch sequence set for Aug 31 18:00 MSK." });
       }
     } catch (e: any) {
-      console.error("[ADMIN ACTION ERROR]:", e.message);
-      if (autoPilot) {
-        setRetryCount(prev => prev + 1);
-      } else {
-        toast({ variant: "destructive", title: "API Delay", description: t.error });
-      }
+      console.warn("[ADMIN ACTION DELAY]:", e.message);
+      setRetryCount(prev => prev + 1);
     } finally {
       setIsProcessing(false);
       setIsBuilding(false);
@@ -173,16 +179,16 @@ export default function SystemPage() {
         <section className="space-y-3">
           <div className="flex items-center justify-between px-1">
             <h2 className="text-[10px] font-black uppercase tracking-widest text-accent">{t.worldStatus}</h2>
-            {autoPilot && (
+            {(autoPilot || isNuclearActive) && (
               <Badge className={cn(
-                "animate-pulse text-[8px] font-black uppercase shadow-lg transition-colors",
-                retryCount > 0 ? "bg-red-600 text-white" : "bg-primary text-primary-foreground"
+                "animate-pulse text-[8px] font-black uppercase shadow-lg",
+                isNuclearActive ? "bg-red-600 text-white" : "bg-primary text-primary-foreground"
               )}>
-                {retryCount > 0 ? t.retrying : "AUTOPILOT ACTIVE"}
+                {isNuclearActive ? t.nuclearStatus : "AUTOPILOT ACTIVE"}
               </Badge>
             )}
           </div>
-          <Card className={cn("glass-card border-white/5 bg-secondary/10 overflow-hidden", (!isWorldReady || autoPilot) && "border-primary/30")}>
+          <Card className={cn("glass-card border-white/5 bg-secondary/10 overflow-hidden", (autoPilot || isNuclearActive) && "border-primary/30")}>
             <CardContent className="p-4">
                <div className="flex items-center justify-between mb-3">
                  <div className="flex items-center gap-3">
@@ -202,7 +208,7 @@ export default function SystemPage() {
                   "w-full h-14 font-black text-xs uppercase mt-4 shadow-xl transition-all tracking-widest",
                   autoPilot ? "bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20" : "hero-gradient"
                 )} 
-                onClick={() => autoPilot ? setAutoPilot(false) : setAutoPilot(true)} 
+                onClick={() => setAutoPilot(!autoPilot)} 
                 disabled={isProcessing && !autoPilot}
                >
                   {isBuilding || autoPilot ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Zap className="w-5 h-5 mr-2" />} 
@@ -218,7 +224,9 @@ export default function SystemPage() {
             <Card className="glass-card border-red-500/20 bg-red-500/5 overflow-hidden group hover:border-red-500/40 transition-all cursor-pointer" onClick={() => setShowNuclearDialog(true)}>
               <CardContent className="p-4 flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  <div className="p-2.5 rounded-xl bg-red-500/20 text-red-500"><Trash2 className="w-5 h-5" /></div>
+                  <div className="p-2.5 rounded-xl bg-red-500/20 text-red-500">
+                    {isNuclearActive ? <Loader2 className="w-5 h-5 animate-spin" /> : <Trash2 className="w-5 h-5" />}
+                  </div>
                   <div><h3 className="text-xs font-black uppercase text-white">{t.nuclear}</h3><p className="text-[8px] text-muted-foreground uppercase">{t.nuclearDesc}</p></div>
                 </div>
                 <ChevronRight className="w-4 h-4 text-red-500/40" />
@@ -241,7 +249,7 @@ export default function SystemPage() {
                   <div className="p-2.5 rounded-xl bg-secondary/50 text-green-400"><Play className="w-5 h-5" /></div>
                   <div><h3 className="text-xs font-black uppercase text-white">{t.resolve}</h3><p className="text-[8px] text-muted-foreground uppercase">{t.resolveDesc}</p></div>
                 </div>
-                {isProcessing && !isBuilding ? <Loader2 className="w-4 h-4 animate-spin text-primary" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
+                {isProcessing && !isBuilding && !isNuclearActive ? <Loader2 className="w-4 h-4 animate-spin text-primary" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
               </CardContent>
             </Card>
 
