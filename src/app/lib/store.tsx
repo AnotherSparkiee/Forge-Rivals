@@ -1,3 +1,4 @@
+
 'use client';
 
 /**
@@ -182,6 +183,14 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const payStaffSalaries = useCallback(async () => {
+    const totalS = state.ownedPlayers.reduce((acc, p) => acc + (p.salary || 0), 0);
+    const finalC = Math.round(totalS * 0.55); // 45% subsidy
+    if (state.credits >= finalC) {
+      saveToLocal({ credits: state.credits - finalC });
+    }
+  }, [state.credits, state.ownedPlayers, saveToLocal]);
+
   useEffect(() => {
     if (isUserLoading) return;
 
@@ -311,14 +320,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const launchFanCampaign = useCallback((t: string, c: number, f: number, l: number) => saveToLocal({ credits: (state.credits || 0) - c, arena: { ...state.arena, fanCount: (state.arena.fanCount || 5000) + f, loyalty: (state.arena.loyalty || 30) + l } }), [state.credits, state.arena, saveToLocal]);
   const addTrophy = useCallback((trophy: TrophyRecord) => saveToLocal({ trophies: [...(state.trophies || []), trophy] }), [state.trophies, saveToLocal]);
   
-  const payStaffSalaries = useCallback(async () => {
-    const totalS = state.ownedPlayers.reduce((acc, p) => acc + (p.salary || 0), 0);
-    const finalC = Math.round(totalS * 0.55); // 45% subsidy
-    if (state.credits >= finalC) {
-      saveToLocal({ credits: state.credits - finalC });
-    }
-  }, [state.credits, state.ownedPlayers, saveToLocal]);
-
   const resetProfile = useCallback(async () => { 
     if (typeof window !== 'undefined') localStorage.removeItem(STORAGE_KEY);
     setState({ ...DEFAULT_STATE, id: user?.uid || '', isLoaded: true }); 
@@ -432,11 +433,38 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     if (squad.length < 5) return null; const cName = state.clubName || "My Club"; const oName = "Training Bot"; const mId = `trial_${Date.now()}`;
     const sim = { winner: cName, seriesScore: "1-0", games: [{ scoreA: 1, scoreB: 0, duration: "32:00", mvp: squad[0].name, matchSummary: "Solid local trial victory.", towersA: 11, towersB: 3, objectivesA: 4, objectivesB: 1, teamAOvr: Math.round(squad.reduce((a, p) => a + p.overallRating, 0) / 5), teamBOvr: 25, timeline: [{ time: "05:00", type: "kill", event: `${squad[0].name} gets first blood!`, score: "1:0" }], scoreboard: [...squad.map(p => ({ name: p.name, team: cName, role: p.role, kills: 2, deaths: 0, assists: 5, cs: 150, matchRating: 8.5, image: p.image }))], teamComparison: { farm: [70, 30], tactics: [60, 40], teamwork: [80, 20], reflexes: [75, 25] } }] };
     recordMatch(cName, sim, 0, oName, 'trial', new Date().toISOString(), mId); return mId;
-  }, [state, recordMatch]);
+  }, [state.clubName, state.lineup, state.ownedPlayers, recordMatch]);
 
   const value = useMemo(() => ({
-    ...state, addCrystals, addCredits, updatePlayer, removePlayer, assignToRole, updateLineup, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage, setTrainingFocus, startDailyPlayerTraining, claimDailyPlayerTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, trainHeroSkill, addPlayerDirectly, addYouthPlayerDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, healPlayer, launchFanCampaign, scoutCandidates, recruitCandidate, clearScoutingReport, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, startCapacityExpansion, accelerateConstruction, checkConstructions, payStaffSalaries, addTrophy, resetProfile, setWorldReady, markMatchIdAsSeen, deleteMatchHistoryEntry, clearMatchHistory, generateDailyGifts: (g: Gift[]) => saveToLocal({ availableGiftsToSend: g, lastGiftGenDate: getMoscowDateString() }), sendGift: async () => true, claimGift: async () => true, runTrialMatch, saveToLocal
-  }), [state, addCrystals, addCredits, updatePlayer, removePlayer, assignToRole, updateLineup, updateTactics, claimReward, purchaseLicense, purchasePremium, setLanguage, setTrainingFocus, startDailyPlayerTraining, claimDailyPlayerTraining, recoverAllFatigue, hireStaffMember, trainStaffSkill, trainHeroSkill, addPlayerDirectly, addYouthPlayerDirectly, promoteYouthPlayer, updateProfileName, updateProfileCountry, healPlayer, launchFanCampaign, scoutCandidates, recruitCandidate, clearScoutingReport, upgradeManagerSkill, startArenaConstruction, startHQConstruction, startBootcampConstruction, startAcademyConstruction, startMedicalConstruction, startCapacityExpansion, accelerateConstruction, checkConstructions, payStaffSalaries, addTrophy, resetProfile, setWorldReady, markMatchIdAsSeen, deleteMatchHistoryEntry, clearMatchHistory, runTrialMatch, saveToLocal]);
+    ...state, 
+    addCrystals, addCredits, updatePlayer, removePlayer, assignToRole, 
+    updateLineup, updateTactics, claimReward, purchaseLicense, purchasePremium, 
+    setLanguage, setTrainingFocus, startDailyPlayerTraining, claimDailyPlayerTraining, 
+    recoverAllFatigue, hireStaffMember, trainStaffSkill, trainHeroSkill, 
+    addPlayerDirectly, addYouthPlayerDirectly, promoteYouthPlayer, 
+    updateProfileName, updateProfileCountry, healPlayer, launchFanCampaign, 
+    scoutCandidates, recruitCandidate, clearScoutingReport, upgradeManagerSkill, 
+    startArenaConstruction, startHQConstruction, startBootcampConstruction, 
+    startAcademyConstruction, startMedicalConstruction, startCapacityExpansion, 
+    accelerateConstruction, checkConstructions, payStaffSalaries, addTrophy, 
+    resetProfile, setWorldReady, markMatchIdAsSeen, deleteMatchHistoryEntry, 
+    clearMatchHistory, 
+    generateDailyGifts: (g: Gift[]) => saveToLocal({ availableGiftsToSend: g, lastGiftGenDate: getMoscowDateString() }), 
+    sendGift: async () => true, claimGift: async () => true, runTrialMatch, saveToLocal
+  }), [
+    state, addCrystals, addCredits, updatePlayer, removePlayer, assignToRole, 
+    updateLineup, updateTactics, claimReward, purchaseLicense, purchasePremium, 
+    setLanguage, setTrainingFocus, startDailyPlayerTraining, claimDailyPlayerTraining, 
+    recoverAllFatigue, hireStaffMember, trainStaffSkill, trainHeroSkill, 
+    addPlayerDirectly, addYouthPlayerDirectly, promoteYouthPlayer, 
+    updateProfileName, updateProfileCountry, healPlayer, launchFanCampaign, 
+    scoutCandidates, recruitCandidate, clearScoutingReport, upgradeManagerSkill, 
+    startArenaConstruction, startHQConstruction, startBootcampConstruction, 
+    startAcademyConstruction, startMedicalConstruction, startCapacityExpansion, 
+    accelerateConstruction, checkConstructions, payStaffSalaries, addTrophy, 
+    resetProfile, setWorldReady, markMatchIdAsSeen, deleteMatchHistoryEntry, 
+    clearMatchHistory, runTrialMatch, saveToLocal
+  ]);
 
   return <GameStateContext.Provider value={value}>{children}</GameStateContext.Provider>;
 }

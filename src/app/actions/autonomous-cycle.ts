@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -6,9 +7,9 @@
  */
 
 import { 
-  collection, doc, getDocs, getDoc, query, where, 
+  collection, doc, getDocs, query, where, 
   writeBatch, serverTimestamp, increment,
-  Firestore, limit, orderBy
+  Firestore, limit
 } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import { getMatchResult } from '@/app/lib/leagues-data';
@@ -36,6 +37,7 @@ class FirestoreBatcher {
 
 /**
  * Расчет всех матчей, время которых наступило.
+ * Убран orderBy для предотвращения ошибки "The query requires an index".
  */
 export async function resolveDailyMatches() {
   const { firestore: db } = initializeFirebase();
@@ -46,14 +48,13 @@ export async function resolveDailyMatches() {
   if (info.isOffseason) return { success: true, count: 0, msg: "Offseason: matches paused", progress: "Paused" };
 
   // УСИЛЕННЫЙ ПОИСК: Ищем любые незавершенные матчи версии 140
-  // Сортируем по турам, чтобы соблюдать хронологию
+  // Убран orderBy tour, так как он требует составного индекса в Firestore
   const q = query(
     collection(db, 'matches_v2'),
     where('season', '==', currentSeason),
     where('isFinished', '==', false),
     where('version', '==', 140),
-    orderBy('tour', 'asc'),
-    limit(500) // Массовая обработка 500 матчей за раз
+    limit(500) 
   );
 
   const snap = await getDocs(q);
