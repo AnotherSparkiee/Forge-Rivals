@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Глобальное локальное хранилище v242 (NUMERIC ID & SYNC FIX).
+ * Глобальное локальное хранилище v242 (SYNC FIX).
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useMemo } from 'react';

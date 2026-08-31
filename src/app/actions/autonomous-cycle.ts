@@ -1,19 +1,18 @@
-
 'use server';
 
 /**
- * @fileOverview ГЛОБАЛЬНЫЙ АВТОНОМНЫЙ ДВИГАТЕЛЬ ЛИГИ v140 (V2 COLLECTIONS).
- * Обрабатывает матчи версии 140 и переходы между сезонами.
+ * @fileOverview ГЛОБАЛЬНЫЙ АВТОНОМНЫЙ ДВИГАТЕЛЬ ЛИГИ v141 (V2 COLLECTIONS).
+ * Оптимизирован для надежного расчета всех просроченных матчей версии 140.
  */
 
 import { 
   collection, doc, getDocs, getDoc, query, where, 
   writeBatch, serverTimestamp, increment,
-  Firestore, limit
+  Firestore, limit, orderBy
 } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import { getMatchResult } from '@/app/lib/leagues-data';
-import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
+import { getGlobalSeasonInfo, isMatchStarted } from '@/app/lib/time-utils';
 
 class FirestoreBatcher {
   private count = 0;
@@ -36,51 +35,51 @@ class FirestoreBatcher {
 }
 
 /**
- * Расчет всех матчей текущего дня во всех группах.
+ * Расчет всех матчей, время которых наступило.
  */
 export async function resolveDailyMatches() {
   const { firestore: db } = initializeFirebase();
   const info = getGlobalSeasonInfo();
   const currentSeason = info.activeSeasonNumber;
+  const currentDay = info.dayOfCycle;
   
-  // СИНХРОНИЗАЦИЯ: Проверяем статус инициализации от мануального двигателя
-  const initStatusRef = doc(db, 'system_v1', `init_v140_S${currentSeason}_LALPHA`);
-  const initSnap = await getDoc(initStatusRef);
-  const isWorldReady = initSnap.exists() && initSnap.data().status === 'completed' && initSnap.data().version === 140;
-
-  if (!isWorldReady) {
-    console.log(`[HEARTBEAT] World v140 not ready for S${currentSeason}. Skipping resolve.`);
-    return { success: true, status: "INITIALIZING_WORLD", progress: "0%" };
-  }
-
   if (info.isOffseason) return { success: true, count: 0, msg: "Offseason: matches paused", progress: "Paused" };
 
+  // УСИЛЕННЫЙ ПОИСК: Ищем любые незавершенные матчи версии 140
+  // Сортируем по турам, чтобы соблюдать хронологию
   const q = query(
     collection(db, 'matches_v2'),
     where('season', '==', currentSeason),
-    where('tour', '==', info.dayOfCycle),
     where('isFinished', '==', false),
     where('version', '==', 140),
-    limit(100) 
+    orderBy('tour', 'asc'),
+    limit(500) // Массовая обработка 500 матчей за раз
   );
 
   const snap = await getDocs(q);
-  if (snap.empty) return { success: true, count: 0, progress: "Done" };
+  if (snap.empty) return { success: true, count: 0, progress: "All matches are up to date" };
 
   const batcher = new FirestoreBatcher(db);
   let count = 0;
 
   for (const matchDoc of snap.docs) {
     const m = matchDoc.data();
+    
+    // КРИТИЧЕСКАЯ ПРОВЕРКА: Только те туры, что уже наступили, и время старта которых прошло
+    if (Number(m.tour) > currentDay) continue;
+    if (!isMatchStarted(m.startTime)) continue;
+
     const [sA, sB] = getMatchResult(m.homeRank, m.awayRank, m.level, m.groupId, m.season, m.tour);
     const winnerId = sA > sB ? (m.homeId || null) : (sB > sA ? (m.awayId || null) : null);
 
+    // 1. Обновляем документ матча
     await batcher.update(matchDoc.ref, {
       scoreA: sA, scoreB: sB, winnerId,
       status: 'finished', isFinished: true,
       resolvedAt: serverTimestamp(), version: 140
     });
 
+    // 2. Обновляем таблицу лиги (stats)
     const tableId = `table_v140_S${currentSeason}_L${m.leagueId}_V${m.level}_G${m.groupId}`;
     const tableRef = doc(db, 'league_tables_v2', tableId);
     
