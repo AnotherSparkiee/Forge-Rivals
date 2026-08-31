@@ -3,6 +3,7 @@
 /**
  * @fileOverview Серверный модуль инициализации v140.
  * Реализует атомную подмену бота игроком для сохранения 8/8.
+ * Внедрена логика самовосстановления при нарушении целостности.
  */
 
 import { 
@@ -61,7 +62,7 @@ export async function findStrategicPlacement(leagueId: string) {
 
 /**
  * Атомарная инициализация клуба v140.
- * ВАЖНО: Только подмена бота, без удаления слотов.
+ * Внедрен механизм SELF-REPAIR для защиты от INTEGRITY_FAIL.
  */
 export async function initializeClubV13(userId: string, data: any) {
   const { firestore: db } = initializeFirebase();
@@ -71,7 +72,6 @@ export async function initializeClubV13(userId: string, data: any) {
   const allPlayersSnap = await getDocs(collection(db, 'players_v14'));
   const numericId = allPlayersSnap.size + 1;
 
-  // Принудительное приведение к числам
   const tier = Number(data.tier || 1);
   const group = Number(data.group || 1);
   const rank = Number(data.rank || 1);
@@ -93,7 +93,7 @@ export async function initializeClubV13(userId: string, data: any) {
 
   const stats = { ...tableData.stats };
 
-  // Если игрок уже есть в этой таблице (например, повторный вызов)
+  // 1. Если игрок уже есть — успех
   if (stats[userId]) {
     return { 
       success: true, 
@@ -104,29 +104,43 @@ export async function initializeClubV13(userId: string, data: any) {
     };
   }
 
-  // СТРОГАЯ ПОДМЕНА: Ищем бота, которого нужно заменить
+  // 2. SELF-REPAIR: Если в таблице меньше 8 команд, восстанавливаем ботов
+  const existingRanks = new Set(Object.values(stats).map((s: any) => Number(s.rank)));
+  if (Object.keys(stats).length < 8) {
+    console.warn(`[REPAIR] Table ${tableId} had ${Object.keys(stats).length} teams. Recovering bots...`);
+    for (let r = 1; r <= 8; r++) {
+      if (!existingRanks.has(r)) {
+        const bId = getBotId(leagueId, tier, group, r);
+        const bName = getBotName(tier, group, r);
+        stats[bId] = {
+          id: bId, name: bName, rank: r,
+          matchesPlayed: 0, wins: 0, draws: 0, losses: 0, points: 0, diff: 0,
+          isBot: true, clubLogo: null
+        };
+        existingRanks.add(r);
+      }
+    }
+  }
+
+  // 3. ПОИСК ЖЕРТВЫ (Бота)
   const targetBotId = getBotId(leagueId, tier, group, rank);
   let botToReplaceId = null;
 
   if (stats[targetBotId] && stats[targetBotId].isBot) {
     botToReplaceId = targetBotId;
   } else {
-    // Если по каким-то причинам слот ранга занят не-ботом, берем любого бота в этой группе
     botToReplaceId = Object.keys(stats).find(id => stats[id].isBot === true) || null;
   }
 
   if (!botToReplaceId) {
-    console.error(`[OVERFLOW v140] Group ${tier}.${group} has no bots left!`);
     return { success: false, error: "GROUP_FULL" };
   }
 
   const batch = writeBatch(db);
-
-  // Сохраняем базовые данные бота (ранг)
   const baseStats = stats[botToReplaceId];
   const actualRank = Number(baseStats.rank);
   
-  delete stats[botToReplaceId]; // Убираем бота из объекта
+  delete stats[botToReplaceId];
   
   stats[userId] = {
     ...baseStats,
@@ -137,15 +151,14 @@ export async function initializeClubV13(userId: string, data: any) {
     isBot: false
   };
 
-  // ПРОВЕРКА ФИНАЛЬНОГО СЧЕТА ПЕРЕД ЗАПИСЬЮ (8/8)
+  // Финальная проверка (теперь практически невозможна неудача из-за Repair выше)
   if (Object.keys(stats).length !== 8) {
-    console.error("[CRITICAL] Registration integrity failure. Found:", Object.keys(stats).length);
+    console.error("[CRITICAL] Registration integrity still failed after repair. Size:", Object.keys(stats).length);
     return { success: false, error: "INTEGRITY_FAIL" };
   }
 
   batch.update(tableRef, { stats, updatedAt: serverTimestamp() });
 
-  // Обновляем календарь v140: заменяем ID бота на ID игрока
   const matchesQ = query(collection(db, 'matches_v2'), 
     where('leagueId', '==', leagueId),
     where('level', '==', tier),
@@ -203,7 +216,6 @@ export async function initializeClubV13(userId: string, data: any) {
 
 /**
  * Возвращает слот лиги боту при удалении или сбросе игрока.
- * Гарантирует сохранение структуры 8/8.
  */
 export async function releasePlayerSlot(userId: string) {
   const { firestore: db } = initializeFirebase();
