@@ -1,8 +1,8 @@
 'use server';
 
 /**
- * Глобальный двигатель мира v141 (Ultra-Safe Batch Architecture).
- * Оптимизирован для предотвращения таймаутов (2 группы за клик).
+ * Глобальный двигатель мира v142 (Max Batch Architecture).
+ * Оптимизирован для максимальной скорости (8 групп за клик).
  * Создает структуру Лиги: Таблица + Полный календарь сезона.
  */
 
@@ -20,7 +20,7 @@ import {
 } from '@/app/lib/leagues-data';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 
-const GROUPS_PER_CALL = 2; // 2 группы * 57 документов = 114 операций (Абсолютно безопасно для таймаута)
+const GROUPS_PER_CALL = 8; // 8 групп * 57 документов = 456 операций (Безопасный максимум для батча 500)
 
 function getGroupCoordinates(index: number) {
   if (index < 1) return { tier: 1, group: 1 };
@@ -65,7 +65,7 @@ export async function injectGroupData(
     teamsForCalendar.push({ id: bId, name: bName, rank: r });
   }
 
-  // Проверка целостности
+  // Проверка целостности (должно быть ровно 8 команд)
   if (Object.keys(initialStats).length !== 8) return;
 
   batch.set(tableRef, {
@@ -89,7 +89,7 @@ export async function injectGroupData(
 }
 
 /**
- * JIT-создание группы (используется при регистрации, если группа не найдена).
+ * JIT-создание группы.
  */
 export async function createGroupStructure(
   db: Firestore, 
@@ -105,8 +105,8 @@ export async function createGroupStructure(
 }
 
 /**
- * Основная функция мануальной постройки.
- * Создает следующие 2 группы в пирамиде.
+ * Основная функция постройки.
+ * Создает 8 групп за один вызов.
  */
 export async function initializeLeagueWorld(leagueId: string, targetSeason?: number) {
   const { firestore: db } = initializeFirebase();
@@ -133,20 +133,17 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
   let processedInThisCall = 0;
   let nextIndex = currentIndex;
 
+  // Ограничиваем цикл ровно до лимита батча
   while (processedInThisCall < GROUPS_PER_CALL && nextIndex < TOTAL_GROUPS) {
     nextIndex++;
     const coords = getGroupCoordinates(nextIndex);
     
-    // Проверка существования, чтобы не тратить лимиты и время на дубликаты
-    const tableId = `table_v140_S${seasonNum}_L${leagueId}_V${coords.tier}_G${coords.group}`;
-    const tableSnap = await getDoc(doc(db, 'league_tables_v2', tableId));
-    
-    if (!tableSnap.exists()) {
-      await injectGroupData(batch, db, leagueId, coords.tier, coords.group, seasonNum);
-    } 
+    // Генерируем данные группы
+    await injectGroupData(batch, db, leagueId, coords.tier, coords.group, seasonNum);
     processedInThisCall++;
   }
 
+  // Финализируем транзакцию
   await batch.commit();
 
   const isComplete = nextIndex >= TOTAL_GROUPS;
