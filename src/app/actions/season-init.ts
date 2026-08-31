@@ -47,7 +47,7 @@ export async function findStrategicPlacement(leagueId: string) {
         for (let rank = 1; rank <= 8; rank++) {
           const key = `${tier}_${group}_${rank}`;
           if (!occupiedSlots.has(key)) {
-            return { tier, group, rank };
+            return { tier: Number(tier), group: Number(group), rank: Number(rank) };
           }
         }
       }
@@ -71,8 +71,12 @@ export async function initializeClubV13(userId: string, data: any) {
   const allPlayersSnap = await getDocs(collection(db, 'players_v14'));
   const numericId = allPlayersSnap.size + 1;
 
-  const { tier, group, rank, clubName, clubLogo, country } = data;
-  const leagueId = data.selectedLeagueId || "ALPHA";
+  // Принудительное приведение к числам
+  const tier = Number(data.tier || 1);
+  const group = Number(data.group || 1);
+  const rank = Number(data.rank || 1);
+  const clubName = String(data.clubName || "Manager");
+  const leagueId = String(data.selectedLeagueId || "ALPHA");
   
   const tableId = `table_v140_S${seasonNum}_L${leagueId}_V${tier}_G${group}`;
   const tableRef = doc(db, 'league_tables_v2', tableId);
@@ -85,11 +89,19 @@ export async function initializeClubV13(userId: string, data: any) {
   } 
 
   const tableData = tableSnap.data();
-  const stats = { ...tableData!.stats };
+  if (!tableData) return { success: false, error: "DATA_NOT_FOUND" };
+
+  const stats = { ...tableData.stats };
 
   // Если игрок уже есть в этой таблице (например, повторный вызов)
   if (stats[userId]) {
-    return { success: true, tier, group, rank, numericId: tableData!.numericId || numericId };
+    return { 
+      success: true, 
+      tier, 
+      group, 
+      rank: Number(stats[userId].rank), 
+      numericId: tableData.numericId || numericId 
+    };
   }
 
   // СТРОГАЯ ПОДМЕНА: Ищем бота, которого нужно заменить
@@ -99,39 +111,41 @@ export async function initializeClubV13(userId: string, data: any) {
   if (stats[targetBotId] && stats[targetBotId].isBot) {
     botToReplaceId = targetBotId;
   } else {
-    // Если по каким-то причинам слот ранга занят не-ботом, берем любого бота
+    // Если по каким-то причинам слот ранга занят не-ботом, берем любого бота в этой группе
     botToReplaceId = Object.keys(stats).find(id => stats[id].isBot === true) || null;
   }
 
   if (!botToReplaceId) {
-    console.error(`[OVERFLOW v140] Group ${tier}.${group} has no bots left! Current count: ${Object.keys(stats).length}`);
+    console.error(`[OVERFLOW v140] Group ${tier}.${group} has no bots left!`);
     return { success: false, error: "GROUP_FULL" };
   }
 
   const batch = writeBatch(db);
 
-  // Сохраняем старую статистику бота (для истории слота)
+  // Сохраняем базовые данные бота (ранг)
   const baseStats = stats[botToReplaceId];
-  delete stats[botToReplaceId]; // Удаляем бота
+  const actualRank = Number(baseStats.rank);
+  
+  delete stats[botToReplaceId]; // Убираем бота из объекта
   
   stats[userId] = {
     ...baseStats,
     id: userId,
-    name: clubName || data.displayName || "Manager",
-    clubLogo: clubLogo || data.clubLogo || null,
-    rank: baseStats.rank, // Сохраняем ранг бота
+    name: clubName,
+    clubLogo: data.clubLogo || null,
+    rank: actualRank,
     isBot: false
   };
 
-  // ПРОВЕРКА ФИНАЛЬНОГО СЧЕТА ПЕРЕД ЗАПИСЬЮ
+  // ПРОВЕРКА ФИНАЛЬНОГО СЧЕТА ПЕРЕД ЗАПИСЬЮ (8/8)
   if (Object.keys(stats).length !== 8) {
-    console.error("[CRITICAL] Registration would break 8/8 integrity. Aborting.");
+    console.error("[CRITICAL] Registration integrity failure. Found:", Object.keys(stats).length);
     return { success: false, error: "INTEGRITY_FAIL" };
   }
 
   batch.update(tableRef, { stats, updatedAt: serverTimestamp() });
 
-  // Обновляем календарь v140
+  // Обновляем календарь v140: заменяем ID бота на ID игрока
   const matchesQ = query(collection(db, 'matches_v2'), 
     where('leagueId', '==', leagueId),
     where('level', '==', tier),
@@ -147,12 +161,12 @@ export async function initializeClubV13(userId: string, data: any) {
     if (mData.homeId === botToReplaceId) { 
       updates.homeId = userId; 
       updates.homeName = clubName; 
-      updates.homeLogo = clubLogo || null; 
+      updates.homeLogo = data.clubLogo || null; 
     }
     if (mData.awayId === botToReplaceId) { 
       updates.awayId = userId; 
       updates.awayName = clubName; 
-      updates.awayLogo = clubLogo || null; 
+      updates.awayLogo = data.clubLogo || null; 
     }
     if (Object.keys(updates).length > 0) batch.update(mDoc.ref, updates);
   });
@@ -162,13 +176,13 @@ export async function initializeClubV13(userId: string, data: any) {
     ...data,
     id: userId,
     numericId,
-    displayName: clubName || data.displayName,
-    clubName: clubName || data.clubName,
-    country: country || data.country || 'International',
+    displayName: clubName,
+    clubName: clubName,
+    country: data.country || 'International',
     selectedLeagueId: leagueId,
     leagueLevel: tier,
     groupId: group,
-    rank: baseStats.rank,
+    rank: actualRank,
     lastProcessedSeason: seasonNum,
     lastLoginDate: new Date().toISOString(),
     createdAt: serverTimestamp(),
@@ -178,7 +192,13 @@ export async function initializeClubV13(userId: string, data: any) {
   batch.set(playerRef, finalPlayerData, { merge: true });
 
   await batch.commit();
-  return { success: true, tier, group, rank: baseStats.rank, numericId };
+  return { 
+    success: true, 
+    tier, 
+    group, 
+    rank: actualRank, 
+    numericId 
+  };
 }
 
 /**

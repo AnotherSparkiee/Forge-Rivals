@@ -67,6 +67,7 @@ export default function SetupPage() {
     
     try {
       const targetLeagueId = "ALPHA";
+      // 1. Предварительный поиск свободного места
       const placement = await findStrategicPlacement(targetLeagueId);
       const selectedCountry = COUNTRIES.find(c => c.code === selectedCountryCode);
       const selectedClub = CLUBS.find(c => c.id === selectedClubId);
@@ -88,6 +89,7 @@ export default function SetupPage() {
 
       const finalClubName = teamName.trim();
 
+      // 2. Серверная инициализация (возвращает финальные координаты)
       const result = await initializeClubV13(user.uid, {
         tier: placement.tier,
         group: placement.group,
@@ -98,22 +100,29 @@ export default function SetupPage() {
         selectedLeagueId: targetLeagueId
       });
 
-      const fullPlacement = {
-        ...placement,
+      if (!result.success) {
+        throw new Error(result.error || "INITIALIZATION_FAILED");
+      }
+
+      // 3. Сохраняем именно те координаты, которые подтвердил сервер
+      const finalPlacement = {
         leagueId: targetLeagueId,
+        tier: result.tier,
+        group: result.group,
+        rank: result.rank,
         clubName: finalClubName,
         clubLogo: selectedClub?.logo,
         numericId: result.numericId
       };
-      setPlacementData(fullPlacement);
+      setPlacementData(finalPlacement);
 
       saveToLocal({
         id: user.uid,
-        numericId: result.numericId,
+        numericId: Number(result.numericId),
         selectedLeagueId: targetLeagueId,
-        leagueLevel: Number(placement.tier),
-        groupId: Number(placement.group),
-        rank: Number(placement.rank),
+        leagueLevel: Number(result.tier),
+        groupId: Number(result.group),
+        rank: Number(result.rank),
         country: selectedCountry?.name || 'International',
         clubName: finalClubName,
         displayName: finalClubName,
@@ -129,6 +138,11 @@ export default function SetupPage() {
       setStep('summary');
     } catch (e: any) {
       console.error("[SETUP ERROR]:", e);
+      toast({ 
+        variant: "destructive", 
+        title: language === 'ru' ? "Ошибка развертывания" : "Deployment Error",
+        description: e.message 
+      });
     } finally {
       setIsUpdating(false);
     }
@@ -286,7 +300,8 @@ function SummaryView({ data, onComplete, t, language, seasonNumber }: { data: an
       where('leagueId', '==', data.leagueId),
       where('level', '==', Number(data.tier)),
       where('groupId', '==', Number(data.group)),
-      where('season', '==', seasonNumber)
+      where('season', '==', seasonNumber),
+      where('version', '==', 140)
     );
   }, [db, data, seasonNumber]);
 
@@ -345,13 +360,17 @@ function SummaryView({ data, onComplete, t, language, seasonNumber }: { data: an
               </div>
             </CardContent>
           </Card>
-        ) : null}
+        ) : (
+          <div className="p-6 text-center bg-secondary/10 rounded-xl border border-dashed border-white/5 opacity-30">
+            <p className="text-[8px] font-black uppercase tracking-widest">Awaiting sector synchronization...</p>
+          </div>
+        )}
       </section>
 
       {/* SEASON SCHEDULE LIST */}
       <section className="space-y-3">
         <h3 className="text-[10px] font-black uppercase text-muted-foreground tracking-widest px-1">SEASON 1 PROTOCOL</h3>
-        <div className="space-y-2 max-h-[300px] overflow-y-auto scrollbar-hide pr-1">
+        <div className="space-y-2 max-h-[200px] overflow-y-auto scrollbar-hide pr-1">
           {myMatches.map((m, i) => (
             <div key={i} className="bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center justify-between">
                <div className="flex items-center gap-3">
