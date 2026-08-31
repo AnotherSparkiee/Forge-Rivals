@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -38,9 +39,10 @@ export default function MatchesPage() {
     return () => clearInterval(timer);
   }, []);
 
+  // ИСПОЛЬЗУЕМ ТОЛЬКО v14
   const groupPlayersQuery = useMemoFirebase(() => {
-    if (!db) return null;
-    return query(collection(db, 'players_v12'), 
+    if (!db || !selectedLeagueId) return null;
+    return query(collection(db, 'players_v14'), 
       where('selectedLeagueId', '==', selectedLeagueId),
       where('leagueLevel', '==', leagueLevel),
       where('groupId', '==', groupId)
@@ -49,13 +51,15 @@ export default function MatchesPage() {
 
   const { data: players } = useCollection(groupPlayersQuery);
 
+  // ФИЛЬТРАЦИЯ ПО ВЕРСИИ 140
   const groupMatchesQuery = useMemoFirebase(() => {
     if (!db || !selectedLeagueId) return null;
     return query(collection(db, 'matches_v2'), 
       where('leagueId', '==', selectedLeagueId),
       where('level', '==', leagueLevel),
       where('groupId', '==', groupId),
-      where('season', '==', seasonNumber)
+      where('season', '==', seasonNumber),
+      where('version', '==', 140)
     );
   }, [db, selectedLeagueId, leagueLevel, groupId, seasonNumber]);
 
@@ -116,8 +120,8 @@ export default function MatchesPage() {
     const isLive = isMatchLive(m.startTime);
     const isFinished = m.isFinished;
     const myRank = players?.find(p => p.id === user?.uid)?.rank || 0;
-    const isMeHome = m.homeRank === myRank;
-    const isMeAway = m.awayRank === myRank;
+    const isMeHome = Number(m.homeRank) === Number(myRank);
+    const isMeAway = Number(m.awayRank) === Number(myRank);
 
     return (
       <Card key={m.id || idx} className={cn(
@@ -186,7 +190,7 @@ export default function MatchesPage() {
 
     switch(view) {
       case 'next':
-        const next = allMatches.filter(m => (m.homeRank === myRank || m.awayRank === myRank) && !m.isFinished).sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())[0];
+        const next = allMatches.filter(m => (Number(m.homeRank) === Number(myRank) || Number(m.awayRank) === Number(myRank)) && !m.isFinished).sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())[0];
         return (
           <div className="animate-in fade-in">
             <Button variant="ghost" size="sm" onClick={() => setView('menu')} className="mb-4 h-8 text-[10px] font-bold uppercase text-primary"><ChevronLeft className="w-4 h-4 mr-1" /> {t.backToMenu}</Button>
@@ -194,7 +198,7 @@ export default function MatchesPage() {
           </div>
         );
       case 'my_future':
-        const myFuture = allMatches.filter(m => (m.homeRank === myRank || m.awayRank === myRank) && !m.isFinished);
+        const myFuture = allMatches.filter(m => (Number(m.homeRank) === Number(myRank) || Number(m.awayRank) === Number(myRank)) && !m.isFinished);
         return (
           <div className="animate-in fade-in">
             <Button variant="ghost" size="sm" onClick={() => setView('menu')} className="mb-4 h-8 text-[10px] font-bold uppercase text-primary"><ChevronLeft className="w-4 h-4 mr-1" /> {t.backToMenu}</Button>
@@ -209,7 +213,7 @@ export default function MatchesPage() {
           </div>
         );
       case 'my_history':
-        const myHistory = allMatches.filter(m => (m.homeRank === myRank || m.awayRank === myRank) && m.isFinished).reverse();
+        const myHistory = allMatches.filter(m => (Number(m.homeRank) === Number(myRank) || Number(m.awayRank) === Number(myRank)) && m.isFinished).reverse();
         return (
           <div className="animate-in fade-in">
             <Button variant="ghost" size="sm" onClick={() => setView('menu')} className="mb-4 h-8 text-[10px] font-bold uppercase text-primary"><ChevronLeft className="w-4 h-4 mr-1" /> {t.backToMenu}</Button>

@@ -2,8 +2,8 @@
 'use client';
 
 /**
- * @fileOverview ЦЕНТР ОТЧЕТОВ МАТЧЕЙ v130.
- * Обновлен для работы с игроками v14 и коллекциями v2.
+ * @fileOverview ЦЕНТР ОТЧЕТОВ МАТЧЕЙ v140.
+ * Очищен от старых версий, использует только players_v14 и matches_v2 v140.
  */
 
 import { useGameState } from '@/app/lib/store';
@@ -39,7 +39,7 @@ export default function ReportsPage() {
     if (!isUserLoading && !user) router.push('/auth/login');
   }, [user, isUserLoading, router]);
 
-  // Загрузка участников группы для разрешения имен (v14)
+  // Загрузка участников группы v14
   const groupPlayersQuery = useMemoFirebase(() => {
     if (!db || !selectedLeagueId) return null;
     return query(collection(db, 'players_v14'), 
@@ -74,11 +74,10 @@ export default function ReportsPage() {
       source: 'history'
     }));
 
-    // 2. Из текущего сезона лиги (v2)
+    // 2. Из текущего сезона лиги (v2, версия 140)
     const leagueReports = (allSeasonMatches || [])
-      .filter(m => (Number(m.homeRank) === rank || Number(m.awayRank) === rank) && m.isFinished)
+      .filter(m => (Number(m.homeRank) === rank || Number(m.awayRank) === rank) && m.isFinished && m.version === 140)
       .map(m => {
-        // Разрешаем имена для лиги
         const hRank = Number(m.homeRank);
         const aRank = Number(m.awayRank);
         
@@ -101,10 +100,8 @@ export default function ReportsPage() {
         };
       });
 
-    // Объединяем
     const combined = [...historyReports, ...leagueReports];
     
-    // Дедупликация по ID
     const uniqueMap = new Map();
     combined.forEach(report => {
       if (report.id) {
@@ -160,8 +157,6 @@ export default function ReportsPage() {
     if (source === 'history') {
       deleteMatchHistoryEntry(id);
       toast({ title: t.deleted });
-    } else {
-      toast({ title: language === 'ru' ? "Матчи лиги нельзя удалить" : "League matches are permanent", variant: "destructive" });
     }
   };
 
@@ -286,7 +281,7 @@ export default function ReportsPage() {
             <FileText className="w-12 h-12" />
             <div className="space-y-1">
               <p className="text-sm font-bold uppercase text-white">{t.empty}</p>
-              <p className="text-[9px] uppercase font-black tracking-widest max-w-[200px] font-medium leading-relaxed">
+              <p className="text-[9px] uppercase font-black tracking-widest max-w-[200px] leading-relaxed">
                 {t.emptyDesc}
               </p>
             </div>

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useRef } from 'react';
@@ -7,8 +8,8 @@ import { useFirestore, useUser } from '@/firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 
 /**
- * КЛИЕНТСКИЙ СИНХРОНИЗАТОР v120 (V2 COLLECTIONS)
- * Синхронизирует локальное состояние с данными из matches_v2.
+ * КЛИЕНТСКИЙ СИНХРОНИЗАТОР v140 (V2 COLLECTIONS)
+ * Синхронизирует локальное состояние с данными из matches_v2 версии 140.
  */
 export function AutoMatchManager() {
   const { 
@@ -29,19 +30,20 @@ export function AutoMatchManager() {
     
     const info = getGlobalSeasonInfo();
     const currentSeason = info.activeSeasonNumber;
-    const currentContext = `${selectedLeagueId}_L${leagueLevel}_G${groupId}_S${currentSeason}_v120`;
+    const currentContext = `${selectedLeagueId}_L${leagueLevel}_G${groupId}_S${currentSeason}_v140`;
     
     if (syncStartedRef.current !== currentContext) {
       syncStartedRef.current = currentContext;
 
       const syncMatches = async () => {
         try {
-          console.log(`[PASSIVE SYNC] Loading group calendar for ${currentContext} (v2)`);
+          console.log(`[PASSIVE SYNC] Loading group calendar for ${currentContext} (v2, version 140)`);
           const q = query(collection(db, 'matches_v2'), 
             where('leagueId', '==', selectedLeagueId),
             where('level', '==', leagueLevel),
             where('groupId', '==', groupId),
-            where('season', '==', currentSeason)
+            where('season', '==', currentSeason),
+            where('version', '==', 140) // ФИЛЬТР ТОЛЬКО v140
           );
           const matchesSnap = await getDocs(q);
           const officialMatches = matchesSnap.docs.map(d => ({ ...d.data(), id: d.id }));
