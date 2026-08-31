@@ -4,6 +4,7 @@
  * Глобальный двигатель мира v142 (Max Batch Architecture).
  * Оптимизирован для максимальной скорости (8 групп за клик).
  * Создает структуру Лиги: Таблица + Полный календарь сезона.
+ * Внедрена жесткая проверка 8/8.
  */
 
 import { 
@@ -20,13 +21,13 @@ import {
 } from '@/app/lib/leagues-data';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 
-const GROUPS_PER_CALL = 8; // 8 групп * 57 документов = 456 операций (Безопасный максимум для батча 500)
+const GROUPS_PER_CALL = 8; 
 
 function getGroupCoordinates(index: number) {
   if (index < 1) return { tier: 1, group: 1 };
   let tier = 1;
   let runningTotal = 0;
-  while (tier <= 9) {
+  while (tier <= MAX_LEVELS_SAFE) {
     const groupsInTier = Math.pow(2, tier - 1);
     if (index <= runningTotal + groupsInTier) {
       return { tier, group: index - runningTotal };
@@ -37,8 +38,11 @@ function getGroupCoordinates(index: number) {
   return { tier: 9, group: 256 };
 }
 
+const MAX_LEVELS_SAFE = 9;
+
 /**
  * Создает структуру одной группы (Таблица + Календарь) внутри батча.
+ * ГАРАНТИЯ 8/8: Если команд не 8, группа не будет создана.
  */
 export async function injectGroupData(
   batch: any, 
@@ -49,7 +53,6 @@ export async function injectGroupData(
   seasonNum: number
 ) {
   const tableId = `table_v140_S${seasonNum}_L${leagueId}_V${tier}_G${group}`;
-  const tableRef = doc(db, 'league_tables_v2', tableId);
   
   const initialStats: any = {};
   const teamsForCalendar = [];
@@ -65,9 +68,14 @@ export async function injectGroupData(
     teamsForCalendar.push({ id: bId, name: bName, rank: r });
   }
 
-  // Проверка целостности (должно быть ровно 8 команд)
-  if (Object.keys(initialStats).length !== 8) return;
+  // КРИТИЧЕСКАЯ ПРОВЕРКА ЦЕЛОСТНОСТИ
+  const teamCount = Object.keys(initialStats).length;
+  if (teamCount !== 8) {
+    console.error(`[WORLD ENGINE] Integrity failure for ${tableId}: ${teamCount}/8 teams. Aborting.`);
+    return;
+  }
 
+  const tableRef = doc(db, 'league_tables_v2', tableId);
   batch.set(tableRef, {
     id: tableId, leagueId, level: tier, group, season: seasonNum,
     stats: initialStats,
@@ -106,7 +114,6 @@ export async function createGroupStructure(
 
 /**
  * Основная функция постройки.
- * Создает 8 групп за один вызов.
  */
 export async function initializeLeagueWorld(leagueId: string, targetSeason?: number) {
   const { firestore: db } = initializeFirebase();
@@ -133,17 +140,20 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
   let processedInThisCall = 0;
   let nextIndex = currentIndex;
 
-  // Ограничиваем цикл ровно до лимита батча
   while (processedInThisCall < GROUPS_PER_CALL && nextIndex < TOTAL_GROUPS) {
     nextIndex++;
     const coords = getGroupCoordinates(nextIndex);
     
-    // Генерируем данные группы
-    await injectGroupData(batch, db, leagueId, coords.tier, coords.group, seasonNum);
+    // Проверяем, не существует ли уже эта группа (для безопасности при сбоях)
+    const tableId = `table_v140_S${seasonNum}_L${leagueId}_V${coords.tier}_G${coords.group}`;
+    const tableSnap = await getDoc(doc(db, 'league_tables_v2', tableId));
+    
+    if (!tableSnap.exists()) {
+      await injectGroupData(batch, db, leagueId, coords.tier, coords.group, seasonNum);
+    }
     processedInThisCall++;
   }
 
-  // Финализируем транзакцию
   await batch.commit();
 
   const isComplete = nextIndex >= TOTAL_GROUPS;

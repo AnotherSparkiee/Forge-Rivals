@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -274,7 +273,7 @@ export default function RankingsPage() {
               <CardContent className="p-4 flex justify-between items-center">
                 <span className="text-sm font-bold uppercase group-hover:text-white transition-colors">Дивизион {lvl}</span>
                 <div className="flex items-center gap-2">
-                  <Badge variant="secondary" className="text-[8px] bg-white/5 font-black uppercase">{getGroupsCountInLevel(lvl)} ГРУППА</Badge>
+                  <Badge variant="secondary" className="text-[8px] bg-white/5 font-black uppercase">{getGroupsCountInLevel(lvl)} ГРУПП</Badge>
                   <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-all" />
                 </div>
               </CardContent>
@@ -295,3 +294,5 @@ export default function RankingsPage() {
     </div>
   );
 }
+
+const MAX_LEVELS_SAFE = 9;
