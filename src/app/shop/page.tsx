@@ -41,7 +41,7 @@ type ShopTab =
 
 export default function ShopPage() {
   const { 
-    language, isLoaded, credits, crystals, 
+    language, isLoaded, credits, crystals, numericId,
     addCrystals, addCredits, addYouthPlayerDirectly, addPlayerDirectly,
     updateProfileName, updateProfileCountry, purchaseLicense, purchasePremium,
     activeLicenseTier, country: currentCountry, isPremium, premiumUntil
@@ -668,7 +668,10 @@ export default function ShopPage() {
             <ShoppingCart className="w-6 h-6 text-primary" /> 
             {activeTab === 'menu' ? (language === 'ru' ? 'МАГАЗИН' : 'TRADING HUB') : t.tabs[activeTab as keyof typeof t.tabs].label}
           </h1>
-          <p className="text-muted-foreground text-[10px] uppercase tracking-widest">{activeTab === 'menu' ? t.subtitle : t.back}</p>
+          <p className="text-muted-foreground text-[10px] uppercase tracking-widest flex items-center gap-2">
+            {activeTab === 'menu' ? t.subtitle : t.back}
+            {activeTab === 'menu' && <span className="text-accent font-black"># {numericId || '---'}</span>}
+          </p>
         </div>
       </header>
 

@@ -38,9 +38,9 @@ type ProfileTab = 'menu' | 'team' | 'gifts';
 export default function ProfilePage() {
   const { 
     ownedPlayers, language, isLoaded: isStoreLoaded, 
-    credits, crystals, leagueLevel, 
+    credits, crystals, leagueLevel, clubName, country, numericId,
     experiencePoints, activeLicenseTier, hq, managerLevel,
-    skillPoints, managerSkills, upgradeManagerSkill, arena, bootcamp, academy, medical,
+    managerSkills, arena, bootcamp, academy, medical,
     isPremium, premiumUntil, resetProfile, trophies, receivedGifts = [], claimGift
   } = useGameState();
   const { user, isUserLoading } = useUser();
@@ -56,7 +56,7 @@ export default function ProfilePage() {
 
   const userRef = useMemoFirebase(() => {
     if (!db || !user?.uid) return null;
-    return doc(db, 'players_v12', user.uid);
+    return doc(db, 'players_v14', user.uid);
   }, [db, user?.uid]);
   
   const { data: profile, isLoading: isProfileLoading } = useDoc(userRef);
@@ -160,11 +160,8 @@ export default function ProfilePage() {
   const handleLogout = async () => {
     if (!auth) return;
     try {
-      // 1. Полный сброс локального состояния
       await resetProfile();
-      // 2. Выход из Firebase
       await signOut(auth);
-      // 3. Жесткая перезагрузка страницы для полной очистки React-контекстов
       window.location.href = '/auth/login';
     } catch (e) {
       console.error("Logout error", e);
@@ -195,13 +192,16 @@ export default function ProfilePage() {
             <span className="text-[10px] font-black text-primary uppercase tracking-widest whitespace-nowrap">{t.lvl} {managerLevel || 1}</span>
           </div>
         </div>
-        <div className="text-center space-y-3">
-          <h1 className="text-2xl font-headline font-black uppercase tracking-tight text-white">
-            {profile?.displayName || 'Local Manager'}
+        <div className="text-center space-y-2">
+          <h1 className="text-2xl font-headline font-black uppercase tracking-tight text-white leading-none">
+            {clubName || profile?.clubName || 'COMMANDER'}
           </h1>
-          <p className="text-[10px] text-muted-foreground uppercase font-black tracking-[0.2em] opacity-60 flex items-center justify-center gap-2">
-            <MapPin className="w-3 h-3 text-primary" /> {profile?.country || 'International'}
-          </p>
+          <div className="flex flex-col items-center gap-1">
+            <p className="text-[9px] text-accent font-black uppercase tracking-[0.2em]">OPERATIONAL_ID: # {numericId || '---'}</p>
+            <p className="text-[10px] text-muted-foreground uppercase font-black tracking-[0.2em] opacity-60 flex items-center justify-center gap-2">
+              <MapPin className="w-3 h-3 text-primary" /> {country || profile?.country || 'International'}
+            </p>
+          </div>
         </div>
         <div className="w-full max-w-[240px] mt-6 space-y-2">
            <div className="flex justify-between items-center text-[9px] font-black uppercase tracking-widest px-1"><span className="text-muted-foreground">{t.xp}</span><span className="text-primary">{currentXp.toLocaleString()} / {xpThreshold.toLocaleString()}</span></div>
@@ -299,33 +299,6 @@ export default function ProfilePage() {
                 </div>
               </div>
            </Card>
-
-           <div className="space-y-3">
-             <h3 className="text-[10px] font-black uppercase tracking-widest text-accent px-1 flex items-center gap-2"><Award className="w-4 h-4" /> {t.skills.title}</h3>
-             <div className="grid grid-cols-1 gap-2">
-                {[
-                  { id: 'sponsors', label: t.skills.sponsors, icon: CircleDollarSign, color: 'text-yellow-500' },
-                  { id: 'agents', label: t.skills.agents, icon: UserCog, color: 'text-blue-400' },
-                  { id: 'training', label: t.skills.training, icon: GraduationCap, color: 'text-green-400' },
-                  { id: 'medical', label: t.skills.medical, icon: HeartPulse, color: 'text-red-400' }
-                ].map((skill) => (
-                  <div key={skill.id} className="bg-secondary/20 p-4 rounded-xl border border-white/5 flex items-center justify-between">
-                     <div className="flex items-center gap-3">
-                        <div className={cn("p-2 rounded-lg bg-secondary/50", skill.color)}><skill.icon className="w-5 h-5" /></div>
-                        <div>
-                          <p className="text-xs font-bold uppercase text-white">{skill.label}</p>
-                          <p className="text-[8px] text-muted-foreground uppercase font-black">Level {(managerSkills as any)[skill.id]}</p>
-                        </div>
-                     </div>
-                     <div className="flex items-center gap-2">
-                        {Array.from({ length: 5 }).map((_, i) => (
-                          <div key={i} className={cn("w-2 h-2 rounded-full", i < (managerSkills as any)[skill.id] ? "bg-primary shadow-[0_0_5px_rgba(var(--primary),0.5)]" : "bg-white/5")} />
-                        ))}
-                     </div>
-                  </div>
-                ))}
-             </div>
-           </div>
         </div>
       )}
 

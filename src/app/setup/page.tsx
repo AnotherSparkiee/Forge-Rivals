@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -89,7 +88,7 @@ export default function SetupPage() {
 
       const finalClubName = teamName.trim();
 
-      await initializeClubV13(user.uid, {
+      const result = await initializeClubV13(user.uid, {
         tier: placement.tier,
         group: placement.group,
         rank: placement.rank,
@@ -103,12 +102,14 @@ export default function SetupPage() {
         ...placement,
         leagueId: targetLeagueId,
         clubName: finalClubName,
-        clubLogo: selectedClub?.logo
+        clubLogo: selectedClub?.logo,
+        numericId: result.numericId
       };
       setPlacementData(fullPlacement);
 
       saveToLocal({
         id: user.uid,
+        numericId: result.numericId,
         selectedLeagueId: targetLeagueId,
         leagueLevel: Number(placement.tier),
         groupId: Number(placement.group),
@@ -121,10 +122,10 @@ export default function SetupPage() {
         lineup: initialLineup,
         isDataReady: true,
         isTeamLoaded: true,
-        version: 131
+        version: 140
       });
 
-      toast({ title: language === 'ru' ? "Клуб v131 инициализирован!" : "Club v131 Initialized!" });
+      toast({ title: language === 'ru' ? "Клуб инициализирован!" : "Club Initialized!" });
       setStep('summary');
     } catch (e: any) {
       console.error("[SETUP ERROR]:", e);
@@ -311,7 +312,10 @@ function SummaryView({ data, onComplete, t, language, seasonNumber }: { data: an
           <div>
             <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">ASSIGNED SECTOR</p>
             <h2 className="text-2xl font-headline font-bold text-white italic">DIV {data.tier} • GROUP {data.group}</h2>
-            <Badge variant="outline" className="mt-2 text-primary border-primary/30">RANK #{data.rank}</Badge>
+            <div className="flex gap-2 justify-center mt-2">
+              <Badge variant="outline" className="text-primary border-primary/30">RANK #{data.rank}</Badge>
+              <Badge className="bg-accent text-accent-foreground font-black">ID #{data.numericId}</Badge>
+            </div>
           </div>
         </CardContent>
       </Card>

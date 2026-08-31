@@ -1,4 +1,3 @@
-
 'use server';
 
 /**
@@ -67,7 +66,11 @@ export async function initializeClubV13(userId: string, data: any) {
   const seasonInfo = getGlobalSeasonInfo();
   const seasonNum = seasonInfo.activeSeasonNumber;
 
-  const { tier, group, rank, clubName, clubLogo } = data;
+  // Расчет порядкового ID игрока
+  const allPlayersSnap = await getDocs(collection(db, 'players_v14'));
+  const numericId = allPlayersSnap.size + 1;
+
+  const { tier, group, rank, clubName, clubLogo, country } = data;
   const leagueId = data.selectedLeagueId || "ALPHA";
   
   const tableId = `table_v140_S${seasonNum}_L${leagueId}_V${tier}_G${group}`;
@@ -141,11 +144,13 @@ export async function initializeClubV13(userId: string, data: any) {
   }
 
   const playerRef = doc(db, 'players_v14', userId);
-  batch.set(playerRef, {
+  const finalPlayerData = {
     ...data,
     id: userId,
+    numericId,
     displayName: clubName || data.displayName,
     clubName: clubName || data.clubName,
+    country: country || data.country || 'International',
     selectedLeagueId: leagueId,
     leagueLevel: tier,
     groupId: group,
@@ -154,8 +159,10 @@ export async function initializeClubV13(userId: string, data: any) {
     lastLoginDate: new Date().toISOString(),
     createdAt: serverTimestamp(), // Метка для изоляции истории
     version: 140
-  }, { merge: true });
+  };
+
+  batch.set(playerRef, finalPlayerData, { merge: true });
 
   await batch.commit();
-  return { success: true, tier, group, rank };
+  return { success: true, tier, group, rank, numericId };
 }

@@ -1,8 +1,7 @@
 'use client';
 
 /**
- * Глобальное локальное хранилище v241 (V140 GLOBAL TRANSITION).
- * Исправлена критическая ошибка payStaffSalaries ReferenceError.
+ * Глобальное локальное хранилище v242 (NUMERIC ID & SYNC FIX).
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useMemo } from 'react';
@@ -46,7 +45,7 @@ interface TrophyRecord {
 interface GameState {
   credits: number; crystals: number; experiencePoints: number; managerLevel: number;
   leagueLevel: number; groupId: number; selectedLeagueId: string | null;
-  displayName: string; id: string; isLoaded: boolean;
+  displayName: string; id: string; numericId: number | null; isLoaded: boolean;
   clubName: string | null; clubLogo: string | null;
   lineup: Record<LineupSlot, string | null>;
   ownedPlayers: Player[]; youthAcademyPlayers: Player[];
@@ -124,12 +123,12 @@ interface GameState {
   saveToLocal: (state: Partial<GameState>) => void;
 }
 
-const STORAGE_KEY = 'lote_game_state_v241';
+const STORAGE_KEY = 'lote_game_state_v242';
 
 const DEFAULT_STATE: GameState = {
   credits: 1000000, crystals: 50, experiencePoints: 0, managerLevel: 1,
   leagueLevel: 9, groupId: 1, selectedLeagueId: null,
-  displayName: 'Local Manager', id: '', isLoaded: false, isTeamLoaded: false,
+  displayName: 'Local Manager', id: '', numericId: null, isLoaded: false, isTeamLoaded: false,
   clubName: null, clubLogo: null,
   lineup: { 
     carry: null, mid: null, offlane: null, support: null, full_support: null, 
@@ -144,7 +143,7 @@ const DEFAULT_STATE: GameState = {
   arena: { capacity: 5000 }, hq: {}, bootcamp: {}, academy: {}, medical: {},
   country: null, isPremium: false, premiumUntil: null, activeSeasonNumber: 1, seasonNumber: 1, seasonDay: 1, isSyncing: false, language: 'ru',
   isDataReady: false, allSeasonMatches: [], nextMatch: null, isMatchesLoading: true,
-  lastProcessedSeason: 0, trophies: [], version: 241,
+  lastProcessedSeason: 0, trophies: [], version: 242,
   availableGiftsToSend: [], receivedGifts: [], lastGiftGenDate: null,
   addCrystals: () => {}, addCredits: () => {}, updatePlayer: () => {}, removePlayer: () => {}, assignToRole: () => {}, updateLineup: () => {}, updateTactics: () => {},
   claimReward: () => {}, setLanguage: () => {}, purchaseLicense: () => false, purchasePremium: () => false,
@@ -189,7 +188,7 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (parsed.version < 241) {
+        if (parsed.version < 242) {
           localStorage.removeItem(STORAGE_KEY);
           window.location.reload();
           return;
@@ -219,12 +218,21 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
       if (snapshot.exists()) {
         const data = snapshot.data();
         saveToLocal({
-          clubName: data.clubName, clubLogo: data.clubLogo, country: data.country,
-          selectedLeagueId: data.selectedLeagueId, leagueLevel: Number(data.leagueLevel),
-          groupId: Number(data.groupId), rank: Number(data.rank), isTeamLoaded: true,
-          managerLevel: data.managerLevel || state.managerLevel, experiencePoints: data.experiencePoints || state.experiencePoints
+          clubName: data.clubName || state.clubName,
+          clubLogo: data.clubLogo || state.clubLogo,
+          country: data.country || state.country,
+          numericId: data.numericId || state.numericId,
+          selectedLeagueId: data.selectedLeagueId,
+          leagueLevel: Number(data.leagueLevel),
+          groupId: Number(data.groupId),
+          rank: Number(data.rank),
+          isTeamLoaded: true,
+          managerLevel: data.managerLevel || state.managerLevel,
+          experiencePoints: data.experiencePoints || state.experiencePoints
         });
-      } else { setState(prev => ({ ...prev, isTeamLoaded: false })); }
+      } else {
+        setState(prev => ({ ...prev, isTeamLoaded: false }));
+      }
     });
     return () => unsubscribe();
   }, [user?.uid, state.isLoaded, saveToLocal]);
@@ -301,6 +309,15 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   const healPlayer = useCallback((pId: string, t: 'credits' | 'crystals', c: number) => { updatePlayer(pId, { isInjured: false, injuredUntil: null }); saveToLocal({ [t]: (state as any)[t] - c }); }, [state.credits, state.crystals, updatePlayer, saveToLocal]);
   const launchFanCampaign = useCallback((t: string, c: number, f: number, l: number) => saveToLocal({ credits: (state.credits || 0) - c, arena: { ...state.arena, fanCount: (state.arena.fanCount || 5000) + f, loyalty: (state.arena.loyalty || 30) + l } }), [state.credits, state.arena, saveToLocal]);
   const addTrophy = useCallback((trophy: TrophyRecord) => saveToLocal({ trophies: [...(state.trophies || []), trophy] }), [state.trophies, saveToLocal]);
+  
+  const payStaffSalaries = useCallback(async () => {
+    const totalS = state.ownedPlayers.reduce((acc, p) => acc + (p.salary || 0), 0);
+    const finalC = Math.round(totalS * 0.55); // 45% subsidy
+    if (state.credits >= finalC) {
+      saveToLocal({ credits: state.credits - finalC });
+    }
+  }, [state.credits, state.ownedPlayers, saveToLocal]);
+
   const resetProfile = useCallback(async () => { 
     if (typeof window !== 'undefined') localStorage.removeItem(STORAGE_KEY);
     setState({ ...DEFAULT_STATE, id: user?.uid || '', isLoaded: true }); 
@@ -406,14 +423,6 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
   }, [state.scoutingCandidates, state.youthAcademyPlayers, saveToLocal]);
 
   const clearScoutingReport = useCallback(() => saveToLocal({ scoutingCandidates: [] }), [saveToLocal]);
-
-  const payStaffSalaries = useCallback(async () => {
-    const totalS = state.ownedPlayers.reduce((acc, p) => acc + (p.salary || 0), 0);
-    const finalC = Math.round(totalS * 0.55); // 45% subsidy
-    if (state.credits >= finalC) {
-      saveToLocal({ credits: state.credits - finalC });
-    }
-  }, [state.credits, state.ownedPlayers, saveToLocal]);
 
   const setWorldReady = useCallback((r: boolean) => setState(prev => ({ ...prev, isDataReady: r })), []);
   
