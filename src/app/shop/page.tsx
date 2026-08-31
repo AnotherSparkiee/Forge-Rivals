@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -336,7 +337,7 @@ export default function ShopPage() {
         return (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500 pb-6">
             <div className="p-4 bg-primary/10 border border-primary/20 rounded-xl flex gap-4 mb-2">
-               <Info className="w-5 h-5 text-primary shrink-0" />
+               <span className="p-1 rounded bg-primary/20 h-fit"><Info className="w-5 h-5 text-primary shrink-0" /></span>
                <p className="text-[10px] text-muted-foreground italic leading-relaxed">
                  {t.licenseInfo.order}
                </p>
@@ -670,7 +671,7 @@ export default function ShopPage() {
           </h1>
           <p className="text-muted-foreground text-[10px] uppercase tracking-widest flex items-center gap-2">
             {activeTab === 'menu' ? t.subtitle : t.back}
-            {activeTab === 'menu' && <span className="text-accent font-black"># {numericId || '---'}</span>}
+            {activeTab === 'menu' && <span className="text-accent font-black">ID: {numericId || '---'}</span>}
           </p>
         </div>
       </header>

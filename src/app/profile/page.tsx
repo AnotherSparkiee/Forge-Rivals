@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useGameState, getLevelThreshold, Gift } from '../lib/store';
@@ -208,7 +209,7 @@ export default function ProfilePage() {
             {clubName || profile?.clubName || 'COMMANDER'}
           </h1>
           <div className="flex flex-col items-center gap-1">
-            <p className="text-[9px] text-accent font-black uppercase tracking-[0.2em]">OPERATIONAL_ID: # {numericId || '---'}</p>
+            <p className="text-[9px] text-accent font-black uppercase tracking-[0.2em]">ID: {numericId || '---'}</p>
             <p className="text-[10px] text-muted-foreground uppercase font-black tracking-[0.2em] opacity-60 flex items-center justify-center gap-2">
               <MapPin className="w-3 h-3 text-primary" /> {country || profile?.country || 'International'}
             </p>

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -329,7 +330,7 @@ function SummaryView({ data, onComplete, t, language, seasonNumber }: { data: an
             <h2 className="text-2xl font-headline font-bold text-white italic">DIV {data.tier} • GROUP {data.group}</h2>
             <div className="flex gap-2 justify-center mt-2">
               <Badge variant="outline" className="text-primary border-primary/30">RANK #{data.rank}</Badge>
-              <Badge className="bg-accent text-accent-foreground font-black">ID #{data.numericId}</Badge>
+              <Badge className="bg-accent text-accent-foreground font-black">ID: {data.numericId}</Badge>
             </div>
           </div>
         </CardContent>

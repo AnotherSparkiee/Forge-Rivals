@@ -43,11 +43,12 @@ export async function resolveDailyMatches() {
   const info = getGlobalSeasonInfo();
   const currentSeason = info.activeSeasonNumber;
   
-  const repairStatusRef = doc(db, 'system_v1', `repair_v140_S${currentSeason}_LALPHA`);
-  const repairSnap = await getDoc(repairStatusRef);
-  const isRepairComplete = repairSnap.exists() && repairSnap.data().phase === 'COMPLETED';
+  // СИНХРОНИЗАЦИЯ: Проверяем статус инициализации от мануального двигателя
+  const initStatusRef = doc(db, 'system_v1', `init_v140_S${currentSeason}_LALPHA`);
+  const initSnap = await getDoc(initStatusRef);
+  const isWorldReady = initSnap.exists() && initSnap.data().status === 'completed' && initSnap.data().version === 140;
 
-  if (!isRepairComplete) {
+  if (!isWorldReady) {
     console.log(`[HEARTBEAT] World v140 not ready for S${currentSeason}. Skipping resolve.`);
     return { success: true, status: "INITIALIZING_WORLD", progress: "0%" };
   }
