@@ -5,11 +5,15 @@
  * Ищет свободное место в уже созданной 511-групповой пирамиде.
  */
 
-import { collection, getDocs, query, where, doc, getDoc, writeBatch, serverTimestamp } from 'firebase/firestore';
+import { 
+  collection, getDocs, query, where, doc, getDoc, 
+  writeBatch, serverTimestamp, deleteDoc 
+} from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import { 
   getGroupsCountInLevel, 
   getBotId, 
+  getBotName,
   TEAMS_PER_GROUP 
 } from '@/app/lib/leagues-data';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
@@ -157,7 +161,7 @@ export async function initializeClubV13(userId: string, data: any) {
     rank,
     lastProcessedSeason: seasonNum,
     lastLoginDate: new Date().toISOString(),
-    createdAt: serverTimestamp(), // Метка для изоляции истории
+    createdAt: serverTimestamp(),
     version: 140
   };
 
@@ -165,4 +169,89 @@ export async function initializeClubV13(userId: string, data: any) {
 
   await batch.commit();
   return { success: true, tier, group, rank, numericId };
+}
+
+/**
+ * Возвращает слот лиги боту при удалении или сбросе игрока.
+ * Гарантирует сохранение структуры 8/8.
+ */
+export async function releasePlayerSlot(userId: string) {
+  const { firestore: db } = initializeFirebase();
+  const playerRef = doc(db, 'players_v14', userId);
+  const playerSnap = await getDoc(playerRef);
+
+  if (!playerSnap.exists()) return { success: true };
+
+  const pData = playerSnap.data();
+  const { 
+    leagueLevel: tier, 
+    groupId: group, 
+    rank, 
+    selectedLeagueId: leagueId, 
+    lastProcessedSeason: seasonNum 
+  } = pData;
+
+  if (tier && group && rank && leagueId) {
+    const currentSeason = seasonNum || 1;
+    const tableId = `table_v140_S${currentSeason}_L${leagueId}_V${tier}_G${group}`;
+    const tableRef = doc(db, 'league_tables_v2', tableId);
+    const tableSnap = await getDoc(tableRef);
+
+    if (tableSnap.exists()) {
+      const tableData = tableSnap.data();
+      const stats = { ...tableData.stats };
+      const botId = getBotId(leagueId, tier, group, rank);
+      const botName = getBotName(tier, group, rank);
+
+      // Заменяем данные игрока данными бота в статистике слота
+      if (stats[userId]) {
+        const currentStats = stats[userId];
+        delete stats[userId];
+        
+        stats[botId] = {
+          ...currentStats,
+          id: botId,
+          name: botName,
+          isBot: true,
+          clubLogo: null,
+          rank: Number(rank)
+        };
+
+        const batch = writeBatch(db);
+        batch.update(tableRef, { stats, updatedAt: serverTimestamp() });
+
+        // Обновляем матчи в календаре v140
+        const matchesQ = query(collection(db, 'matches_v2'), 
+          where('leagueId', '==', leagueId),
+          where('level', '==', tier),
+          where('groupId', '==', group),
+          where('season', '==', currentSeason),
+          where('version', '==', 140)
+        );
+        const matchesSnap = await getDocs(matchesQ);
+
+        matchesSnap.forEach(mDoc => {
+          const mData = mDoc.data();
+          const updates: any = {};
+          if (mData.homeId === userId) { 
+            updates.homeId = botId; 
+            updates.homeName = botName; 
+            updates.homeLogo = null; 
+          }
+          if (mData.awayId === userId) { 
+            updates.awayId = botId; 
+            updates.awayName = botName; 
+            updates.awayLogo = null; 
+          }
+          if (Object.keys(updates).length > 0) batch.update(mDoc.ref, updates);
+        });
+
+        await batch.commit();
+      }
+    }
+  }
+
+  // Удаляем сам профиль игрока
+  await deleteDoc(playerRef);
+  return { success: true };
 }

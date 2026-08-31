@@ -24,6 +24,7 @@ import { doc } from 'firebase/firestore';
 import { COUNTRIES } from '@/app/lib/countries-data';
 import { Badge } from '@/components/ui/badge';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
+import { releasePlayerSlot } from '@/app/actions/season-init';
 import {
   Dialog,
   DialogContent,
@@ -144,12 +145,19 @@ export default function ProfilePage() {
   const t = translations[language as 'en' | 'ru'] || translations.ru;
 
   const handleReset = async () => {
+    if (!user) return;
     setIsResetting(true);
     try {
+      // 1. Возвращаем слот боту и удаляем профиль на сервере
+      await releasePlayerSlot(user.uid);
+      
+      // 2. Очищаем локальное хранилище
       await resetProfile();
+      
       toast({ title: language === 'ru' ? "Профиль сброшен" : "Profile Reset Complete" });
       router.push('/setup');
     } catch (e) {
+      console.error(e);
       toast({ variant: "destructive", title: "Reset Failed" });
     } finally {
       setIsResetting(false);
@@ -160,8 +168,11 @@ export default function ProfilePage() {
   const handleLogout = async () => {
     if (!auth) return;
     try {
-      await resetProfile();
       await signOut(auth);
+      // При выходе просто очищаем локальное состояние (не удаляя данные в БД)
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('lote_game_state_v242');
+      }
       window.location.href = '/auth/login';
     } catch (e) {
       console.error("Logout error", e);
@@ -362,7 +373,9 @@ export default function ProfilePage() {
             <DialogDescription className="text-center text-xs text-muted-foreground mt-2">{t.resetDesc}</DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-2 mt-6">
-            <Button variant="destructive" className="h-12 font-black uppercase text-[10px]" onClick={handleReset} disabled={isResetting}>{isResetting ? <Loader2 className="animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />} {language === 'ru' ? 'ПОДТВЕРДИТЬ СБРОС' : 'CONFIRM RESET'}</Button>
+            <Button variant="destructive" className="h-12 font-black uppercase text-[10px]" onClick={handleReset} disabled={isResetting}>
+              {isResetting ? <Loader2 className="animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />} {language === 'ru' ? 'ПОДТВЕРДИТЬ СБРОС' : 'CONFIRM RESET'}
+            </Button>
             <Button variant="outline" className="h-12 font-bold uppercase text-[10px] border-white/10" onClick={() => setShowResetDialog(false)} disabled={isResetting}>{language === 'ru' ? 'ОТМЕНА' : 'CANCEL'}</Button>
           </div>
         </DialogContent>
