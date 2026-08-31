@@ -7,7 +7,7 @@
  */
 
 import { useGameState } from '@/app/lib/store';
-import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
 import { useRouter } from 'next/navigation';
 import { useState, useMemo, useEffect } from 'react';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
@@ -22,7 +22,7 @@ import {
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-import { collection, query, where } from 'firebase/firestore';
+import { collection, query, where, doc } from 'firebase/firestore';
 
 export default function ReportsPage() {
   const { user, isUserLoading } = useUser();
@@ -51,6 +51,13 @@ export default function ReportsPage() {
 
   const { data: groupPlayers } = useCollection(groupPlayersQuery);
 
+  const userProfileRef = useMemoFirebase(() => {
+    if (!db || !user?.uid) return null;
+    return doc(db, 'players_v14', user.uid);
+  }, [db, user?.uid]);
+
+  const { data: profile } = useDoc(userProfileRef);
+
   const nameMap = useMemo(() => {
     const names: Record<number, string> = {};
     const logos: Record<number, string> = {};
@@ -65,7 +72,9 @@ export default function ReportsPage() {
 
   // Сбор всех завершенных отчетов
   const allReports = useMemo(() => {
-    if (!user || !rank) return [];
+    if (!user || !rank || !profile) return [];
+
+    const regTime = profile.createdAt?.toMillis ? profile.createdAt.toMillis() : (profile.createdAt ? new Date(profile.createdAt).getTime() : 0);
 
     // 1. Из истории (дружеские, турниры)
     const historyReports = (matchHistory || []).map(m => ({
@@ -77,6 +86,11 @@ export default function ReportsPage() {
     // 2. Из текущего сезона лиги (v2, версия 140)
     const leagueReports = (allSeasonMatches || [])
       .filter(m => (Number(m.homeRank) === rank || Number(m.awayRank) === rank) && m.isFinished && m.version === 140)
+      .filter(m => {
+        // ИЗОЛЯЦИЯ: Только матчи завершенные ПОСЛЕ регистрации пользователя
+        const resolvedTime = m.resolvedAt?.toMillis ? m.resolvedAt.toMillis() : (m.resolvedAt ? new Date(m.resolvedAt).getTime() : 0);
+        return resolvedTime > regTime;
+      })
       .map(m => {
         const hRank = Number(m.homeRank);
         const aRank = Number(m.awayRank);
@@ -116,7 +130,7 @@ export default function ReportsPage() {
       const timeB = b.playedAt ? new Date(b.playedAt).getTime() : (b.startTime ? new Date(b.startTime).getTime() : 0);
       return timeB - timeA;
     });
-  }, [matchHistory, allSeasonMatches, user, lastSeenMatchDay, rank, nameMap, groupId, leagueLevel]);
+  }, [matchHistory, allSeasonMatches, user, lastSeenMatchDay, rank, nameMap, groupId, leagueLevel, profile]);
 
   if (isUserLoading || !isLoaded || !isDataReady) return <LoadingScreen />;
 

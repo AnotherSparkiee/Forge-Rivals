@@ -152,6 +152,7 @@ export async function initializeClubV13(userId: string, data: any) {
     rank,
     lastProcessedSeason: seasonNum,
     lastLoginDate: new Date().toISOString(),
+    createdAt: serverTimestamp(), // Метка для изоляции истории
     version: 140
   }, { merge: true });
 

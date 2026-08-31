@@ -12,12 +12,12 @@ import {
 import { Card, CardContent } from '@/components/ui/card';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
-import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { Badge } from '@/components/ui/badge';
 import { useState, useEffect, useMemo } from 'react';
 import { getMoscowTime, isMatchLive } from './lib/time-utils';
-import { collection, query, where } from 'firebase/firestore';
+import { collection, query, where, doc } from 'firebase/firestore';
 import { getBotName, LEAGUES } from './lib/leagues-data';
 import { PlaceHolderImages } from './lib/placeholder-images';
 
@@ -47,6 +47,13 @@ export default function Home() {
   }, [db, selectedLeagueId, leagueLevel, groupId]);
 
   const { data: groupPlayers } = useCollection(groupPlayersQuery);
+
+  const userProfileRef = useMemoFirebase(() => {
+    if (!db || !user?.uid) return null;
+    return doc(db, 'players_v14', user.uid);
+  }, [db, user?.uid]);
+
+  const { data: profile } = useDoc(userProfileRef);
 
   const nameMap = useMemo(() => {
     const names: Record<number, string> = {};
@@ -86,11 +93,22 @@ export default function Home() {
     return '00:00:00';
   };
 
-  const unreadMatches = (allSeasonMatches || []).filter(m => 
-    user && (Number(m.homeRank) === rank || Number(m.awayRank) === rank) && 
-    m.isFinished && Number(m.day) > (lastSeenMatchDay || 0)
-  );
-  const totalUnreadCount = unreadMatches.length + (matchHistory || []).filter(m => m.seen === false).length;
+  const totalUnreadCount = useMemo(() => {
+    if (!profile || !user || !rank) return 0;
+    
+    const regTime = profile.createdAt?.toMillis ? profile.createdAt.toMillis() : (profile.createdAt ? new Date(profile.createdAt).getTime() : 0);
+
+    const unreadLeague = (allSeasonMatches || []).filter(m => {
+      const isMyMatch = Number(m.homeRank) === rank || Number(m.awayRank) === rank;
+      const isNew = Number(m.day) > (lastSeenMatchDay || 0);
+      const resolvedTime = m.resolvedAt?.toMillis ? m.resolvedAt.toMillis() : (m.resolvedAt ? new Date(m.resolvedAt).getTime() : 0);
+      return isMyMatch && m.isFinished && isNew && resolvedTime > regTime;
+    });
+
+    const unreadHistory = (matchHistory || []).filter(m => m.seen === false);
+    
+    return unreadLeague.length + unreadHistory.length;
+  }, [allSeasonMatches, matchHistory, lastSeenMatchDay, rank, user, profile]);
 
   const mapCardBg = PlaceHolderImages.find(img => img.id === 'tactical-map-card')?.imageUrl;
   const systemIconUrl = PlaceHolderImages.find(img => img.id === 'ui-system-icon')?.imageUrl;
