@@ -8,7 +8,7 @@ import {
   ChevronLeft, Settings, Users, ShieldCheck, 
   Loader2, Zap, Globe, 
   Construction, Trash2, Database,
-  ChevronRight, AlertTriangle
+  ChevronRight, AlertTriangle, Swords
 } from 'lucide-react';
 import Link from 'next/link';
 import { useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
@@ -65,7 +65,7 @@ export default function SystemPage() {
       forceBuild: "СОЗДАТЬ 8 ГРУПП",
       adminTitle: "ТЕРМИНАЛ АДМИНИСТРАТОРА",
       nuclear: "ЯДЕРНЫЙ СБРОС v140", nuclearDesc: "Удалить 2500 документов",
-      resolve: "РАССЧИТАТЬ ТУР", resolveDesc: "Запустить расчет матчей",
+      resolve: "РАССЧИТАТЬ ТУР", resolveDesc: "Запустить расчет матчей (До 500 игр)",
       confirmNuclear: "ПОЛНОЕ УДАЛЕНИЕ", confirmNuclearDesc: "Все данные v140 будут стерты порциями. Нажмите несколько раз для полной очистки.",
       btnConfirm: "УНИЧТОЖИТЬ ПАЧКУ", btnCancel: "ОТМЕНА"
     },
@@ -76,7 +76,7 @@ export default function SystemPage() {
       forceBuild: "BUILD 8 GROUPS",
       adminTitle: "ADMIN TERMINAL",
       nuclear: "NUCLEAR RESET v140", nuclearDesc: "Purge 2500 documents",
-      resolve: "RESOLVE DAILY", resolveDesc: "Trigger match calculation",
+      resolve: "RESOLVE TOUR", resolveDesc: "Trigger match calculation (Up to 500 games)",
       confirmNuclear: "FULL DELETION", confirmNuclearDesc: "All v140 data will be wiped in batches. Click multiple times to clear all.",
       btnConfirm: "WIPE BATCH", btnCancel: "CANCEL"
     }
@@ -92,7 +92,7 @@ export default function SystemPage() {
         if (!res?.success) throw new Error("Purge Failed");
         setPurgeStats(prev => ({ total: prev.total + (res.deletedCount || 0) }));
         if (res.isComplete) {
-          toast({ title: "System Purged", description: "All versions (v11-v14) cleared." });
+          toast({ title: "System Purged", description: "All versions cleared." });
         } else {
           toast({ title: `Deleted ${res.deletedCount} docs`, description: "Continue purging until zero." });
         }
@@ -163,6 +163,23 @@ export default function SystemPage() {
         <section className="space-y-3">
           <h2 className="text-[10px] font-black uppercase tracking-widest text-red-500 px-1 flex items-center gap-2"><Database className="w-4 h-4" /> {t.adminTitle}</h2>
           <div className="grid grid-cols-1 gap-2">
+            {/* RESOLVE BUTTON */}
+            <Card className="glass-card border-primary/20 bg-primary/5 overflow-hidden group hover:border-primary/40 transition-all cursor-pointer" onClick={() => handleAction('resolve')}>
+              <CardContent className="p-4 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="p-2.5 rounded-xl bg-primary/20 text-primary">
+                    {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Swords className="w-5 h-5" />}
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-black uppercase text-white">{t.resolve}</h3>
+                    <p className="text-[8px] text-muted-foreground uppercase">{t.resolveDesc}</p>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-primary/40" />
+              </CardContent>
+            </Card>
+
+            {/* NUCLEAR RESET */}
             <Card className="glass-card border-red-500/20 bg-red-500/5 overflow-hidden group hover:border-red-500/40 transition-all cursor-pointer" onClick={() => setShowNuclearDialog(true)}>
               <CardContent className="p-4 flex items-center justify-between">
                 <div className="flex items-center gap-4">

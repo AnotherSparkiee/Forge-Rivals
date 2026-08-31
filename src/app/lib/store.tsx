@@ -1,7 +1,8 @@
 'use client';
 
 /**
- * Глобальное локальное хранилище v242 (SYNC FIX).
+ * Глобальное локальное хранилище v242 (ULTRA STABLE).
+ * Исправлены ошибки ReferenceError и оптимизирована синхронизация.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useMemo } from 'react';
