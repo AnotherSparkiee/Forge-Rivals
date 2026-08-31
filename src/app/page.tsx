@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useGameState } from './lib/store';
@@ -181,7 +180,6 @@ export default function Home() {
               <div>
                 <div className="flex items-center gap-2 mb-0.5">
                   <p className="text-[8px] font-black text-primary uppercase tracking-widest drop-shadow-[0_2px_3px_rgba(0,0,0,0.8)]">{language === 'ru' ? 'СЛЕДУЮЩИЙ СОПЕРНИК' : 'NEXT OPPONENT'}</p>
-                  <span className="text-[9px] font-black text-accent bg-accent/10 px-1.5 rounded-sm border border-accent/20">ID: {numericId || '--'}</span>
                 </div>
                 <h2 className="text-base font-headline font-bold text-white uppercase tracking-tight truncate max-w-[130px] drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">{resolvedNextMatch?.opponentName || 'SEARCHING...'}</h2>
                 <p className="text-[8px] font-bold text-white/80 uppercase drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">{language === 'ru' ? 'ТУР' : 'TOUR'} {currentNextMatch?.tour || '--'}</p>

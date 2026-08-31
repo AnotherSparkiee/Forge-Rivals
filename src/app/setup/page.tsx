@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -34,7 +33,7 @@ const CLUBS = [
   { id: 'navi', name: 'NAVI', logo: 'https://iili.io/CYupwe2.webp' },
 ];
 
-type SetupStep = 'name' | 'country' | 'club' | 'summary';
+type SetupStep = 'name' | 'country' | 'club';
 
 export default function SetupPage() {
   const router = useRouter();
@@ -49,9 +48,6 @@ export default function SetupPage() {
   const [selectedClubId, setSelectedClubId] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
   
-  // Data for summary step
-  const [placementData, setPlacementData] = useState<any>(null);
-
   const loginName = useMemo(() => {
     if (!user?.email) return "";
     return user.email.split('@')[0];
@@ -105,18 +101,6 @@ export default function SetupPage() {
         throw new Error(result.error || "INITIALIZATION_FAILED");
       }
 
-      // 3. Сохраняем именно те координаты, которые подтвердил сервер
-      const finalPlacement = {
-        leagueId: targetLeagueId,
-        tier: result.tier,
-        group: result.group,
-        rank: result.rank,
-        clubName: finalClubName,
-        clubLogo: selectedClub?.logo,
-        numericId: result.numericId
-      };
-      setPlacementData(finalPlacement);
-
       saveToLocal({
         id: user.uid,
         numericId: Number(result.numericId),
@@ -136,7 +120,7 @@ export default function SetupPage() {
       });
 
       toast({ title: language === 'ru' ? "Клуб инициализирован!" : "Club Initialized!" });
-      setStep('summary');
+      router.replace('/');
     } catch (e: any) {
       console.error("[SETUP ERROR]:", e);
       toast({ 
@@ -144,7 +128,6 @@ export default function SetupPage() {
         title: language === 'ru' ? "Ошибка развертывания" : "Deployment Error",
         description: e.message 
       });
-    } finally {
       setIsUpdating(false);
     }
   };
@@ -154,34 +137,24 @@ export default function SetupPage() {
       name: 'НАЗВАНИЕ КОМАНДЫ',
       country: 'ВЫБОР ФЛАГА',
       club: 'ВЫБОР ЛОГОТИПА',
-      summary: 'РАЗВЕРТЫВАНИЕ ЗАВЕРШЕНО',
       finalize: 'СОЗДАТЬ КЛУБ',
       continue: 'ПРОДОЛЖИТЬ',
-      enterHub: 'ВОЙТИ В КОМАНДНЫЙ ЦЕНТР',
-      tour: 'ТУР',
-      nextOpponent: 'СЛЕДУЮЩИЙ СОПЕРНИК',
       subtitles: {
         name: 'Введите публичный позывной вашей организации',
         country: 'Выберите страну которую будете представлять',
         club: 'Выберите логотип вашей организации',
-        summary: 'Ваше место в Лиге определено. Изучите расписание.'
       }
     },
     en: {
       name: 'TEAM CALLSIGN',
       country: 'SELECT FLAG',
       club: 'SELECT LOGO',
-      summary: 'DEPLOYMENT COMPLETE',
       finalize: 'CREATE CLUB',
       continue: 'CONTINUE',
-      enterHub: 'ENTER COMMAND CENTER',
-      tour: 'TOUR',
-      nextOpponent: 'NEXT OPPONENT',
       subtitles: {
         name: 'Enter the public callsign for your organization',
         country: 'Select the country you will represent',
         club: 'Choose your organization logo',
-        summary: 'Your position in the League is secured. Review schedule.'
       }
     }
   }[language === 'ru' ? 'ru' : 'en'];
@@ -193,7 +166,7 @@ export default function SetupPage() {
       <div className="absolute inset-0 pointer-events-none opacity-20 bg-[radial-gradient(circle_at_50%_50%,_hsl(var(--primary)/0.15),_transparent_70%)]" />
       <div className="relative z-10 w-full max-w-md mx-auto px-4 flex flex-col min-h-screen pt-12 pb-32">
         <header className="text-center mb-8 relative shrink-0">
-          {(step !== 'name' && step !== 'summary') && (
+          {(step !== 'name') && (
             <Button variant="ghost" size="icon" className="absolute left-0 top-0 rounded-full" onClick={() => setStep(step === 'country' ? 'name' : 'country')}>
               <ChevronLeft className="w-6 h-6" />
             </Button>
@@ -262,135 +235,24 @@ export default function SetupPage() {
               ))}
             </div>
           )}
-
-          {step === 'summary' && placementData && (
-            <SummaryView data={placementData} onComplete={() => router.replace('/')} t={t} language={language} seasonNumber={seasonNumber} />
-          )}
         </div>
         
-        {step !== 'summary' && (
-          <footer className="fixed bottom-0 left-0 right-0 p-4 bg-background/80 backdrop-blur-xl border-t border-white/10 z-50 shadow-[0_-10px_30px_rgba(0,0,0,0.5)]">
-            <div className="max-w-md mx-auto">
-              <Button 
-                disabled={isUpdating || (step === 'name' && teamName.trim().length < 3) || (step === 'country' && !selectedCountryCode) || (step === 'club' && !selectedClubId)} 
-                onClick={() => {
-                  if (step === 'name') setStep('country');
-                  else if (step === 'country') setStep('club');
-                  else handleCompleteSetup();
-                }} 
-                className="w-full h-16 hero-gradient font-black text-xs tracking-[0.2em] uppercase shadow-2xl active:scale-95 transition-all"
-              >
-                {isUpdating ? <Loader2 className="animate-spin" /> : (step === 'club' ? t.finalize : t.continue)}
-              </Button>
-            </div>
-          </footer>
-        )}
+        <footer className="fixed bottom-0 left-0 right-0 p-4 bg-background/80 backdrop-blur-xl border-t border-white/10 z-50 shadow-[0_-10px_30px_rgba(0,0,0,0.5)]">
+          <div className="max-w-md mx-auto">
+            <Button 
+              disabled={isUpdating || (step === 'name' && teamName.trim().length < 3) || (step === 'country' && !selectedCountryCode) || (step === 'club' && !selectedClubId)} 
+              onClick={() => {
+                if (step === 'name') setStep('country');
+                else if (step === 'country') setStep('club');
+                else handleCompleteSetup();
+              }} 
+              className="w-full h-16 hero-gradient font-black text-xs tracking-[0.2em] uppercase shadow-2xl active:scale-95 transition-all"
+            >
+              {isUpdating ? <Loader2 className="animate-spin" /> : (step === 'club' ? t.finalize : t.continue)}
+            </Button>
+          </div>
+        </footer>
       </div>
-    </div>
-  );
-}
-
-function SummaryView({ data, onComplete, t, language, seasonNumber }: { data: any, onComplete: () => void, t: any, language: string, seasonNumber: number }) {
-  const db = useFirestore();
-  const { user } = useUser();
-
-  const matchesQuery = useMemoFirebase(() => {
-    if (!db || !data) return null;
-    return query(
-      collection(db, 'matches_v2'),
-      where('leagueId', '==', data.leagueId),
-      where('level', '==', Number(data.tier)),
-      where('groupId', '==', Number(data.group)),
-      where('season', '==', seasonNumber),
-      where('version', '==', 140)
-    );
-  }, [db, data, seasonNumber]);
-
-  const { data: rawMatches, isLoading: isMatchesLoading } = useCollection(matchesQuery);
-
-  const myMatches = useMemo(() => {
-    if (!rawMatches || !data) return [];
-    return rawMatches
-      .filter(m => Number(m.homeRank) === Number(data.rank) || Number(m.awayRank) === Number(data.rank))
-      .sort((a, b) => a.tour - b.tour);
-  }, [rawMatches, data]);
-
-  const nextMatch = myMatches[0];
-
-  return (
-    <div className="space-y-6 pb-10">
-      {/* SECTOR CARD */}
-      <Card className="glass-card border-primary/20 bg-primary/5">
-        <CardContent className="p-6 text-center space-y-4">
-          <div className="w-16 h-16 rounded-2xl bg-secondary/50 border border-primary/30 flex items-center justify-center mx-auto shadow-[0_0_15px_rgba(var(--primary),0.3)]">
-            <ShieldCheck className="w-8 h-8 text-primary" />
-          </div>
-          <div>
-            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">ASSIGNED SECTOR</p>
-            <h2 className="text-2xl font-headline font-bold text-white italic">DIV {data.tier} • GROUP {data.group}</h2>
-            <div className="flex gap-2 justify-center mt-2">
-              <Badge variant="outline" className="text-primary border-primary/30">RANK #{data.rank}</Badge>
-              <Badge className="bg-accent text-accent-foreground font-black">ID: {data.numericId}</Badge>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* NEXT OPPONENT PREVIEW */}
-      <section className="space-y-3">
-        <h3 className="text-[10px] font-black uppercase text-accent tracking-widest px-1">{t.nextOpponent}</h3>
-        {isMatchesLoading ? (
-           <div className="p-8 text-center bg-secondary/20 rounded-2xl border border-dashed border-white/5 opacity-40"><Loader2 className="w-6 h-6 animate-spin mx-auto text-primary" /></div>
-        ) : nextMatch ? (
-          <Card className="glass-card border-accent/20 bg-accent/5">
-            <CardContent className="p-4 flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-secondary/50 border border-white/10 flex items-center justify-center">
-                  <img src="https://i.ibb.co/tpcQnnj1/1000078926-no-bg-preview-carve-photos.png" alt="Rival" className="w-8 h-8 object-contain" />
-                </div>
-                <div>
-                  <p className="text-[7px] font-black text-muted-foreground uppercase tracking-widest">OPPONENT_FOUND</p>
-                  <h4 className="text-sm font-bold uppercase text-white truncate max-w-[120px]">
-                    {Number(nextMatch.homeRank) === Number(data.rank) ? nextMatch.awayName : nextMatch.homeName}
-                  </h4>
-                </div>
-              </div>
-              <div className="text-right">
-                <p className="text-[7px] font-black text-accent uppercase tracking-widest">START_TIME</p>
-                <p className="text-xs font-mono font-bold text-white">{new Date(nextMatch.startTime).toLocaleString([], { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</p>
-              </div>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="p-6 text-center bg-secondary/10 rounded-xl border border-dashed border-white/5 opacity-30">
-            <p className="text-[8px] font-black uppercase tracking-widest">Awaiting sector synchronization...</p>
-          </div>
-        )}
-      </section>
-
-      {/* SEASON SCHEDULE LIST */}
-      <section className="space-y-3">
-        <h3 className="text-[10px] font-black uppercase text-muted-foreground tracking-widest px-1">SEASON 1 PROTOCOL</h3>
-        <div className="space-y-2 max-h-[200px] overflow-y-auto scrollbar-hide pr-1">
-          {myMatches.map((m, i) => (
-            <div key={i} className="bg-secondary/20 p-3 rounded-xl border border-white/5 flex items-center justify-between">
-               <div className="flex items-center gap-3">
-                 <Badge variant="outline" className="text-[8px] font-black h-5 border-white/10">{t.tour} {m.tour}</Badge>
-                 <span className="text-[10px] font-bold uppercase truncate max-w-[150px]">
-                   {Number(m.homeRank) === Number(data.rank) ? m.awayName : m.homeName}
-                 </span>
-               </div>
-               <span className="text-[9px] font-mono text-muted-foreground">
-                 {new Date(m.startTime).toLocaleDateString([], { day: '2-digit', month: '2-digit' })}
-               </span>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <Button onClick={onComplete} className="w-full h-16 hero-gradient font-black text-xs tracking-widest uppercase shadow-2xl mt-4">
-        {t.enterHub} <ArrowRight className="ml-2 w-4 h-4" />
-      </Button>
     </div>
   );
 }
