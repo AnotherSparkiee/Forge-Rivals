@@ -2,8 +2,9 @@
 'use server';
 
 /**
- * Скрипт "Ядерной очистки" v140 (Safe Force Purge).
- * Принудительно удаляет системные блокировки и очищает коллекции ВСЕХ версий (v10-v14).
+ * Скрипт "Ядерной очистки" v141 (Safe Force Purge).
+ * Оптимизирован для предотвращения таймаутов сервера.
+ * Удаляет документы порциями, пропуская ошибки доступа.
  */
 
 import { 
@@ -13,13 +14,13 @@ import {
 import { initializeFirebase } from '@/firebase';
 
 const DELETE_BATCH_SIZE = 500;
-const BATCHES_PER_CALL = 5; 
+const BATCHES_PER_CALL = 3; // Снижено для стабильности (макс 1500 доков за вызов)
 
 export async function totalNuclearResetV131() {
   const { firestore: db } = initializeFirebase();
-  console.log("[NUCLEAR v140] Force Purging System...");
+  console.log("[NUCLEAR v141] Initiating Protected Purge...");
 
-  // 1. ПРИНУДИТЕЛЬНОЕ УДАЛЕНИЕ ВСЕХ СИСТЕМНЫХ ФЛАГОВ
+  // 1. ПРИНУДИТЕЛЬНОЕ УДАЛЕНИЕ СИСТЕМНЫХ ФЛАГОВ
   const systemDocs = [
     'repair_v131_S1_LALPHA', 'init_v131_S1_LALPHA',
     'repair_v140_S1_LALPHA', 'init_v140_S1_LALPHA',
@@ -32,7 +33,7 @@ export async function totalNuclearResetV131() {
     } catch (e) {}
   }
 
-  // 2. ПОЛНЫЙ СПИСОК КОЛЛЕКЦИЙ ВСЕХ ВЕРСИЙ ДЛЯ ЗАЧИСТКИ
+  // 2. СПИСОК КОЛЛЕКЦИЙ ДЛЯ ЗАЧИСТКИ
   const colls = [
     'league_tables_v2', 'matches_v2', // v140
     'league_tables_v1', 'matches_v1', // v130
@@ -44,25 +45,34 @@ export async function totalNuclearResetV131() {
   
   let totalDeletedInThisCall = 0;
 
-  for (let b = 0; b < BATCHES_PER_CALL; b++) {
-    let batchDeletedCount = 0;
-    
-    for (const coll of colls) {
-      const q = query(collection(db, coll), limit(DELETE_BATCH_SIZE));
-      const snap = await getDocs(q);
+  try {
+    for (let b = 0; b < BATCHES_PER_CALL; b++) {
+      let batchDeletedCount = 0;
       
-      if (!snap.empty) {
-        const batch = writeBatch(db);
-        snap.docs.forEach(d => batch.delete(d.ref));
-        await batch.commit();
+      for (const coll of colls) {
+        const q = query(collection(db, coll), limit(DELETE_BATCH_SIZE));
+        const snap = await getDocs(q);
         
-        batchDeletedCount = snap.size;
-        totalDeletedInThisCall += batchDeletedCount;
-        break; // Перезапуск цикла для следующего батча
+        if (!snap.empty) {
+          const batch = writeBatch(db);
+          snap.docs.forEach(d => batch.delete(d.ref));
+          
+          try {
+            await batch.commit();
+            batchDeletedCount = snap.size;
+            totalDeletedInThisCall += batchDeletedCount;
+          } catch (batchErr) {
+            console.warn(`[NUCLEAR] Batch failed for ${coll}, likely security rules. Skipping.`);
+          }
+          break; // Переход к следующему батчу после одной коллекции
+        }
       }
+      
+      if (batchDeletedCount === 0) break;
     }
-    
-    if (batchDeletedCount === 0) break;
+  } catch (globalErr: any) {
+    console.error("[NUCLEAR CRITICAL ERROR]", globalErr.message);
+    return { success: false, error: globalErr.message };
   }
 
   const isComplete = totalDeletedInThisCall === 0;

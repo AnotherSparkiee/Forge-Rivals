@@ -91,6 +91,7 @@ export async function injectGroupData(
 
 /**
  * Автономная постройка одной группы (JIT).
+ * ЭКСПОРТ ВОССТАНОВЛЕН ДЛЯ build stability.
  */
 export async function createGroupStructure(
   db: Firestore, 
