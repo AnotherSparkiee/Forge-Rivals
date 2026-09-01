@@ -3,7 +3,7 @@
 
 /**
  * Скрипт "Ядерной очистки" v140 (Safe Force Purge).
- * Принудительно удаляет системные блокировки и очищает коллекции всех версий.
+ * Принудительно удаляет системные блокировки и очищает коллекции ВСЕХ версий (v10-v14).
  */
 
 import { 
@@ -19,14 +19,11 @@ export async function totalNuclearResetV131() {
   const { firestore: db } = initializeFirebase();
   console.log("[NUCLEAR v140] Force Purging System...");
 
-  // 1. ПРИНУДИТЕЛЬНОЕ УДАЛЕНИЕ СИСТЕМНЫХ ФЛАГОВ
+  // 1. ПРИНУДИТЕЛЬНОЕ УДАЛЕНИЕ ВСЕХ СИСТЕМНЫХ ФЛАГОВ
   const systemDocs = [
-    'repair_v131_S1_LALPHA',
-    'init_v131_S1_LALPHA',
-    'repair_v140_S1_LALPHA',
-    'init_v140_S1_LALPHA',
-    'world_v131_status',
-    'world_v140_status'
+    'repair_v131_S1_LALPHA', 'init_v131_S1_LALPHA',
+    'repair_v140_S1_LALPHA', 'init_v140_S1_LALPHA',
+    'world_v131_status', 'world_v140_status'
   ];
 
   for (const sId of systemDocs) {
@@ -35,22 +32,14 @@ export async function totalNuclearResetV131() {
     } catch (e) {}
   }
 
-  // 2. СПИСОК КОЛЛЕКЦИЙ ДЛЯ ЗАЧИСТКИ
+  // 2. ПОЛНЫЙ СПИСОК КОЛЛЕКЦИЙ ВСЕХ ВЕРСИЙ ДЛЯ ЗАЧИСТКИ
   const colls = [
-    'league_tables_v2', 
-    'matches_v2', 
-    'players_v14', 
-    'players_v13', 
-    'players_v12', 
-    'global_chat_v2', 
-    'market_v7', 
-    'friend_requests_v4', 
-    'private_messages_v3',
-    'cup_matches',
-    'notifications_v7',
-    'cup_pyramid_v1',
-    'cw_basket_v2',
-    'friendly_lobbies_v3'
+    'league_tables_v2', 'matches_v2', // v140
+    'league_tables_v1', 'matches_v1', // v130
+    'players_v14', 'players_v13', 'players_v12', 'players_v11', 'players_v10',
+    'global_chat_v2', 'market_v7', 'friend_requests_v4', 
+    'private_messages_v3', 'cup_matches', 'notifications_v7',
+    'cup_pyramid_v1', 'cw_basket_v2', 'friendly_lobbies_v3'
   ];
   
   let totalDeletedInThisCall = 0;
@@ -69,7 +58,7 @@ export async function totalNuclearResetV131() {
         
         batchDeletedCount = snap.size;
         totalDeletedInThisCall += batchDeletedCount;
-        break; 
+        break; // Перезапуск цикла для следующего батча
       }
     }
     
@@ -82,6 +71,6 @@ export async function totalNuclearResetV131() {
     success: true, 
     isComplete,
     deletedCount: totalDeletedInThisCall,
-    msg: isComplete ? "System Fully Purged" : `Purging... ${totalDeletedInThisCall} docs removed.` 
+    msg: isComplete ? "Universe Fully Purged" : `Purging... ${totalDeletedInThisCall} docs removed.` 
   };
 }

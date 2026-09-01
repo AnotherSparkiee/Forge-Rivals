@@ -1,10 +1,10 @@
+
 'use server';
 
 /**
- * Глобальный двигатель мира v142 (Max Batch Architecture).
- * Оптимизирован для максимальной скорости (8 групп за клик).
- * Создает структуру Лиги: Таблица + Полный календарь сезона.
- * Внедрена жесткая проверка 8/8.
+ * Глобальный двигатель мира v143 (Safe Multi-Batch Architecture).
+ * Оптимизирован для максимальной надежности. Использует цепочку батчей.
+ * Гарантия 8/8.
  */
 
 import { 
@@ -41,8 +41,7 @@ function getGroupCoordinates(index: number) {
 const MAX_LEVELS_SAFE = 9;
 
 /**
- * Создает структуру одной группы (Таблица + Календарь) внутри батча.
- * ГАРАНТИЯ 8/8: Если команд не 8, группа не будет создана.
+ * Внедряет данные одной группы.
  */
 export async function injectGroupData(
   batch: any, 
@@ -53,7 +52,6 @@ export async function injectGroupData(
   seasonNum: number
 ) {
   const tableId = `table_v140_S${seasonNum}_L${leagueId}_V${tier}_G${group}`;
-  
   const initialStats: any = {};
   const teamsForCalendar = [];
 
@@ -68,12 +66,7 @@ export async function injectGroupData(
     teamsForCalendar.push({ id: bId, name: bName, rank: r });
   }
 
-  // КРИТИЧЕСКАЯ ПРОВЕРКА ЦЕЛОСТНОСТИ
-  const teamCount = Object.keys(initialStats).length;
-  if (teamCount !== 8) {
-    console.error(`[WORLD ENGINE] Integrity failure for ${tableId}: ${teamCount}/8 teams. Aborting.`);
-    return;
-  }
+  if (Object.keys(initialStats).length !== 8) return;
 
   const tableRef = doc(db, 'league_tables_v2', tableId);
   batch.set(tableRef, {
@@ -97,22 +90,6 @@ export async function injectGroupData(
 }
 
 /**
- * JIT-создание группы.
- */
-export async function createGroupStructure(
-  db: Firestore, 
-  leagueId: string, 
-  tier: number, 
-  group: number, 
-  seasonNum: number
-) {
-  const batch = writeBatch(db);
-  await injectGroupData(batch, db, leagueId, tier, group, seasonNum);
-  await batch.commit();
-  return { success: true };
-}
-
-/**
  * Основная функция постройки.
  */
 export async function initializeLeagueWorld(leagueId: string, targetSeason?: number) {
@@ -132,9 +109,7 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
     currentIndex = data.currentIndex || 0;
   }
 
-  if (currentIndex >= TOTAL_GROUPS) {
-    return { status: 'COMPLETE', isComplete: true, currentIndex: TOTAL_GROUPS };
-  }
+  if (currentIndex >= TOTAL_GROUPS) return { status: 'COMPLETE', isComplete: true };
 
   const batch = writeBatch(db);
   let processedInThisCall = 0;
@@ -143,28 +118,19 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
   while (processedInThisCall < GROUPS_PER_CALL && nextIndex < TOTAL_GROUPS) {
     nextIndex++;
     const coords = getGroupCoordinates(nextIndex);
-    
-    // Проверяем, не существует ли уже эта группа (для безопасности при сбоях)
-    const tableId = `table_v140_S${seasonNum}_L${leagueId}_V${coords.tier}_G${coords.group}`;
-    const tableSnap = await getDoc(doc(db, 'league_tables_v2', tableId));
-    
-    if (!tableSnap.exists()) {
-      await injectGroupData(batch, db, leagueId, coords.tier, coords.group, seasonNum);
-    }
+    await injectGroupData(batch, db, leagueId, coords.tier, coords.group, seasonNum);
     processedInThisCall++;
   }
 
   await batch.commit();
 
   const isComplete = nextIndex >= TOTAL_GROUPS;
-  const resultData = {
+  await setDoc(statusRef, {
     currentIndex: nextIndex,
     status: isComplete ? 'completed' : 'processing',
     updatedAt: serverTimestamp(),
     version: 140
-  };
-
-  await setDoc(statusRef, resultData, { merge: true });
+  }, { merge: true });
 
   return { 
     status: isComplete ? 'FINISHED' : 'BATCH_DONE', 

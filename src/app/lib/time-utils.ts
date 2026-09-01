@@ -2,6 +2,7 @@
 /**
  * @fileOverview Ядро времени v121 (Season 1 Launch Configuration). 
  * Точка отсчета: 31 августа 2026 года, 00:00 MSK (День 1 Сезона 1).
+ * Цикл расширен до 17 дней для технических нужд.
  */
 
 let syncPoint = {
@@ -14,7 +15,7 @@ const MSK_OFFSET = 3 * 60 * 60 * 1000;
 
 // Полночь 31 августа 2026 по МСК = 21:00 30 августа UTC
 export const GLOBAL_EPOCH_ISO = '2026-08-30T21:00:00Z'; 
-export const SEASON_CYCLE_DAYS = 15;
+export const SEASON_CYCLE_DAYS = 17; // 14 матчей + 3 тех. дня
 
 export function setServerTime(serverMs: number) {
   if (typeof performance !== 'undefined') {
@@ -96,18 +97,25 @@ export function getGlobalSeasonInfo() {
 
   const seasonNumber = Math.floor(diffMs / cycleMs) + 1;
   const dayOfCycle = Math.floor((diffMs % cycleMs) / dayMs) + 1;
-  const isOffseason = dayOfCycle === SEASON_CYCLE_DAYS;
+  
+  // Иерархия дней:
+  // 1-14: Активные игры
+  // 15: Подведение итогов (Offseason)
+  // 16: Переход (Promotions)
+  // 17: Подготовка (Tech Day)
+  const isOffseason = dayOfCycle >= 15;
 
   const currentSeasonStart = new Date(epochUtc.getTime() + (seasonNumber - 1) * cycleMs);
   const generationTime = new Date(currentSeasonStart.getTime() + (14 * dayMs) + (16 * 3600000));
   const isGenerationReady = simNow.getTime() >= generationTime.getTime();
 
   return {
-    seasonDay: isOffseason ? 0 : dayOfCycle,
+    seasonDay: dayOfCycle > 14 ? 0 : dayOfCycle,
     dayOfCycle,
     seasonNumber,
     activeSeasonNumber: seasonNumber,
     isOffseason,
+    isTransitionDay: dayOfCycle === 16,
     isGenerationReady,
     generationTime,
     currentSeasonStart,

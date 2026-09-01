@@ -2,33 +2,49 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Глобальный доступ для прототипа v14
-    match /{allPaths=**} {
-      allow read, write: if true;
-    }
-    
+    // 1. ПРОФИЛИ ИГРОКОВ: Читать могут все, писать - только владелец
     match /players_v14/{userId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == userId;
     }
 
+    // 2. СИСТЕМНЫЕ ДАННЫЕ (Матчи и Таблицы): Клиенту разрешено только чтение
+    // Запись происходит через Server Actions (которые в этой среде работают как клиент,
+    // поэтому для тестов мы оставляем проверку на auth, но в идеале здесь нужен Admin SDK)
     match /matches_v2/{matchId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if request.auth != null; 
     }
     
     match /league_tables_v2/{tableId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if request.auth != null;
     }
     
+    // 3. СОЦИАЛЬНЫЕ ФУНКЦИИ
     match /global_chat_v2/{msgId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow create: if request.auth != null;
     }
     
     match /friend_requests_v4/{reqId} {
-      allow read, write: if true;
+      allow read: if request.auth != null && (resource.data.fromId == request.auth.uid || resource.data.toId == request.auth.uid);
+      allow write: if request.auth != null;
     }
     
-    match /market_v7/{agentId} {
-      allow read, write: if true;
+    match /private_messages_v3/{msgId} {
+      allow read: if request.auth != null && request.auth.uid in resource.data.participants;
+      allow create: if request.auth != null;
+    }
+
+    // 4. ТЕХНИЧЕСКИЕ КОЛЛЕКЦИИ (Для админа)
+    match /system_v1/{docId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Запрет доступа ко всем остальным коллекциям по умолчанию
+    match /{allPaths=**} {
+      allow read, write: if false;
     }
   }
 }
