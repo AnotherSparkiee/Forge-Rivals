@@ -90,6 +90,21 @@ export async function injectGroupData(
 }
 
 /**
+ * Автономная постройка одной группы (JIT).
+ */
+export async function createGroupStructure(
+  db: Firestore, 
+  leagueId: string, 
+  tier: number, 
+  group: number, 
+  seasonNum: number
+) {
+  const batch = writeBatch(db);
+  await injectGroupData(batch, db, leagueId, tier, group, seasonNum);
+  await batch.commit();
+}
+
+/**
  * Основная функция постройки.
  */
 export async function initializeLeagueWorld(leagueId: string, targetSeason?: number) {
