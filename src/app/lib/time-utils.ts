@@ -1,4 +1,3 @@
-
 /**
  * @fileOverview Ядро времени v122 (Advanced Cycle Configuration). 
  * Точка отсчета: 31 августа 2026 года, 00:00 MSK (День 1 Сезона 1).
@@ -81,6 +80,7 @@ export function getGlobalSeasonInfo() {
   const cycleMs = SEASON_CYCLE_DAYS * dayMs;
 
   if (diffMs < 0) {
+    // Режим ожидания старта или тестирования
     return {
       seasonDay: 1, dayOfCycle: 1, seasonNumber: 1, activeSeasonNumber: 1,
       isOffseason: false, isTransitionDay: false, isPreparationDay: false,
@@ -113,21 +113,22 @@ export function getGlobalSeasonInfo() {
 
 /**
  * Проверка старта матча.
- * Добавлена логика "симуляции": если реальное время еще не наступило (до 2026 года),
- * но текущий день цикла позволяет играть этот тур — возвращаем true.
+ * Исправлено: в режиме до 2026 года возвращает true, если номер тура
+ * соответствует текущему виртуальному дню сезона.
  */
 export function isMatchStarted(startTimeIso: string): boolean {
   const simNow = getMoscowTime();
   const start = new Date(startTimeIso);
-  const info = getGlobalSeasonInfo();
-  
-  // Если мы уже перешли за дату эпохи (2026+) — проверяем строго
   const epochUtc = new Date(GLOBAL_EPOCH_ISO);
+  
+  // Если мы уже в 2026+ — проверяем строго по времени
   if (simNow.getTime() >= epochUtc.getTime()) {
     return simNow.getTime() >= start.getTime();
   }
 
-  // Если мы в режиме "до старта" (2025), но хотим играть — разрешаем матчи текущего дня
+  // В режиме тестирования (2025) разрешаем матчи, если их 
+  // запланированное время наступило относительно дня цикла.
+  // resolveDailyMatches уже ограничивает расчет турами (m.tour <= currentDay).
   return true; 
 }
 

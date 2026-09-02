@@ -18,7 +18,6 @@ import {
   TEAMS_PER_GROUP 
 } from '@/app/lib/leagues-data';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
-import { createGroupStructure } from './world-engine';
 
 function validateProfileData(data: any) {
   const clubName = String(data.clubName || "").trim();
@@ -88,6 +87,11 @@ export async function initializeClubV13(userId: string, data: any) {
   const tableRef = doc(db, 'league_tables_v2', tableId);
 
   try {
+    // В клиентском SDK Firebase запросы (getDocs) запрещены внутри runTransaction.
+    // Поэтому получаем примерный порядковый номер ДО начала транзакции.
+    const allPlayersSnap = await getDocs(collection(db, 'players_v14'));
+    const numericId = allPlayersSnap.size + 1;
+
     const result = await runTransaction(db, async (transaction) => {
       const playerSnap = await transaction.get(playerRef);
       if (playerSnap.exists()) {
@@ -97,9 +101,6 @@ export async function initializeClubV13(userId: string, data: any) {
 
       let tableSnap = await transaction.get(tableRef);
       if (!tableSnap.exists()) {
-        // Если группы нет, создаем её (вне транзакции это сделать нельзя, поэтому полагаемся на JIT)
-        // Но runTransaction не позволяет создавать структуру через вложенные вызовы батчей.
-        // Поэтому здесь мы просто возвращаем ошибку, если мир не проинициализирован.
         throw new Error("SECTOR_NOT_READY");
       }
 
@@ -135,12 +136,6 @@ export async function initializeClubV13(userId: string, data: any) {
       // Проверка целостности состава группы
       if (Object.keys(stats).length !== 8) throw new Error("TABLE_CORRUPTION_PREVENTED");
 
-      // Считаем numericId (делаем это внутри транзакции для точности)
-      // Внимание: query внутри транзакции в клиентском SDK не поддерживается так же, как в Admin SDK.
-      // Поэтому numericId оставляем как примерный счетчик или используем упрощенный метод.
-      const allPlayersSnap = await getDocs(collection(db, 'players_v14'));
-      const numericId = allPlayersSnap.size + 1;
-
       // ОБНОВЛЕНИЕ ТАБЛИЦЫ
       transaction.update(tableRef, { stats, updatedAt: serverTimestamp() });
 
@@ -172,10 +167,8 @@ export async function initializeClubV13(userId: string, data: any) {
     });
 
     // Обновление матчей делаем отдельно, так как их может быть много (Bo1/Bo2)
-    // Но транзакция уже гарантировала нам место.
     if (result.success && result.botToReplaceId) {
-      const { firestore: dbInstance } = initializeFirebase();
-      const matchesQ = query(collection(dbInstance, 'matches_v2'), 
+      const matchesQ = query(collection(db, 'matches_v2'), 
         where('leagueId', '==', leagueId),
         where('level', '==', tier),
         where('groupId', '==', group),
@@ -184,9 +177,8 @@ export async function initializeClubV13(userId: string, data: any) {
       );
       const matchesSnap = await getDocs(matchesQ);
       
-      // Здесь можно использовать batch для надежности
       const { writeBatch } = await import('firebase/firestore');
-      const batch = writeBatch(dbInstance);
+      const batch = writeBatch(db);
       
       matchesSnap.forEach(mDoc => {
         const mData = mDoc.data();
