@@ -7,7 +7,7 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
-    // Хелпер для проверки системного доступа
+    // Хелпер для проверки системного доступа (v146)
     function isSystem() {
       return request.auth != null && (
         request.auth.uid == 'system-service-uid-v142' || 
@@ -50,7 +50,7 @@ service cloud.firestore {
     }
     
     match /private_messages_v3/{msgId} {
-      allow read: if request.auth != null && request.auth.uid in resource.data.participants;
+      allow read: if request.auth != null && (request.auth.uid in resource.data.participants);
       allow create: if request.auth != null && request.resource.data.senderId == request.auth.uid;
     }
 

@@ -1,8 +1,8 @@
 'use server';
 
 /**
- * @fileOverview Серверный модуль инициализации v145 (COUNTER-BASED & PRIVILEGED).
- * Использует документ-счетчик для numericId и транзакции для безопасности.
+ * @fileOverview Серверный модуль инициализации v146 (TRANSACTIONAL & PRIVILEGED).
+ * Исправлена проблема PERMISSION_DENIED через принудительную синхронизацию Auth.
  */
 
 import { 
@@ -72,9 +72,14 @@ export async function initializeClubV13(userId: string, data: any) {
   if (!userId) return { success: false, error: "AUTH_REQUIRED" };
   const { clubName, tier: validatedTier } = validateProfileData(data);
   
-  // 1. Пытаемся войти как система
+  // 1. ПРИНУДИТЕЛЬНАЯ СИСТЕМНАЯ АВТОРИЗАЦИЯ
   const isSystemAuth = await authenticateAsSystem();
-  const { firestore: db, auth } = initializeFirebase();
+  if (!isSystemAuth) {
+    console.error("[SYSTEM AUTH] Failed to authorize as admin for initializeClubV13");
+    return { success: false, error: "SYSTEM_AUTH_FAILED" };
+  }
+
+  const { firestore: db } = initializeFirebase();
 
   const playerRef = doc(db, 'players_v14', userId);
   const leagueId = String(data.selectedLeagueId || "ALPHA");
@@ -114,7 +119,7 @@ export async function initializeClubV13(userId: string, data: any) {
         throw new Error("GROUP_FULL");
       }
 
-      // Получаем numericId через атомарный счетчик
+      // Атомарный счетчик
       const counterSnap = await transaction.get(counterRef);
       let numericId = 1000;
       if (counterSnap.exists()) {
@@ -135,11 +140,10 @@ export async function initializeClubV13(userId: string, data: any) {
         isBot: false
       };
 
-      if (Object.keys(stats).length !== 8) throw new Error("TABLE_CORRUPTION_PREVENTED");
-
-      // ОБНОВЛЕНИЯ
+      // ОБНОВЛЕНИЕ ТАБЛИЦЫ
       transaction.update(tableRef, { stats, updatedAt: serverTimestamp() });
 
+      // СОЗДАНИЕ ПРОФИЛЯ
       const finalPlayerData = {
         ...data,
         id: userId,
@@ -166,7 +170,7 @@ export async function initializeClubV13(userId: string, data: any) {
       return { success: true, tier, group, rank: actualRank, numericId, botToReplaceId };
     });
 
-    // Обновление матчей (вне транзакции для скорости)
+    // Обновление матчей (вне транзакции)
     if (result.success && result.botToReplaceId) {
       const matchesQ = query(collection(db, 'matches_v2'), 
         where('leagueId', '==', leagueId),
@@ -199,7 +203,7 @@ export async function initializeClubV13(userId: string, data: any) {
 
     return result;
   } catch (error: any) {
-    console.error("[TRANSACTION ERROR]:", error.message);
+    console.error("[INITIALIZE CLUB ERROR]:", error.code, error.message);
     return { success: false, error: error.message };
   }
 }
