@@ -1,14 +1,13 @@
-
 'use server';
 
 /**
- * @fileOverview Серверный модуль инициализации v143 (Privileged Service Auth).
- * Использует вход под системным аккаунтом для обхода строгих правил Firestore.
+ * @fileOverview Серверный модуль инициализации v144 (Transactional & Privileged).
+ * Использует транзакции для предотвращения race condition при регистрации.
  */
 
 import { 
   collection, getDocs, query, where, doc, getDoc, 
-  writeBatch, serverTimestamp, deleteDoc 
+  serverTimestamp, runTransaction
 } from 'firebase/firestore';
 import { authenticateAsSystem } from '@/firebase/system-auth';
 import { initializeFirebase } from '@/firebase';
@@ -79,122 +78,139 @@ export async function initializeClubV13(userId: string, data: any) {
   const seasonInfo = getGlobalSeasonInfo();
   const seasonNum = seasonInfo.activeSeasonNumber;
 
-  const existingPlayerRef = doc(db, 'players_v14', userId);
-  const existingSnap = await getDoc(existingPlayerRef);
-  if (existingSnap.exists()) {
-    const p = existingSnap.data();
-    return { success: true, tier: p.leagueLevel, group: p.groupId, rank: p.rank, numericId: p.numericId };
-  }
-
-  const allPlayersSnap = await getDocs(collection(db, 'players_v14'));
-  const numericId = allPlayersSnap.size + 1;
-
+  const playerRef = doc(db, 'players_v14', userId);
+  const leagueId = String(data.selectedLeagueId || "ALPHA");
   const tier = validatedTier;
   const group = Number(data.group || 1);
   const rank = Number(data.rank || 1);
-  const leagueId = String(data.selectedLeagueId || "ALPHA");
   
   const tableId = `table_v140_S${seasonNum}_L${leagueId}_V${tier}_G${group}`;
   const tableRef = doc(db, 'league_tables_v2', tableId);
-  
-  let tableSnap = await getDoc(tableRef);
 
-  if (!tableSnap.exists()) {
-    await createGroupStructure(db, leagueId, tier, group, seasonNum);
-    tableSnap = await getDoc(tableRef);
-  } 
+  try {
+    const result = await runTransaction(db, async (transaction) => {
+      const playerSnap = await transaction.get(playerRef);
+      if (playerSnap.exists()) {
+        const p = playerSnap.data();
+        return { success: true, tier: p.leagueLevel, group: p.groupId, rank: p.rank, numericId: p.numericId };
+      }
 
-  const tableData = tableSnap.data();
-  if (!tableData) return { success: false, error: "DATA_INTEGRITY_ERROR" };
+      let tableSnap = await transaction.get(tableRef);
+      if (!tableSnap.exists()) {
+        // Если группы нет, создаем её (вне транзакции это сделать нельзя, поэтому полагаемся на JIT)
+        // Но runTransaction не позволяет создавать структуру через вложенные вызовы батчей.
+        // Поэтому здесь мы просто возвращаем ошибку, если мир не проинициализирован.
+        throw new Error("SECTOR_NOT_READY");
+      }
 
-  const stats = { ...tableData.stats };
+      const tableData = tableSnap.data();
+      if (!tableData) throw new Error("DATA_INTEGRITY_ERROR");
 
-  // Умный поиск бота для подмены
-  let botToReplaceId = Object.keys(stats).find(id => Number(stats[id].rank) === rank && stats[id].isBot === true) || null;
-  if (!botToReplaceId) {
-    botToReplaceId = Object.keys(stats).find(id => stats[id].isBot === true) || null;
-  }
+      const stats = { ...tableData.stats };
 
-  // САМОВОССТАНОВЛЕНИЕ: если в группе < 8 команд, находим пустой ранг
-  if (!botToReplaceId && Object.keys(stats).length < 8) {
-    const usedRanks = new Set(Object.values(stats).map((s: any) => s.rank));
-    let missingRank = 1;
-    for (let r = 1; r <= 8; r++) { if (!usedRanks.has(r)) { missingRank = r; break; } }
-    botToReplaceId = getBotId(leagueId, tier, group, missingRank);
-    stats[botToReplaceId] = { id: botToReplaceId, name: getBotName(tier, group, missingRank), rank: missingRank, matchesPlayed: 0, wins: 0, draws: 0, losses: 0, points: 0, diff: 0, isBot: true, clubLogo: null };
-  }
+      // ТРАНЗАКЦИОННАЯ ПРОВЕРКА: Слот все еще свободен?
+      let botToReplaceId = Object.keys(stats).find(id => Number(stats[id].rank) === rank && stats[id].isBot === true) || null;
+      if (!botToReplaceId) {
+        botToReplaceId = Object.keys(stats).find(id => stats[id].isBot === true) || null;
+      }
 
-  if (!botToReplaceId) return { success: false, error: "GROUP_FULL" };
+      if (!botToReplaceId) {
+        throw new Error("GROUP_FULL");
+      }
 
-  const batch = writeBatch(db);
-  const baseStats = stats[botToReplaceId];
-  const actualRank = Number(baseStats.rank);
-  
-  delete stats[botToReplaceId];
-  
-  stats[userId] = {
-    ...baseStats,
-    id: userId,
-    name: clubName,
-    clubLogo: data.clubLogo || null,
-    rank: actualRank,
-    isBot: false
-  };
+      const baseStats = stats[botToReplaceId];
+      const actualRank = Number(baseStats.rank);
+      
+      // Удаляем бота, добавляем игрока
+      delete stats[botToReplaceId];
+      stats[userId] = {
+        ...baseStats,
+        id: userId,
+        name: clubName,
+        clubLogo: data.clubLogo || null,
+        rank: actualRank,
+        isBot: false
+      };
 
-  if (Object.keys(stats).length !== 8) return { success: false, error: "TABLE_CORRUPTION_PREVENTED" };
+      // Проверка целостности состава группы
+      if (Object.keys(stats).length !== 8) throw new Error("TABLE_CORRUPTION_PREVENTED");
 
-  batch.update(tableRef, { stats, updatedAt: serverTimestamp() });
+      // Считаем numericId (делаем это внутри транзакции для точности)
+      // Внимание: query внутри транзакции в клиентском SDK не поддерживается так же, как в Admin SDK.
+      // Поэтому numericId оставляем как примерный счетчик или используем упрощенный метод.
+      const allPlayersSnap = await getDocs(collection(db, 'players_v14'));
+      const numericId = allPlayersSnap.size + 1;
 
-  const matchesQ = query(collection(db, 'matches_v2'), 
-    where('leagueId', '==', leagueId),
-    where('level', '==', tier),
-    where('groupId', '==', group),
-    where('season', '==', seasonNum),
-    where('version', '==', 140)
-  );
-  const matchesSnap = await getDocs(matchesQ);
+      // ОБНОВЛЕНИЕ ТАБЛИЦЫ
+      transaction.update(tableRef, { stats, updatedAt: serverTimestamp() });
 
-  matchesSnap.forEach(mDoc => {
-    const mData = mDoc.data();
-    const updates: any = {};
-    if (mData.homeId === botToReplaceId) { 
-      updates.homeId = userId; 
-      updates.homeName = clubName; 
-      updates.homeLogo = data.clubLogo || null; 
+      // СОЗДАНИЕ ПРОФИЛЯ
+      const finalPlayerData = {
+        ...data,
+        id: userId,
+        numericId,
+        displayName: clubName,
+        clubName: clubName,
+        country: data.country || 'International',
+        selectedLeagueId: leagueId,
+        leagueLevel: tier,
+        groupId: group,
+        rank: actualRank,
+        credits: 1000000,
+        crystals: 50,
+        experiencePoints: 0,
+        managerLevel: 1,
+        lastProcessedSeason: seasonNum,
+        lastLoginDate: new Date().toISOString(),
+        createdAt: serverTimestamp(),
+        version: 140
+      };
+
+      transaction.set(playerRef, finalPlayerData);
+
+      return { success: true, tier, group, rank: actualRank, numericId, botToReplaceId };
+    });
+
+    // Обновление матчей делаем отдельно, так как их может быть много (Bo1/Bo2)
+    // Но транзакция уже гарантировала нам место.
+    if (result.success && result.botToReplaceId) {
+      const { firestore: dbInstance } = initializeFirebase();
+      const matchesQ = query(collection(dbInstance, 'matches_v2'), 
+        where('leagueId', '==', leagueId),
+        where('level', '==', tier),
+        where('groupId', '==', group),
+        where('season', '==', seasonNum),
+        where('version', '==', 140)
+      );
+      const matchesSnap = await getDocs(matchesQ);
+      
+      // Здесь можно использовать batch для надежности
+      const { writeBatch } = await import('firebase/firestore');
+      const batch = writeBatch(dbInstance);
+      
+      matchesSnap.forEach(mDoc => {
+        const mData = mDoc.data();
+        const updates: any = {};
+        if (mData.homeId === result.botToReplaceId) { 
+          updates.homeId = userId; 
+          updates.homeName = clubName; 
+          updates.homeLogo = data.clubLogo || null; 
+        }
+        if (mData.awayId === result.botToReplaceId) { 
+          updates.awayId = userId; 
+          updates.awayName = clubName; 
+          updates.awayLogo = data.clubLogo || null; 
+        }
+        if (Object.keys(updates).length > 0) batch.update(mDoc.ref, updates);
+      });
+      await batch.commit();
     }
-    if (mData.awayId === botToReplaceId) { 
-      updates.awayId = userId; 
-      updates.awayName = clubName; 
-      updates.awayLogo = data.clubLogo || null; 
-    }
-    if (Object.keys(updates).length > 0) batch.update(mDoc.ref, updates);
-  });
 
-  const finalPlayerData = {
-    ...data,
-    id: userId,
-    numericId,
-    displayName: clubName,
-    clubName: clubName,
-    country: data.country || 'International',
-    selectedLeagueId: leagueId,
-    leagueLevel: tier,
-    groupId: group,
-    rank: actualRank,
-    credits: 1000000,
-    crystals: 50,
-    experiencePoints: 0,
-    managerLevel: 1,
-    lastProcessedSeason: seasonNum,
-    lastLoginDate: new Date().toISOString(),
-    createdAt: serverTimestamp(),
-    version: 140
-  };
-
-  batch.set(existingPlayerRef, finalPlayerData);
-  await batch.commit();
-
-  return { success: true, tier, group, rank: actualRank, numericId };
+    return result;
+  } catch (error: any) {
+    console.error("[TRANSACTION ERROR]:", error.message);
+    return { success: false, error: error.message };
+  }
 }
 
 export async function releasePlayerSlot(userId: string) {
@@ -203,62 +219,47 @@ export async function releasePlayerSlot(userId: string) {
   await authenticateAsSystem();
   const { firestore: db } = initializeFirebase();
   const playerRef = doc(db, 'players_v14', userId);
-  const playerSnap = await getDoc(playerRef);
+  
+  try {
+    await runTransaction(db, async (transaction) => {
+      const playerSnap = await transaction.get(playerRef);
+      if (!playerSnap.exists()) return;
 
-  if (!playerSnap.exists()) return { success: true };
+      const pData = playerSnap.data();
+      const { 
+        leagueLevel: tier, 
+        groupId: group, 
+        rank, 
+        selectedLeagueId: leagueId, 
+        lastProcessedSeason: seasonNum 
+      } = pData;
 
-  const pData = playerSnap.data();
-  const { 
-    leagueLevel: tier, 
-    groupId: group, 
-    rank, 
-    selectedLeagueId: leagueId, 
-    lastProcessedSeason: seasonNum 
-  } = pData;
+      if (tier && group && rank && leagueId) {
+        const currentSeason = seasonNum || 1;
+        const tableId = `table_v140_S${currentSeason}_L${leagueId}_V${tier}_G${group}`;
+        const tableRef = doc(db, 'league_tables_v2', tableId);
+        const tableSnap = await transaction.get(tableRef);
 
-  if (tier && group && rank && leagueId) {
-    const currentSeason = seasonNum || 1;
-    const tableId = `table_v140_S${currentSeason}_L${leagueId}_V${tier}_G${group}`;
-    const tableRef = doc(db, 'league_tables_v2', tableId);
-    const tableSnap = await getDoc(tableRef);
+        if (tableSnap.exists()) {
+          const tableData = tableSnap.data();
+          const stats = { ...tableData.stats };
+          const botId = getBotId(leagueId, tier, group, rank);
+          const botName = getBotName(tier, group, rank);
 
-    if (tableSnap.exists()) {
-      const tableData = tableSnap.data();
-      const stats = { ...tableData.stats };
-      const botId = getBotId(leagueId, tier, group, rank);
-      const botName = getBotName(tier, group, rank);
-
-      if (stats[userId]) {
-        const currentStats = stats[userId];
-        delete stats[userId];
-        
-        stats[botId] = { ...currentStats, id: botId, name: botName, isBot: true, clubLogo: null, rank: Number(rank) };
-
-        const batch = writeBatch(db);
-        batch.update(tableRef, { stats, updatedAt: serverTimestamp() });
-
-        const matchesQ = query(collection(db, 'matches_v2'), 
-          where('leagueId', '==', leagueId),
-          where('level', '==', tier),
-          where('groupId', '==', group),
-          where('season', '==', currentSeason),
-          where('version', '==', 140)
-        );
-        const matchesSnap = await getDocs(matchesQ);
-
-        matchesSnap.forEach(mDoc => {
-          const mData = mDoc.data();
-          const updates: any = {};
-          if (mData.homeId === userId) { updates.homeId = botId; updates.homeName = botName; updates.homeLogo = null; }
-          if (mData.awayId === userId) { updates.awayId = botId; updates.awayName = botName; updates.awayLogo = null; }
-          if (Object.keys(updates).length > 0) batch.update(mDoc.ref, updates);
-        });
-
-        await batch.commit();
+          if (stats[userId]) {
+            const currentStats = stats[userId];
+            delete stats[userId];
+            stats[botId] = { ...currentStats, id: botId, name: botName, isBot: true, clubLogo: null, rank: Number(rank) };
+            
+            transaction.update(tableRef, { stats, updatedAt: serverTimestamp() });
+          }
+        }
       }
-    }
+      transaction.delete(playerRef);
+    });
+    return { success: true };
+  } catch (e: any) {
+    console.error("[RELEASE SLOT ERROR]:", e.message);
+    return { success: false, error: e.message };
   }
-
-  await deleteDoc(playerRef);
-  return { success: true };
 }
