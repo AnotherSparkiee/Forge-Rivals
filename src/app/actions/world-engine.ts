@@ -9,7 +9,7 @@ import {
   doc, writeBatch, 
   Firestore, serverTimestamp, getDoc, setDoc 
 } from 'firebase/firestore';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { authenticateAsSystem } from '@/firebase/system-auth';
 import { initializeFirebase } from '@/firebase';
 import { 
   getBotId, 
@@ -19,15 +19,6 @@ import {
   TOTAL_GROUPS
 } from '@/app/lib/leagues-data';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
-
-const SYSTEM_EMAIL = "system@internal.mobamanageronline.app";
-
-async function authenticateAsSystem() {
-  const { auth } = initializeFirebase();
-  const password = process.env.SYSTEM_ACCOUNT_PASSWORD;
-  if (!password) throw new Error("SYSTEM_AUTH_CRITICAL_ERROR: Password missing");
-  await signInWithEmailAndPassword(auth, SYSTEM_EMAIL, password);
-}
 
 const GROUPS_PER_CALL = 8; 
 
@@ -101,8 +92,6 @@ export async function createGroupStructure(
   group: number, 
   seasonNum: number
 ) {
-  // Важно: вызывается из другого Server Action, поэтому повторная авторизация может не требоваться, 
-  // но для надежности проводим её.
   await authenticateAsSystem();
   const batch = writeBatch(db);
   await injectGroupData(batch, db, leagueId, tier, group, seasonNum);

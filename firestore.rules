@@ -16,12 +16,12 @@ service cloud.firestore {
 
     // 2. СИСТЕМНЫЕ ДАННЫЕ (Матчи и Таблицы): Доступно ТОЛЬКО системе для записи
     match /matches_v2/{matchId} {
-      allow read: if true;
+      allow read: if request.auth != null;
       allow write: if isSystem();
     }
     
     match /league_tables_v2/{tableId} {
-      allow read: if true;
+      allow read: if request.auth != null;
       allow write: if isSystem();
     }
 
@@ -48,7 +48,7 @@ service cloud.firestore {
 
     // 4. ТЕХНИЧЕСКИЕ КОЛЛЕКЦИИ (Сброс и Инициализация)
     match /system_v1/{docId} {
-      allow read: if true;
+      allow read: if request.auth != null;
       allow write: if isSystem();
     }
     
@@ -57,10 +57,9 @@ service cloud.firestore {
       allow write: if request.auth != null && (request.auth.uid == userId || isSystem());
     }
 
-    // Запрет доступа ко всем остальным коллекциям по умолчанию
+    // БЕЗОПАСНЫЙ CATCH-ALL: Запрет доступа ко всем остальным коллекциям по умолчанию
     match /{allPaths=**} {
-      allow read: if request.auth != null;
-      allow write: if isSystem();
+      allow read, write: if false;
     }
   }
 }

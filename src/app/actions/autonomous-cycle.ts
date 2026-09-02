@@ -10,19 +10,10 @@ import {
   writeBatch, serverTimestamp, increment,
   Firestore, limit
 } from 'firebase/firestore';
-import { signInWithEmailAndPassword } from 'firebase/auth';
 import { initializeFirebase } from '@/firebase';
+import { authenticateAsSystem } from '@/firebase/system-auth';
 import { getMatchResult } from '@/app/lib/leagues-data';
 import { getGlobalSeasonInfo, isMatchStarted } from '@/app/lib/time-utils';
-
-const SYSTEM_EMAIL = "system@internal.mobamanageronline.app";
-
-async function authenticateAsSystem() {
-  const { auth } = initializeFirebase();
-  const password = process.env.SYSTEM_ACCOUNT_PASSWORD;
-  if (!password) throw new Error("SYSTEM_AUTH_CRITICAL_ERROR");
-  await signInWithEmailAndPassword(auth, SYSTEM_EMAIL, password);
-}
 
 class FirestoreBatcher {
   private count = 0;

@@ -10,7 +10,7 @@ import {
   collection, getDocs, query, where, doc, getDoc, 
   writeBatch, serverTimestamp, deleteDoc 
 } from 'firebase/firestore';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { authenticateAsSystem } from '@/firebase/system-auth';
 import { initializeFirebase } from '@/firebase';
 import { 
   getGroupsCountInLevel, 
@@ -20,23 +20,6 @@ import {
 } from '@/app/lib/leagues-data';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 import { createGroupStructure } from './world-engine';
-
-const SYSTEM_EMAIL = "system@internal.mobamanageronline.app";
-
-/**
- * Аутентификация как системный аккаунт для привилегированных операций.
- */
-async function authenticateAsSystem() {
-  const { auth } = initializeFirebase();
-  const password = process.env.SYSTEM_ACCOUNT_PASSWORD;
-  if (!password) throw new Error("SYSTEM_AUTH_CRITICAL_ERROR: Password not configured");
-  try {
-    await signInWithEmailAndPassword(auth, SYSTEM_EMAIL, password);
-  } catch (e) {
-    console.error("[SYSTEM AUTH FAILED]", e);
-    throw new Error("SYSTEM_AUTH_FAILED");
-  }
-}
 
 function validateProfileData(data: any) {
   const clubName = String(data.clubName || "").trim();

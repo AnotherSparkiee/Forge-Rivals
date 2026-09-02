@@ -9,17 +9,8 @@ import {
   collection, getDocs, query, limit, 
   writeBatch, doc, deleteDoc 
 } from 'firebase/firestore';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { authenticateAsSystem } from '@/firebase/system-auth';
 import { initializeFirebase } from '@/firebase';
-
-const SYSTEM_EMAIL = "system@internal.mobamanageronline.app";
-
-async function authenticateAsSystem() {
-  const { auth } = initializeFirebase();
-  const password = process.env.SYSTEM_ACCOUNT_PASSWORD;
-  if (!password) throw new Error("SYSTEM_AUTH_CRITICAL_ERROR");
-  await signInWithEmailAndPassword(auth, SYSTEM_EMAIL, password);
-}
 
 const DELETE_BATCH_SIZE = 500;
 const BATCHES_PER_CALL = 3; 
@@ -37,7 +28,9 @@ export async function totalNuclearResetV131() {
   for (const sId of systemDocs) {
     try {
       await deleteDoc(doc(db, 'system_v1', sId));
-    } catch (e) {}
+    } catch (e) {
+      console.warn(`[NUCLEAR RESET] Could not delete system doc ${sId}:`, e);
+    }
   }
 
   const colls = [
@@ -70,6 +63,7 @@ export async function totalNuclearResetV131() {
       if (batchDeletedCount === 0) break;
     }
   } catch (globalErr: any) {
+    console.error("[NUCLEAR RESET CRITICAL ERROR]:", globalErr.message);
     return { success: false, error: globalErr.message };
   }
 

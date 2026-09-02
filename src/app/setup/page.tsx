@@ -93,8 +93,8 @@ export default function SetupPage() {
       });
 
       if (!result.success) {
-        // ROLLBACK: Удаляем Auth аккаунт если размещение не удалось
-        if (user) await user.delete();
+        // ROLLBACK: Удаляем собственный аккаунт через клиентский SDK, если серверное размещение не удалось
+        await user.delete();
         throw new Error(result.error || "INITIALIZATION_FAILED");
       }
 
