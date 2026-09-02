@@ -2,16 +2,16 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // 0. ПУБЛИЧНЫЕ КОДЫ ВЕРИФИКАЦИИ (Доступны при регистрации)
+    // 0. ПУБЛИЧНЫЕ КОДЫ ВЕРИФИКАЦИИ
     match /verification_codes/{email} {
       allow read, write: if true;
     }
 
-    // Хелпер для проверки системного доступа
+    // Хелпер для проверки системного доступа (v146)
     function isSystem() {
       return request.auth != null && (
-        request.auth.uid == 'system-service-uid-v142' || 
-        request.auth.token.email == 'system@internal.mobamanageronline.app'
+        request.auth.token.email == 'system@internal.mobamanageronline.app' ||
+        request.auth.uid == 'system-service-uid-v142'
       );
     }
 
@@ -65,7 +65,7 @@ service cloud.firestore {
       allow write: if request.auth != null && (request.auth.uid == userId || isSystem());
     }
 
-    // БЕЗОПАСНЫЙ CATCH-ALL (Запрет всего остального)
+    // БЕЗОПАСНЫЙ CATCH-ALL
     match /{allPaths=**} {
       allow read, write: if false;
     }

@@ -7,7 +7,7 @@ import { initializeFirebase } from './index';
  */
 
 const SYSTEM_EMAIL = "system@internal.mobamanageronline.app";
-// Пароль, предоставленный пользователем, как резервный вариант
+// Резервный пароль, предоставленный пользователем
 const FALLBACK_PASSWORD = "ftorres9";
 
 /**
@@ -22,21 +22,18 @@ export async function authenticateAsSystem(): Promise<{ success: boolean; error?
     return { success: true };
   }
 
-  // 2. Получаем пароль из секретов или используем fallback
-  const password = process.env.SYSTEM_ACCOUNT_PASSWORD || FALLBACK_PASSWORD;
+  // 2. Получаем пароль и очищаем от возможных пробелов при копировании
+  const rawPassword = process.env.SYSTEM_ACCOUNT_PASSWORD || FALLBACK_PASSWORD;
+  const password = rawPassword.trim();
   
-  if (!password) {
-    console.warn("[SYSTEM AUTH] Warning: No password found in environment or fallback.");
-    return { success: false, error: "PASSWORD_MISSING" };
-  }
-
   try {
     // 3. Выполняем вход
-    await signInWithEmailAndPassword(auth, SYSTEM_EMAIL, password);
-    console.log(`[SYSTEM AUTH SUCCESS] Authenticated as ${SYSTEM_EMAIL}`);
+    const userCredential = await signInWithEmailAndPassword(auth, SYSTEM_EMAIL, password);
+    console.log(`[SYSTEM AUTH SUCCESS] Signed in as ${userCredential.user.email} (UID: ${userCredential.user.uid})`);
     return { success: true };
   } catch (e: any) {
-    console.error(`[SYSTEM AUTH FAILURE] ${SYSTEM_EMAIL} login failed:`, e.code, e.message);
+    // Выводим только код ошибки для безопасности
+    console.error(`[SYSTEM AUTH FAILURE] Login failed for ${SYSTEM_EMAIL}. Error code: ${e.code}`);
     return { success: false, error: e.code || "AUTH_UNKNOWN_ERROR" };
   }
 }

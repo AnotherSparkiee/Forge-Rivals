@@ -73,14 +73,19 @@ export async function initializeClubV13(userId: string, data: any) {
   if (!userId) return { success: false, error: "AUTH_REQUIRED" };
   const { clubName, tier: validatedTier } = validateProfileData(data);
   
-  // 1. СИСТЕМНАЯ АВТОРИЗАЦИЯ (v146)
+  // 1. СИСТЕМНАЯ АВТОРИЗАЦИЯ
   const authRes = await authenticateAsSystem();
   if (!authRes.success) {
-    console.error(`[SYSTEM AUTH FAILED] Action: initializeClubV13, Error: ${authRes.error}`);
     return { success: false, error: `SYSTEM_AUTH_FAILED_${authRes.error}` };
   }
 
-  const { firestore: db } = initializeFirebase();
+  const { firestore: db, auth } = initializeFirebase();
+
+  // Дополнительная проверка: убеждаемся, что SDK видит системного пользователя
+  if (!auth.currentUser || auth.currentUser.email !== "system@internal.mobamanageronline.app") {
+    console.error("[CRITICAL] SDK Auth state mismatch after login");
+    return { success: false, error: "SYSTEM_AUTH_SYNC_ERROR" };
+  }
 
   const playerRef = doc(db, 'players_v14', userId);
   const leagueId = String(data.selectedLeagueId || "ALPHA");
@@ -110,7 +115,7 @@ export async function initializeClubV13(userId: string, data: any) {
       const tableData = tableSnap.data();
       const stats = { ...tableData.stats };
 
-      // Поиск бота для замены (Race Condition Protection)
+      // Поиск бота для замены
       let botToReplaceId = Object.keys(stats).find(id => Number(stats[id].rank) === rank && stats[id].isBot === true) || null;
       if (!botToReplaceId) {
         botToReplaceId = Object.keys(stats).find(id => stats[id].isBot === true) || null;
@@ -120,7 +125,7 @@ export async function initializeClubV13(userId: string, data: any) {
         throw new Error("GROUP_FULL");
       }
 
-      // Атомарный счетчик ID
+      // Атомарный счетчик ID (быстрее чем getDocs)
       const counterSnap = await transaction.get(counterRef);
       let numericId = 1000;
       if (counterSnap.exists()) {
@@ -171,7 +176,7 @@ export async function initializeClubV13(userId: string, data: any) {
       return { success: true, tier, group, rank: actualRank, numericId, botToReplaceId };
     });
 
-    // Обновление матчей (вне транзакции для скорости)
+    // Обновление матчей (вне транзакции)
     if (result.success && result.botToReplaceId) {
       const matchesQ = query(collection(db, 'matches_v2'), 
         where('leagueId', '==', leagueId),
@@ -214,7 +219,6 @@ export async function releasePlayerSlot(userId: string) {
 
   const authRes = await authenticateAsSystem();
   if (!authRes.success) {
-    console.error(`[SYSTEM AUTH FAILED] Action: releasePlayerSlot, Error: ${authRes.error}`);
     return { success: false, error: `SYSTEM_AUTH_FAILED_${authRes.error}` };
   }
 
