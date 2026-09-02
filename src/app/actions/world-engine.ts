@@ -1,11 +1,11 @@
 'use server';
 
 /**
- * Глобальный двигатель мира v146 (Strict Typing).
+ * Глобальный двигатель мира v148 (Existence Check).
  */
 
 import { 
-  doc, Transaction, 
+  doc, Transaction, getDoc,
   Firestore, serverTimestamp, runTransaction 
 } from 'firebase/firestore';
 import { authenticateAsSystem } from '@/firebase/system-auth';
@@ -45,6 +45,12 @@ async function injectGroupData(
   seasonNum: number
 ) {
   const tableId = `table_v140_S${seasonNum}_L${leagueId}_V${tier}_G${group}`;
+  const tableRef = doc(db, 'league_tables_v2', tableId);
+  
+  // Проверка существования таблицы
+  const tableSnap = await transaction.get(tableRef);
+  if (tableSnap.exists()) return;
+
   const initialStats: any = {};
   const teamsForCalendar = [];
 
@@ -59,7 +65,6 @@ async function injectGroupData(
     teamsForCalendar.push({ id: bId, name: bName, rank: r });
   }
 
-  const tableRef = doc(db, 'league_tables_v2', tableId);
   transaction.set(tableRef, {
     id: tableId, leagueId, level: tier, group, season: seasonNum,
     stats: initialStats,
@@ -72,7 +77,7 @@ async function injectGroupData(
     const mId = `match_v140_S${seasonNum}_L${leagueId}_V${tier}_G${group}_T${m.tour}_R${m.homeRank}_vs_R${m.awayRank}`;
     transaction.set(doc(db, 'matches_v2', mId), {
       ...m, id: mId, leagueId, level: tier, groupId: group, season: seasonNum,
-      isFinished: false, scoreA: 0, scoreB: 0, version: 140
+      isFinished: false, isProcessing: false, scoreA: 0, scoreB: 0, version: 140
     });
   }
 }

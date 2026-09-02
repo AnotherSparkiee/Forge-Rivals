@@ -2,18 +2,14 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // 0. ПУБЛИЧНЫЕ КОДЫ ВЕРИФИКАЦИИ
-    match /verification_codes/{email} {
-      allow read, write: if true;
+    // Хелпер для проверки системного доступа через Custom Claim
+    function isSystem() {
+      return request.auth != null && request.auth.token.admin == true;
     }
 
-    // Хелпер для проверки системного доступа (v147)
-    function isSystem() {
-      return request.auth != null && (
-        request.auth.token.email == 'system@internal.mobamanageronline.app' ||
-        request.auth.uid == 'system-service-uid-v142' ||
-        request.auth.token.email_verified == true && request.auth.token.email.matches('.*@internal.mobamanageronline.app')
-      );
+    // 0. ПУБЛИЧНЫЕ КОДЫ ВЕРИФИКАЦИИ (Полностью закрыты)
+    match /verification_codes/{email} {
+      allow read, write: if false;
     }
 
     // 1. ПРОФИЛИ ИГРОКОВ (v14)
@@ -36,7 +32,7 @@ service cloud.firestore {
 
     match /market_v7/{agentId} {
       allow read: if true;
-      allow write: if request.auth != null; 
+      allow write: if (request.auth != null && (request.resource.data.sellerId == request.auth.uid || resource.data.sellerId == request.auth.uid)) || isSystem(); 
     }
     
     // 3. СОЦИАЛЬНЫЕ ФУНКЦИИ
@@ -47,7 +43,7 @@ service cloud.firestore {
     
     match /friend_requests_v4/{reqId} {
       allow read: if request.auth != null && (resource.data.fromId == request.auth.uid || resource.data.toId == request.auth.uid);
-      allow write: if request.auth != null;
+      allow write: if request.auth != null && (request.resource.data.fromId == request.auth.uid || resource.data.fromId == request.auth.uid);
     }
     
     match /private_messages_v3/{msgId} {

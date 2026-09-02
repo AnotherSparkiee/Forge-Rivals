@@ -1,15 +1,15 @@
 'use server';
 
 /**
- * @fileOverview Ультимативный антикризисный двигатель Кубка v14.
- * Исправлены пустые матчи и нестабильная сортировка.
+ * @fileOverview Двигатель Кубка v15 (Security Patch).
  */
 
 import { 
-  collection, doc, getDocs, writeBatch, query, where, 
+  collection, doc, getDocs, writeBatch, query, 
   Firestore, serverTimestamp, Timestamp
 } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
+import { authenticateAsSystem } from '@/firebase/system-auth';
 import { LEAGUES } from '@/app/lib/leagues-data';
 
 class FirestoreBatcher {
@@ -38,13 +38,12 @@ class FirestoreBatcher {
 }
 
 export async function generatePyramidCup(targetSeasonNumber?: number) {
+  await authenticateAsSystem();
   const { firestore: db } = initializeFirebase();
   
   const SEASON_NUM = Number(targetSeasonNumber || 1);
   const SEASON_ID = String(SEASON_NUM);
   const TIMESTAMP_NOW = Timestamp.now();
-
-  console.log(`[CUP ENGINE v14] Initializing Season ${SEASON_ID} Brackets...`);
 
   const playersSnap = await getDocs(collection(db, 'players_v14'));
   const allGlobalPlayers = playersSnap.docs.map(d => ({ id: d.id, ...d.data() } as any));
@@ -65,7 +64,6 @@ export async function generatePyramidCup(targetSeasonNumber?: number) {
       bracketSize *= 2;
     }
 
-    // Стабильная сортировка с tie-breaker по ID
     leagueTeams.sort((a, b) => {
       if (b.power !== a.power) return b.power - a.power;
       return a.id.localeCompare(b.id);
@@ -84,7 +82,6 @@ export async function generatePyramidCup(targetSeasonNumber?: number) {
       const home = slots[left];
       const away = slots[right];
 
-      // Прерываем, если в этой части сетки больше нет команд (избегаем TBD vs TBD)
       if (!home && !away) break;
 
       const cupMatchId = `season_${SEASON_ID}_league_${league.id}_round_1_match_${matchNum}`;
@@ -92,20 +89,13 @@ export async function generatePyramidCup(targetSeasonNumber?: number) {
       await batcher.set(doc(db, 'cup_matches', cupMatchId), {
         cupMatchId,
         seasonId: SEASON_ID,
-        seasonId_num: SEASON_NUM,
-        seasonNumber: SEASON_NUM,
-        leagueId: String(league.id),
-        leagueId_num: leagueNum,
         round: 1,
-        date: new Date().toISOString(),
-        timestamp: TIMESTAMP_NOW,
         homeTeamId: home?.id || 'TBD',
         homeTeamName: home?.name || 'TBD',
         awayTeamId: away?.id || 'TBD',
         awayTeamName: away?.name || 'TBD',
         status: 'scheduled',
         isFinished: false,
-        winnerId: null,
         createdAt: serverTimestamp(),
         version: 140
       });

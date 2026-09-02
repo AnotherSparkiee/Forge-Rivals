@@ -1,5 +1,5 @@
 /**
- * @fileOverview Ядро лиг v73: Недетерминированные результаты.
+ * @fileOverview Ядро лиг v75: Иммутабельность и детерминизм.
  */
 
 import { GLOBAL_EPOCH_ISO } from './time-utils';
@@ -19,23 +19,14 @@ export const LEAGUES: LeagueOption[] = [
   { id: 'ALPHA', startTime: '18:00', description: 'Main Operational League.' },
 ];
 
-/**
- * Генерирует единый формат ID для турнирных таблиц v140.
- */
 export function getTableId(season: number, leagueId: string, level: number, group: number): string {
   return `table_v140_S${season}_L${leagueId}_V${level}_G${group}`;
 }
 
-/**
- * Генерирует детерминированный ID бота для слота (скрытый технический ID).
- */
 export function getBotId(leagueId: string, level: number, group: number, rank: number): string {
   return `BOT_${leagueId}_L${level}_G${group}_R${rank}`;
 }
 
-/**
- * Генерирует публичное имя для бота.
- */
 export function getBotName(level: number, group: number, rank: number): string {
   const leagueIdx = "01";
   const gStr = String(group).padStart(3, '0');
@@ -47,25 +38,6 @@ export function getGroupsCountInLevel(level: number): number {
   return Math.pow(2, level - 1);
 }
 
-export function getPromotionTarget(level: number, group: number): { level: number, group: number } {
-  if (level <= 1) return { level, group }; 
-  return {
-    level: level - 1,
-    group: Math.ceil(group / 2)
-  };
-}
-
-export function getRelegationTarget(level: number, group: number, rank: number): { level: number, group: number } {
-  if (level >= MAX_LEVELS) return { level, group }; 
-  return {
-    level: level + 1,
-    group: rank === 7 ? (group * 2 - 1) : (group * 2)
-  };
-}
-
-/**
- * Генерирует детерминированный календарь (Circle Method).
- */
 export function generateSeasonCalendar(teams: any[], seasonNumber: number, leagueId: string) {
   const n = TEAMS_PER_GROUP; 
   const rounds = n - 1; 
@@ -75,7 +47,7 @@ export function generateSeasonCalendar(teams: any[], seasonNumber: number, leagu
   const [hh, mm] = league.startTime.split(':').map(Number);
   
   const epochUtc = new Date(GLOBAL_EPOCH_ISO);
-  const cycleDuration = 17; // Синхронизировано с SEASON_CYCLE_DAYS
+  const cycleDuration = 17; 
   const dayMs = 24 * 60 * 60 * 1000;
   const seasonStartMs = epochUtc.getTime() + (seasonNumber - 1) * cycleDuration * dayMs;
 
@@ -90,7 +62,17 @@ export function generateSeasonCalendar(teams: any[], seasonNumber: number, leagu
       const away = teams[aIdx];
 
       const createMatch = (day: number, h: any, a: any, tour: number) => {
-        const startTime = new Date(seasonStartMs + (day - 1) * dayMs + hh * 3600000 + mm * 60000);
+        // Конвертация MSK (UTC+3) в UTC: вычитаем 3 часа
+        const startTime = new Date(seasonStartMs + (day - 1) * dayMs + (hh - 3) * 3600000 + mm * 60000);
+        const mId = `match_v140_S${seasonNumber}_L${leagueId}_T${tour}_H${h.rank}_A${a.rank}`;
+        
+        // Генерация детерминированного сида на основе ID матча
+        let seed = 0;
+        for (let j = 0; j < mId.length; j++) {
+          seed = ((seed << 5) - seed) + mId.charCodeAt(j);
+          seed |= 0;
+        }
+
         return {
           day,
           tour,
@@ -101,7 +83,8 @@ export function generateSeasonCalendar(teams: any[], seasonNumber: number, leagu
           awayName: a.name,
           awayRank: Number(a.rank),
           startTime: startTime.toISOString(),
-          type: 'league'
+          type: 'league',
+          resultSeed: Math.abs(seed) % 1000
         };
       };
 
@@ -115,28 +98,24 @@ export function generateSeasonCalendar(teams: any[], seasonNumber: number, leagu
   return matches.sort((a, b) => a.tour - b.tour);
 }
 
-/**
- * РАСЧЕТ РЕЗУЛЬТАТА.
- * Добавлен случайный элемент для исключения предсказуемости.
- */
 export function getMatchResult(
   rankA: number, 
   rankB: number, 
   level: number, 
   group: number, 
   season: number, 
-  tour: number
+  tour: number,
+  resultSeed: number = 0
 ): [number, number] {
-  const combinedKey = `v12-L${level}-G${group}-S${season}-T${tour}-R${rankA}-vs-R${rankB}`;
+  const combinedKey = `v140-L${level}-G${group}-S${season}-T${tour}-R${rankA}-vs-R${rankB}`;
   let hash = 0;
   for (let i = 0; i < combinedKey.length; i++) {
     hash = ((hash << 5) - hash) + combinedKey.charCodeAt(i);
     hash |= 0;
   }
   
-  // Добавляем случайный фактор на основе текущего времени (миллисекунды)
-  const randomFactor = Math.floor(Math.random() * 1000);
-  const absHash = Math.abs(hash + randomFactor);
+  // Используем переданный resultSeed вместо случайности
+  const absHash = Math.abs(hash + resultSeed);
   
   const rankDiff = rankB - rankA;
   const baseChance = 35 + (rankDiff * 2);

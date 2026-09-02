@@ -1,7 +1,5 @@
 /**
- * @fileOverview Ядро времени v122 (Advanced Cycle Configuration). 
- * Точка отсчета: 31 августа 2026 года, 00:00 MSK (День 1 Сезона 1).
- * Цикл: 14 дней игр + 3 технических дня = 17 дней.
+ * @fileOverview Ядро времени v125 (Always Check StartTime). 
  */
 
 let syncPoint = {
@@ -12,7 +10,6 @@ let syncPoint = {
 const SIMULATION_OFFSET_MS = 0; 
 const MSK_OFFSET = 3 * 60 * 60 * 1000;
 
-// Полночь 31 августа 2026 по МСК = 21:00 30 августа UTC
 export const GLOBAL_EPOCH_ISO = '2026-08-30T21:00:00Z'; 
 export const SEASON_CYCLE_DAYS = 17; 
 
@@ -47,25 +44,6 @@ export function getLevelThreshold(level: number): number {
   return 3800 * Math.pow(2, level - 3);
 }
 
-export function calculateLiveAge(baseAge: number, hiredAtIso: string) {
-  const hiredAt = new Date(hiredAtIso).getTime();
-  const simNow = getMoscowTime().getTime();
-  const diffMs = simNow - hiredAt;
-  const yearInMs = 365.25 * 24 * 60 * 60 * 1000;
-  const currentAge = baseAge + (diffMs / yearInMs);
-  return { display: currentAge.toFixed(1), numeric: currentAge };
-}
-
-export function formatTerminalTime(date: Date): string {
-  const msk = toMskDate(date);
-  const day = String(msk.getUTCDate()).padStart(2, '0');
-  const month = String(msk.getUTCMonth() + 1).padStart(2, '0');
-  const hours = String(msk.getUTCHours()).padStart(2, '0');
-  const minutes = String(msk.getUTCMinutes()).padStart(2, '0');
-  const seconds = String(msk.getUTCSeconds()).padStart(2, '0');
-  return `${day}.${month} ${hours}:${minutes}:${seconds}`;
-}
-
 export function getMoscowDateString(): string {
   const msk = toMskDate(getMoscowTime());
   return `${msk.getUTCFullYear()}-${String(msk.getUTCMonth() + 1).padStart(2, '0')}-${String(msk.getUTCDate()).padStart(2, '0')}`;
@@ -75,12 +53,10 @@ export function getGlobalSeasonInfo() {
   const simNow = getMoscowTime();
   const epochUtc = new Date(GLOBAL_EPOCH_ISO);
   const diffMs = simNow.getTime() - epochUtc.getTime();
-  
   const dayMs = 24 * 60 * 60 * 1000;
   const cycleMs = SEASON_CYCLE_DAYS * dayMs;
 
   if (diffMs < 0) {
-    // Режим ожидания старта или тестирования
     return {
       seasonDay: 1, dayOfCycle: 1, seasonNumber: 1, activeSeasonNumber: 1,
       isOffseason: false, isTransitionDay: false, isPreparationDay: false,
@@ -91,45 +67,24 @@ export function getGlobalSeasonInfo() {
 
   const seasonNumber = Math.floor(diffMs / cycleMs) + 1;
   const dayOfCycle = Math.floor((diffMs % cycleMs) / dayMs) + 1;
-  
   const isOffseason = dayOfCycle >= 15;
   const isTransitionDay = dayOfCycle === 16;
-  const isPreparationDay = dayOfCycle === 17;
-
   const currentSeasonStart = new Date(epochUtc.getTime() + (seasonNumber - 1) * cycleMs);
 
   return {
     seasonDay: dayOfCycle > 14 ? 0 : dayOfCycle,
-    dayOfCycle,
-    seasonNumber,
-    activeSeasonNumber: seasonNumber,
-    isOffseason,
-    isTransitionDay,
-    isPreparationDay,
+    dayOfCycle, seasonNumber, activeSeasonNumber: seasonNumber,
+    isOffseason, isTransitionDay,
     currentSeasonStart,
     nextSeasonStart: new Date(currentSeasonStart.getTime() + cycleMs)
   };
 }
 
-/**
- * Проверка старта матча.
- * Исправлено: в режиме до 2026 года возвращает true, если номер тура
- * соответствует текущему виртуальному дню сезона.
- */
 export function isMatchStarted(startTimeIso: string): boolean {
   const simNow = getMoscowTime();
   const start = new Date(startTimeIso);
-  const epochUtc = new Date(GLOBAL_EPOCH_ISO);
-  
-  // Если мы уже в 2026+ — проверяем строго по времени
-  if (simNow.getTime() >= epochUtc.getTime()) {
-    return simNow.getTime() >= start.getTime();
-  }
-
-  // В режиме тестирования (2025) разрешаем матчи, если их 
-  // запланированное время наступило относительно дня цикла.
-  // resolveDailyMatches уже ограничивает расчет турами (m.tour <= currentDay).
-  return true; 
+  // Всегда проверяем строго по времени
+  return simNow.getTime() >= start.getTime();
 }
 
 export function isMatchOverdue(startTimeIso: string): boolean {

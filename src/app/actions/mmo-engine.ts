@@ -1,8 +1,7 @@
 'use server';
 
 /**
- * @fileOverview MMO-Двигатель v36 (Stable Transactions & Real Squads).
- * Исправлены конфликты транзакций и пустые составы.
+ * @fileOverview MMO-Двигатель v38 (Security Patch).
  */
 
 import { 
@@ -11,11 +10,13 @@ import {
   writeBatch, getDoc, increment
 } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
+import { authenticateAsSystem } from '@/firebase/system-auth';
 import { isMatchOverdue, getGlobalSeasonInfo } from '@/app/lib/time-utils';
 import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
 import { getTableId } from '@/app/lib/leagues-data';
 
 export async function forceResolveGroupMatches(leagueId: string, divisionId: number, groupId: string) {
+  await authenticateAsSystem();
   const { firestore: db } = initializeFirebase();
   const seasonInfo = getGlobalSeasonInfo();
   
@@ -52,26 +53,12 @@ export async function forceResolveGroupMatches(leagueId: string, divisionId: num
         const getTeamData = (clubSnap: any) => {
           if (!clubSnap.exists()) return { heroes: [], strategy: 'Balanced Play', staffBonus: 0, infraBonus: 0 };
           const data = clubSnap.data();
-          
-          // Fallback: если lineup не задан, берем первых 5 игроков
           const lineupIds = Object.values(data.lineup || {});
-          let squad = (data.ownedPlayers || []).filter((p: any) => 
-            lineupIds.includes(p.id)
-          );
-          
-          if (squad.length < 5) {
-            squad = (data.ownedPlayers || []).slice(0, 5);
-          }
-
-          const finalSquad = squad.map((p: any) => ({
-            ...p,
-            isSub: p.id === data.lineup?.sub_carry || p.id === data.lineup?.sub_mid || 
-                   p.id === data.lineup?.sub_offlane || p.id === data.lineup?.sub_support || 
-                   p.id === data.lineup?.sub_full_support
-          }));
+          let squad = (data.ownedPlayers || []).filter((p: any) => lineupIds.includes(p.id));
+          if (squad.length < 5) squad = (data.ownedPlayers || []).slice(0, 5);
 
           return {
-            heroes: finalSquad,
+            heroes: squad,
             strategy: data.strategy || 'Balanced Play',
             staffBonus: data.staff?.coach?.skills?.primary || 0,
             infraBonus: data.bootcamp?.bootcampLevel || 0
@@ -84,7 +71,10 @@ export async function forceResolveGroupMatches(leagueId: string, divisionId: num
         const simulation = await simulateMobaMatch({
           teamA: { name: m.homeName, ...teamA },
           teamB: { name: m.awayName, ...teamB },
-          isBo2: true
+          isBo2: true,
+          // Передаем детерминированный сид
+          scoreA: undefined, 
+          scoreB: undefined
         });
 
         const seriesScoreParts = simulation.seriesScore.split('-');
@@ -92,18 +82,12 @@ export async function forceResolveGroupMatches(leagueId: string, divisionId: num
         const sB = parseInt(seriesScoreParts[1]);
         const winnerId = sA > sB ? m.homeId : (sB > sA ? m.awayId : null);
 
-        // Обновляем матч в батче
         batch.update(docSnap.ref, {
-          scoreA: sA, scoreB: sB,
-          winnerId,
-          status: 'finished',
-          isFinished: true,
-          simulation,
-          finishedAt: serverTimestamp(),
-          version: 140
+          scoreA: sA, scoreB: sB, winnerId,
+          status: 'finished', isFinished: true,
+          simulation, finishedAt: serverTimestamp()
         });
 
-        // Агрегируем статы для таблицы
         if (!tableStatsAggr.has(tableId)) tableStatsAggr.set(tableId, {});
         const aggr = tableStatsAggr.get(tableId)!;
 
@@ -120,15 +104,13 @@ export async function forceResolveGroupMatches(leagueId: string, divisionId: num
 
         updateStats(m.homeId, sA, sB);
         updateStats(m.awayId, sB, sA);
-
         resolvedCount++;
       } catch (e) {
-        console.error(`[MMO ENGINE] Failed to resolve match:`, e);
+        console.error(`[MMO ENGINE] Error:`, e);
       }
     }
   }
 
-  // Применяем агрегированные изменения к таблицам
   for (const [tableId, stats] of tableStatsAggr.entries()) {
     const tableRef = doc(db, 'league_tables_v2', tableId);
     const firestoreStats: any = { updatedAt: serverTimestamp() };

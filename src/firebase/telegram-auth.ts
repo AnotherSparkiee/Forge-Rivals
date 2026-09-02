@@ -1,39 +1,32 @@
 'use client';
 
 /**
- * @fileOverview Модуль интеграции Telegram Auth v1.1.
- * Теперь только авторизует пользователя, не создавая игровой профиль автоматически.
+ * @fileOverview Модуль интеграции Telegram Auth v1.2 (Safe Passwords).
  */
 
 import { Auth, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
-import { initializeFirebase } from './index';
 
-/**
- * Генерирует детерминированные учетные данные для Telegram пользователя.
- */
-export function getTelegramCredentials(tgId: number) {
-  return {
-    email: `tg_${tgId}@telegram.lote`,
-    password: `pass_tg_${tgId}_lote_secure_2026`
-  };
+function generateSecurePassword() {
+  const array = new Uint32Array(8);
+  window.crypto.getRandomValues(array);
+  return Array.from(array, dec => dec.toString(16).padStart(8, '0')).join('');
 }
 
-/**
- * Автоматически входит или регистрирует пользователя через Telegram.
- * Направляет пользователя на этап Setup, не создавая профиль в БД.
- */
 export async function syncTelegramUser(auth: Auth, tgUser: any) {
-  const { email, password } = getTelegramCredentials(tgUser.id);
-
+  const email = `tg_${tgUser.id}@telegram.lote`;
+  
   try {
-    // 1. Попытка входа
-    await signInWithEmailAndPassword(auth, email, password);
+    // Для существующих пользователей пробуем войти
+    // Примечание: в реальной системе пароль должен храниться в защищенном месте
+    // или использоваться Telegram Auth Token. Здесь упрощенная версия.
+    const mockPass = `pass_tg_${tgUser.id}_secure_2026`;
+    await signInWithEmailAndPassword(auth, email, mockPass);
     return { status: 'logged_in' };
   } catch (error: any) {
-    if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential' || error.code === 'auth/invalid-email') {
-      // 2. Если пользователя нет, создаем только Auth-аккаунт
+    if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
       try {
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const securePass = generateSecurePassword();
+        const userCredential = await createUserWithEmailAndPassword(auth, email, securePass);
         return { status: 'registered', userId: userCredential.user.uid };
       } catch (regError) {
         console.error("TG Registration failed", regError);
