@@ -7,11 +7,12 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
-    // Хелпер для проверки системного доступа (v146)
+    // Хелпер для проверки системного доступа (v147)
     function isSystem() {
       return request.auth != null && (
         request.auth.token.email == 'system@internal.mobamanageronline.app' ||
-        request.auth.uid == 'system-service-uid-v142'
+        request.auth.uid == 'system-service-uid-v142' ||
+        request.auth.token.email_verified == true && request.auth.token.email.matches('.*@internal.mobamanageronline.app')
       );
     }
 

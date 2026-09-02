@@ -1,8 +1,8 @@
 'use server';
 
 /**
- * @fileOverview Серверный модуль инициализации v146 (TRANSACTIONAL & PRIVILEGED).
- * Исправлена проблема PERMISSION_DENIED через принудительную синхронизацию Auth.
+ * @fileOverview Серверный модуль инициализации v147 (RESILIENT SYSTEM AUTH).
+ * Улучшена синхронизация авторизации перед транзакциями.
  */
 
 import { 
@@ -32,7 +32,6 @@ function validateProfileData(data: any) {
 }
 
 export async function findStrategicPlacement(leagueId: string) {
-  // Поиск места требует системных прав на чтение всей коллекции v14
   const authRes = await authenticateAsSystem();
   const { firestore: db } = initializeFirebase();
 
@@ -79,12 +78,14 @@ export async function initializeClubV13(userId: string, data: any) {
     return { success: false, error: `SYSTEM_AUTH_FAILED_${authRes.error}` };
   }
 
+  // 2. Ждем синхронизации токена (критично для Server Actions)
+  await new Promise(resolve => setTimeout(resolve, 500));
+
   const { firestore: db, auth } = initializeFirebase();
 
-  // Дополнительная проверка: убеждаемся, что SDK видит системного пользователя
+  // Дополнительная проверка системного пользователя
   if (!auth.currentUser || auth.currentUser.email !== "system@internal.mobamanageronline.app") {
-    console.error("[CRITICAL] SDK Auth state mismatch after login");
-    return { success: false, error: "SYSTEM_AUTH_SYNC_ERROR" };
+    return { success: false, error: "SYSTEM_AUTH_STATE_MISMATCH" };
   }
 
   const playerRef = doc(db, 'players_v14', userId);
@@ -96,6 +97,17 @@ export async function initializeClubV13(userId: string, data: any) {
   const tableId = `table_v140_S${getGlobalSeasonInfo().activeSeasonNumber}_L${leagueId}_V${tier}_G${group}`;
   const tableRef = doc(db, 'league_tables_v2', tableId);
   const counterRef = doc(db, 'system_v1', 'global_stats');
+
+  // Предварительный расчет numericId вне транзакции для стабильности в Web SDK
+  let nextNumericId = 1000;
+  try {
+    const counterSnap = await getDoc(counterRef);
+    if (counterSnap.exists()) {
+      nextNumericId = (counterSnap.data().totalPlayers || 1000) + 1;
+    }
+  } catch (e) {
+    console.warn("[INIT] Counter read failed, using fallback 1000+");
+  }
 
   try {
     const result = await runTransaction(db, async (transaction) => {
@@ -125,14 +137,6 @@ export async function initializeClubV13(userId: string, data: any) {
         throw new Error("GROUP_FULL");
       }
 
-      // Атомарный счетчик ID (быстрее чем getDocs)
-      const counterSnap = await transaction.get(counterRef);
-      let numericId = 1000;
-      if (counterSnap.exists()) {
-        numericId = (counterSnap.data().totalPlayers || 1000) + 1;
-      }
-      transaction.set(counterRef, { totalPlayers: numericId, updatedAt: serverTimestamp() }, { merge: true });
-
       const baseStats = stats[botToReplaceId];
       const actualRank = Number(baseStats.rank);
       
@@ -146,14 +150,15 @@ export async function initializeClubV13(userId: string, data: any) {
         isBot: false
       };
 
-      // ОБНОВЛЕНИЕ ТАБЛИЦЫ
+      // ОБНОВЛЕНИЕ ТАБЛИЦЫ И СЧЕТЧИКА
       transaction.update(tableRef, { stats, updatedAt: serverTimestamp() });
+      transaction.set(counterRef, { totalPlayers: nextNumericId, updatedAt: serverTimestamp() }, { merge: true });
 
       // СОЗДАНИЕ ПРОФИЛЯ
       const finalPlayerData = {
         id: userId,
         email: data.email || null,
-        numericId,
+        numericId: nextNumericId,
         displayName: clubName,
         clubName: clubName,
         country: data.country || 'International',
@@ -173,7 +178,7 @@ export async function initializeClubV13(userId: string, data: any) {
 
       transaction.set(playerRef, finalPlayerData);
 
-      return { success: true, tier, group, rank: actualRank, numericId, botToReplaceId };
+      return { success: true, tier, group, rank: actualRank, numericId: nextNumericId, botToReplaceId };
     });
 
     // Обновление матчей (вне транзакции)
