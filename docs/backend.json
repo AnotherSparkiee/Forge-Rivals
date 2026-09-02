@@ -1,4 +1,3 @@
-
 {
   "entities": {
     "PlayerProfile": {
@@ -7,6 +6,7 @@
       "type": "object",
       "properties": {
         "id": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
         "displayName": { "type": "string" },
         "clubName": { "type": "string" },
         "clubLogo": { "type": "string" },
@@ -18,27 +18,8 @@
         "createdAt": { "type": "string", "format": "date-time" },
         "lastLoginDate": { "type": "string", "format": "date-time" },
         "version": { "type": "number" }
-      }
-    },
-    "MatchRecord": {
-      "title": "MatchRecord",
-      "description": "Зафиксированный результат матча лиги v140",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "leagueId": { "type": "string" },
-        "level": { "type": "number" },
-        "groupId": { "type": "number" },
-        "season": { "type": "number" },
-        "tour": { "type": "number" },
-        "homeId": { "type": "string" },
-        "awayId": { "type": "string" },
-        "scoreA": { "type": "number" },
-        "scoreB": { "type": "number" },
-        "winnerId": { "type": "string" },
-        "resolvedAt": { "type": "string", "format": "date-time" },
-        "version": { "type": "number" }
-      }
+      },
+      "required": ["id", "email", "clubName"]
     }
   },
   "auth": {
@@ -53,8 +34,10 @@
       "description": "Турнирные таблицы версии 140"
     },
     "/matches_v2/{matchId}": {
-      "schema": "#/backend/entities/MatchRecord",
       "description": "Архив зафиксированных результатов лиги v140"
+    },
+    "/verification_codes/{email}": {
+      "description": "Временные коды подтверждения регистрации"
     }
   }
 }

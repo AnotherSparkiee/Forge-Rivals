@@ -8,20 +8,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, ArrowRight, ShieldCheck, LogOut } from 'lucide-react';
+import { Loader2, ArrowRight, ShieldCheck, Mail } from 'lucide-react';
 import { useGameState } from '@/app/lib/store';
 import { cn } from '@/lib/utils';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { useAuth, useUser, initiateEmailSignIn } from '@/firebase';
 
-const EMAIL_DOMAIN = 'players.mobamanageronline.app';
-
-function slugify(teamName: string) {
-  return teamName.trim().toLowerCase().replace(/\s+/g, '');
-}
-
 export default function LoginPage() {
-  const [identifier, setIdentifier] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   
@@ -36,7 +30,7 @@ export default function LoginPage() {
       title: "Global Access",
       navLogin: "Login",
       navRegister: "Register",
-      emailLabel: "Team Name",
+      emailLabel: "Registered Email",
       passLabel: "Access Key",
       submitBtn: "ESTABLISH LINK",
       welcomeBack: "Command Link Active",
@@ -47,7 +41,7 @@ export default function LoginPage() {
       title: "Глобальный доступ",
       navLogin: "Вход",
       navRegister: "Регистрация",
-      emailLabel: "Название команды",
+      emailLabel: "Ваш Email",
       passLabel: "Ключ доступа",
       submitBtn: "УСТАНОВИТЬ СВЯЗЬ",
       welcomeBack: "Связь со штабом активна",
@@ -68,16 +62,11 @@ export default function LoginPage() {
     e.preventDefault();
     if (!auth) return;
 
-    const trimmedId = identifier.trim();
-    if (!trimmedId || password.length < 6) return;
+    if (!email.trim() || password.length < 6) return;
 
     setIsProcessing(true);
     try {
-      const slug = slugify(trimmedId);
-      const technicalEmail = `${slug}@${EMAIL_DOMAIN}`;
-      
-      initiateEmailSignIn(auth, technicalEmail, password);
-      // FirebaseProvider handles the state update
+      await initiateEmailSignIn(auth, email.trim(), password);
     } catch (error: any) {
       setIsProcessing(false);
       toast({ variant: "destructive", title: t.error });
@@ -86,7 +75,6 @@ export default function LoginPage() {
 
   if (!storeIsLoaded || isUserLoading) return <LoadingScreen />;
 
-  // If already logged in
   if (user) {
     return (
       <div className="space-y-4 animate-in fade-in zoom-in duration-500">
@@ -96,7 +84,7 @@ export default function LoginPage() {
               <ShieldCheck className="w-8 h-8 text-primary" />
             </div>
             <CardTitle className="font-headline uppercase tracking-widest text-white text-lg">{t.welcomeBack}</CardTitle>
-            <p className="text-[10px] text-muted-foreground uppercase font-bold mt-2">OPERATIONAL_ID: {user.uid.slice(0, 12)}...</p>
+            <p className="text-[10px] text-muted-foreground uppercase font-bold mt-2">ID: {user.uid.slice(0, 12)}...</p>
           </CardHeader>
           <CardFooter>
             <Button onClick={() => router.push('/')} className="w-full h-14 hero-gradient font-black text-xs tracking-widest">
@@ -126,12 +114,13 @@ export default function LoginPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="identifier">{t.emailLabel}</Label>
+              <Label htmlFor="email">{t.emailLabel}</Label>
               <Input 
-                id="identifier" 
-                placeholder="Team Name" 
-                value={identifier} 
-                onChange={(e) => setIdentifier(e.target.value)} 
+                id="email" 
+                type="email"
+                placeholder="commander@gmail.com" 
+                value={email} 
+                onChange={(e) => setEmail(e.target.value)} 
                 required 
                 className="bg-secondary/50" 
               />
@@ -153,7 +142,7 @@ export default function LoginPage() {
               {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : t.submitBtn}
             </Button>
             <p className="text-xs text-center text-muted-foreground mt-2">
-              New manager? <Link href="/auth/register" className="text-primary hover:underline">Initialize command link</Link>
+              New manager? <Link href="/auth/register" className="text-primary hover:underline font-bold">Initialize command link</Link>
             </p>
           </CardFooter>
         </form>
