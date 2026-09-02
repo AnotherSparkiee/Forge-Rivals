@@ -1,13 +1,13 @@
 'use server';
 
 /**
- * @fileOverview Серверный модуль инициализации v144 (Transactional & Privileged).
- * Использует транзакции для предотвращения race condition при регистрации.
+ * @fileOverview Серверный модуль инициализации v145 (COUNTER-BASED & PRIVILEGED).
+ * Использует документ-счетчик для numericId и транзакции для безопасности.
  */
 
 import { 
   collection, getDocs, query, where, doc, getDoc, 
-  serverTimestamp, runTransaction
+  serverTimestamp, runTransaction, increment
 } from 'firebase/firestore';
 import { authenticateAsSystem } from '@/firebase/system-auth';
 import { initializeFirebase } from '@/firebase';
@@ -72,10 +72,9 @@ export async function initializeClubV13(userId: string, data: any) {
   if (!userId) return { success: false, error: "AUTH_REQUIRED" };
   const { clubName, tier: validatedTier } = validateProfileData(data);
   
-  await authenticateAsSystem();
-  const { firestore: db } = initializeFirebase();
-  const seasonInfo = getGlobalSeasonInfo();
-  const seasonNum = seasonInfo.activeSeasonNumber;
+  // 1. Пытаемся войти как система
+  const isSystemAuth = await authenticateAsSystem();
+  const { firestore: db, auth } = initializeFirebase();
 
   const playerRef = doc(db, 'players_v14', userId);
   const leagueId = String(data.selectedLeagueId || "ALPHA");
@@ -83,33 +82,29 @@ export async function initializeClubV13(userId: string, data: any) {
   const group = Number(data.group || 1);
   const rank = Number(data.rank || 1);
   
-  const tableId = `table_v140_S${seasonNum}_L${leagueId}_V${tier}_G${group}`;
+  const tableId = `table_v140_S${getGlobalSeasonInfo().activeSeasonNumber}_L${leagueId}_V${tier}_G${group}`;
   const tableRef = doc(db, 'league_tables_v2', tableId);
+  const counterRef = doc(db, 'system_v1', 'global_stats');
 
   try {
-    // В клиентском SDK Firebase запросы (getDocs) запрещены внутри runTransaction.
-    // Поэтому получаем примерный порядковый номер ДО начала транзакции.
-    const allPlayersSnap = await getDocs(collection(db, 'players_v14'));
-    const numericId = allPlayersSnap.size + 1;
-
     const result = await runTransaction(db, async (transaction) => {
+      // Проверка существующего профиля
       const playerSnap = await transaction.get(playerRef);
       if (playerSnap.exists()) {
         const p = playerSnap.data();
         return { success: true, tier: p.leagueLevel, group: p.groupId, rank: p.rank, numericId: p.numericId };
       }
 
+      // Проверка доступности таблицы
       let tableSnap = await transaction.get(tableRef);
       if (!tableSnap.exists()) {
         throw new Error("SECTOR_NOT_READY");
       }
 
       const tableData = tableSnap.data();
-      if (!tableData) throw new Error("DATA_INTEGRITY_ERROR");
-
       const stats = { ...tableData.stats };
 
-      // ТРАНЗАКЦИОННАЯ ПРОВЕРКА: Слот все еще свободен?
+      // Поиск бота для замены
       let botToReplaceId = Object.keys(stats).find(id => Number(stats[id].rank) === rank && stats[id].isBot === true) || null;
       if (!botToReplaceId) {
         botToReplaceId = Object.keys(stats).find(id => stats[id].isBot === true) || null;
@@ -119,10 +114,17 @@ export async function initializeClubV13(userId: string, data: any) {
         throw new Error("GROUP_FULL");
       }
 
+      // Получаем numericId через атомарный счетчик
+      const counterSnap = await transaction.get(counterRef);
+      let numericId = 1000;
+      if (counterSnap.exists()) {
+        numericId = (counterSnap.data().totalPlayers || 1000) + 1;
+      }
+      transaction.set(counterRef, { totalPlayers: numericId, updatedAt: serverTimestamp() }, { merge: true });
+
       const baseStats = stats[botToReplaceId];
       const actualRank = Number(baseStats.rank);
       
-      // Удаляем бота, добавляем игрока
       delete stats[botToReplaceId];
       stats[userId] = {
         ...baseStats,
@@ -133,13 +135,11 @@ export async function initializeClubV13(userId: string, data: any) {
         isBot: false
       };
 
-      // Проверка целостности состава группы
       if (Object.keys(stats).length !== 8) throw new Error("TABLE_CORRUPTION_PREVENTED");
 
-      // ОБНОВЛЕНИЕ ТАБЛИЦЫ
+      // ОБНОВЛЕНИЯ
       transaction.update(tableRef, { stats, updatedAt: serverTimestamp() });
 
-      // СОЗДАНИЕ ПРОФИЛЯ
       const finalPlayerData = {
         ...data,
         id: userId,
@@ -155,7 +155,7 @@ export async function initializeClubV13(userId: string, data: any) {
         crystals: 50,
         experiencePoints: 0,
         managerLevel: 1,
-        lastProcessedSeason: seasonNum,
+        lastProcessedSeason: getGlobalSeasonInfo().activeSeasonNumber,
         lastLoginDate: new Date().toISOString(),
         createdAt: serverTimestamp(),
         version: 140
@@ -166,13 +166,12 @@ export async function initializeClubV13(userId: string, data: any) {
       return { success: true, tier, group, rank: actualRank, numericId, botToReplaceId };
     });
 
-    // Обновление матчей делаем отдельно, так как их может быть много (Bo1/Bo2)
+    // Обновление матчей (вне транзакции для скорости)
     if (result.success && result.botToReplaceId) {
       const matchesQ = query(collection(db, 'matches_v2'), 
         where('leagueId', '==', leagueId),
         where('level', '==', tier),
         where('groupId', '==', group),
-        where('season', '==', seasonNum),
         where('version', '==', 140)
       );
       const matchesSnap = await getDocs(matchesQ);

@@ -5,3 +5,8 @@ runConfig:
   # Increase this value if you'd like to automatically spin up
   # more instances in response to increased traffic.
   maxInstances: 1
+
+# Регистрация секретов для доступа в Server Actions
+environmentVariables:
+  - variable: SYSTEM_ACCOUNT_PASSWORD
+    secret: SYSTEM_ACCOUNT_PASSWORD
