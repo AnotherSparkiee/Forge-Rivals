@@ -108,7 +108,11 @@ export default function RegisterPage() {
         toast({ title: t.successCode });
         setIsCodeSent(true);
       } else {
-        toast({ variant: "destructive", title: "Email Error", description: res.error });
+        toast({ 
+          variant: "destructive", 
+          title: "System Error", 
+          description: "Could not initialize verification process." 
+        });
       }
     } finally {
       setIsProcessing(false);

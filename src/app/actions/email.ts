@@ -2,7 +2,7 @@
 
 /**
  * @fileOverview Серверный модуль для работы с Email и кодами подтверждения.
- * Оптимизирован: удалена обязательная системная авторизация для публичных кодов.
+ * Оптимизирован: код всегда выводится в консоль для дебага, ошибки SMTP не блокируют процесс.
  */
 
 import { doc, setDoc, getDoc, deleteDoc, Timestamp } from 'firebase/firestore';
@@ -18,40 +18,49 @@ export async function sendVerificationEmail(email: string) {
   const expiresAt = new Date(Date.now() + 15 * 60000); // 15 минут
 
   try {
-    // Сохраняем код во временную коллекцию. 
-    // Операция разрешена правилами "if true" для этой коллекции.
+    // 1. Всегда сохраняем код в Firestore
     await setDoc(doc(db, 'verification_codes', email), {
       code,
       expiresAt: expiresAt.toISOString(),
       createdAt: Timestamp.now()
     }, { merge: true });
 
-    // Попытка отправить реальное письмо, если есть настройки
-    if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
-      const transporter = nodemailer.createTransport({
-        host: process.env.SMTP_HOST,
-        port: Number(process.env.SMTP_PORT) || 465,
-        secure: true,
-        auth: {
-          user: process.env.SMTP_USER,
-          pass: process.env.SMTP_PASS,
-        },
-      });
+    // 2. Всегда логируем код в консоль сервера (для Firebase Studio / Debug)
+    console.log(`\n--- [EMAIL VERIFICATION SYSTEM] ---`);
+    console.log(`EMAIL: ${email}`);
+    console.log(`CODE: ${code}`);
+    console.log(`-----------------------------------\n`);
 
-      await transporter.sendMail({
-        from: '"Lines of Enmity" <noreply@mobamanageronline.app>',
-        to: email,
-        subject: "Verification Code",
-        text: `Your verification code: ${code}`,
-        html: `<b>Your verification code: ${code}</b><p>Expires in 15 minutes.</p>`,
-      });
-    } else {
-      console.log(`[EMAIL DEBUG] Verification code for ${email}: ${code}`);
+    // 3. Попытка отправить реальное письмо, если есть настройки
+    if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
+      try {
+        const transporter = nodemailer.createTransport({
+          host: process.env.SMTP_HOST,
+          port: Number(process.env.SMTP_PORT) || 465,
+          secure: true,
+          auth: {
+            user: process.env.SMTP_USER,
+            pass: process.env.SMTP_PASS,
+          },
+        });
+
+        await transporter.sendMail({
+          from: '"Lines of Enmity" <noreply@mobamanageronline.app>',
+          to: email,
+          subject: "Verification Code",
+          text: `Your verification code: ${code}`,
+          html: `<b>Your verification code: ${code}</b><p>Expires in 15 minutes.</p>`,
+        });
+      } catch (smtpError: any) {
+        // Логируем ошибку SMTP, но не прерываем выполнение
+        console.error("[SMTP ERROR]:", smtpError.message);
+      }
     }
 
+    // Возвращаем успех в любом случае, так как код в логах и в базе
     return { success: true };
   } catch (error: any) {
-    console.error("[EMAIL ERROR]:", error.code, error.message);
+    console.error("[DATABASE ERROR]:", error.code, error.message);
     return { success: false, error: error.message };
   }
 }

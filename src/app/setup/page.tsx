@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -51,7 +50,14 @@ export default function SetupPage() {
 
   useEffect(() => {
     if (!isUserLoading && !user) router.push('/auth/login');
-    if (user && !teamName) setTeamName(loginName);
+    
+    // Пытаемся восстановить название команды из регистрации
+    const pendingName = localStorage.getItem('pending_club_name');
+    if (pendingName && !teamName) {
+      setTeamName(pendingName);
+    } else if (user && !teamName) {
+      setTeamName(loginName);
+    }
   }, [user, isUserLoading, router, loginName, teamName]);
 
   const handleCompleteSetup = async () => {
@@ -81,7 +87,7 @@ export default function SetupPage() {
 
       const finalClubName = teamName.trim();
 
-      // 2. Серверная инициализация
+      // 2. Серверная инициализация (v14)
       const result = await initializeClubV13(user.uid, {
         tier: placement.tier,
         group: placement.group,
@@ -89,11 +95,12 @@ export default function SetupPage() {
         clubName: finalClubName,
         clubLogo: selectedClub?.logo,
         country: selectedCountry?.name,
+        email: user.email,
         selectedLeagueId: targetLeagueId
       });
 
       if (!result.success) {
-        // ROLLBACK: Удаляем собственный аккаунт через клиентский SDK, если серверное размещение не удалось
+        // ROLLBACK: Удаляем аккаунт, если не удалось разместить в лиге
         await user.delete();
         throw new Error(result.error || "INITIALIZATION_FAILED");
       }
@@ -116,6 +123,7 @@ export default function SetupPage() {
         version: 140
       });
 
+      localStorage.removeItem('pending_club_name');
       toast({ title: language === 'ru' ? "Клуб инициализирован!" : "Club Initialized!" });
       router.replace('/');
     } catch (e: any) {
