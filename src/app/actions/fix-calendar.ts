@@ -2,7 +2,7 @@
 
 /**
  * Скрипт Абсолютного Сброса v131 (Safe Batches).
- * Очищает коллекции порциями по 1500 доков для предотвращения таймаутов.
+ * Добавлена обязательная авторизация.
  */
 
 import { 
@@ -10,14 +10,16 @@ import {
   serverTimestamp, query, limit, setDoc, deleteDoc, writeBatch 
 } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
+import { authenticateAsSystem } from '@/firebase/system-auth';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 import { initializeLeagueWorld } from './world-engine';
 import { TOTAL_GROUPS } from '@/app/lib/leagues-data';
 
 const DELETE_BATCH_SIZE = 500; 
-const WIPE_LOOPS_PER_CALL = 3; // Удаляем до 1500 доков за один вызов для безопасности
+const WIPE_LOOPS_PER_CALL = 3;
 
 export async function runGlobalEmergencyRepair() {
+  await authenticateAsSystem();
   const { firestore: db } = initializeFirebase();
   const info = getGlobalSeasonInfo();
   const seasonNum = info.activeSeasonNumber;

@@ -1,7 +1,7 @@
 'use server';
 
 /**
- * @fileOverview Модуль инициализации клуба v150 (Zod & Security).
+ * @fileOverview Модуль инициализации клуба v151 (Stability Fixes).
  */
 
 import { 
@@ -16,7 +16,8 @@ import {
   getBotId, 
   getBotName,
   TEAMS_PER_GROUP,
-  generateSeasonCalendar
+  generateSeasonCalendar,
+  getTableId
 } from '@/app/lib/leagues-data';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 import { InitializeClubSchema } from '@/app/lib/validation-schemas';
@@ -102,7 +103,6 @@ export async function findStrategicPlacement(leagueId: string) {
 }
 
 export async function initializeClubV13(userId: string, data: any) {
-  // 1. Валидация входа
   const validation = InitializeClubSchema.safeParse(data);
   if (!validation.success) {
     logger.warn("Invalid initializeClubV13 parameters", { errors: validation.error.format() });
@@ -117,13 +117,12 @@ export async function initializeClubV13(userId: string, data: any) {
   const { clubName, tier, group, rank, selectedLeagueId: leagueId } = validation.data;
 
   const playerRef = doc(db, 'players_v14', userId);
-  const tableId = `table_v140_S${seasonNum}_L${leagueId}_V${tier}_G${group}`;
+  const tableId = getTableId(seasonNum, leagueId, tier, group);
   const tableRef = doc(db, 'league_tables_v2', tableId);
   const counterRef = doc(db, 'system_v1', 'global_stats');
 
   try {
     const result = await runTransaction(db, async (transaction) => {
-      // ПОРЯДОК: Сначала все GET
       const [playerSnap, tableSnap, counterSnap] = await Promise.all([
         transaction.get(playerRef),
         transaction.get(tableRef),
@@ -172,10 +171,8 @@ export async function initializeClubV13(userId: string, data: any) {
 
     if (result.success && result.botToReplaceId) {
       logger.info("New club initialized", { userId, clubName, tier, group, rank });
-      // Фоновое обновление матчей (без ожидания)
       const matchesQ = query(collection(db, 'matches_v2'), where('leagueId', '==', leagueId), where('level', '==', tier), where('groupId', '==', group), where('version', '==', 140));
       getDocs(matchesQ).then(snap => {
-        const { writeBatch } = require('firebase/firestore');
         const b = writeBatch(db);
         snap.forEach(d => {
           const m = d.data();
@@ -206,9 +203,10 @@ export async function releasePlayerSlot(userId: string) {
       const playerSnap = await transaction.get(playerRef);
       if (!playerSnap.exists()) return;
       const p = playerSnap.data();
-      const { leagueLevel: tier, groupId: group, rank, selectedLeagueId: leagueId, lastProcessedSeason: seasonNum } = p;
+      const { leagueLevel: tier, groupId: group, rank, selectedLeagueId: leagueId } = p;
+      const seasonNum = p.lastProcessedSeason ?? 1;
 
-      const tableId = `table_v140_S${seasonNum || 1}_L${leagueId}_V${tier}_G${group}`;
+      const tableId = getTableId(seasonNum, leagueId, tier, group);
       const tableRef = doc(db, 'league_tables_v2', tableId);
       const tableSnap = await transaction.get(tableRef);
 

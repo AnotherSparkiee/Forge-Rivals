@@ -1,17 +1,17 @@
 'use server';
 
 /**
- * @fileOverview Серверный модуль финансов с поддержкой идемпотентности.
+ * @fileOverview Серверный модуль финансов с поддержкой идемпотентности и TTL.
  */
 
-import { doc, getDoc, setDoc, serverTimestamp, runTransaction } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp, runTransaction, Timestamp } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import { FinancialOpSchema } from '@/app/lib/validation-schemas';
 import { logger } from '@/app/lib/logger';
 
 /**
  * Выполняет финансовую операцию с проверкой ключа идемпотентности.
- * Предотвращает двойное списание/начисление при повторных запросах.
+ * Включает expiresAt для автоматической очистки (TTL).
  */
 export async function processFinancialOperation(userId: string, data: any) {
   const validation = FinancialOpSchema.safeParse(data);
@@ -25,7 +25,6 @@ export async function processFinancialOperation(userId: string, data: any) {
       const logRef = doc(db, 'system_v1', `idempotency_${idempotencyKey}`);
       const logSnap = await transaction.get(logRef);
 
-      // 1. Проверка: была ли такая операция уже выполнена?
       if (logSnap.exists()) {
         logger.warn("Idempotency match detected. Skipping operation.", { idempotencyKey });
         return { success: true, alreadyProcessed: true };
@@ -38,24 +37,26 @@ export async function processFinancialOperation(userId: string, data: any) {
       const pData = playerSnap.data();
       const currentBalance = Number(pData[type] || 0);
 
-      // 2. Проверка баланса (только для списания)
       if (amount < 0 && currentBalance < Math.abs(amount)) {
         throw new Error("INSUFFICIENT_FUNDS");
       }
 
-      // 3. Обновление баланса
       transaction.update(playerRef, { 
         [type]: currentBalance + amount,
         updatedAt: serverTimestamp() 
       });
 
-      // 4. Запись ключа идемпотентности
+      // TTL: 7 дней для очистки ключей
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 7);
+
       transaction.set(logRef, {
         userId,
         amount,
         type,
         description,
-        processedAt: serverTimestamp()
+        processedAt: serverTimestamp(),
+        expiresAt: Timestamp.fromDate(expiresAt)
       });
 
       return { success: true };

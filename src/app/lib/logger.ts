@@ -1,33 +1,36 @@
 /**
  * @fileOverview Структурированный логгер для серверной части.
- * Обеспечивает единообразный формат вывода логов для мониторинга.
+ * Интегрирован с Cloud Logging через process.stdout.
  */
 
 export const logger = {
   info: (message: string, context?: any) => {
-    console.log(JSON.stringify({ 
+    const logEntry = JSON.stringify({ 
       level: 'info', 
       message, 
       ...context, 
       timestamp: new Date().toISOString() 
-    }));
+    });
+    process.stdout.write(logEntry + '\n');
   },
   warn: (message: string, context?: any) => {
-    console.warn(JSON.stringify({ 
+    const logEntry = JSON.stringify({ 
       level: 'warn', 
       message, 
       ...context, 
       timestamp: new Date().toISOString() 
-    }));
+    });
+    process.stdout.write(logEntry + '\n');
   },
   error: (message: string, error?: any, context?: any) => {
-    console.error(JSON.stringify({ 
+    const logEntry = JSON.stringify({ 
       level: 'error', 
       message, 
       error: error?.message || error, 
       stack: error?.stack,
       ...context, 
       timestamp: new Date().toISOString() 
-    }));
+    });
+    process.stdout.write(logEntry + '\n');
   }
 };

@@ -4,6 +4,7 @@ import { getDoc, doc } from 'firebase/firestore';
 
 /**
  * @fileOverview Эндпоинт проверки здоровья системы.
+ * Устойчив к ошибкам инициализации.
  */
 
 export async function GET() {
@@ -18,6 +19,7 @@ export async function GET() {
       timestamp: new Date().toISOString() 
     });
   } catch (error: any) {
+    console.error('[HEALTH CHECK FAILED]:', error.message);
     return NextResponse.json({ 
       status: 'DOWN', 
       error: error.message,

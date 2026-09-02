@@ -1,14 +1,14 @@
 'use server';
 
 /**
- * @fileOverview MMO-Двигатель v35 (Server-Side Staff-Aware AI Resolver).
- * Обновлена версия до v35 для синхронизации с Season Engine.
+ * @fileOverview MMO-Двигатель v36 (Stable Transactions & Real Squads).
+ * Исправлены конфликты транзакций и пустые составы.
  */
 
 import { 
   collection, doc, getDocs, 
   query, where, serverTimestamp, 
-  runTransaction, getDoc
+  writeBatch, getDoc, increment
 } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import { isMatchOverdue, getGlobalSeasonInfo } from '@/app/lib/time-utils';
@@ -34,6 +34,8 @@ export async function forceResolveGroupMatches(leagueId: string, divisionId: num
   if (snap.empty) return { success: true, count: 0 };
 
   let resolvedCount = 0;
+  const batch = writeBatch(db);
+  const tableStatsAggr = new Map<string, Record<string, number>>();
 
   for (const docSnap of snap.docs) {
     const m = docSnap.data();
@@ -42,25 +44,34 @@ export async function forceResolveGroupMatches(leagueId: string, divisionId: num
       try {
         const tableId = getTableId(seasonNum, leagueId, divisionId, Number(groupId));
 
-        // Загрузка данных клубов (players_v14) для получения реальных составов и стратегий
         const [homeSnap, awaySnap] = await Promise.all([
           getDoc(doc(db, 'players_v14', m.homeId)),
           getDoc(doc(db, 'players_v14', m.awayId))
         ]);
 
         const getTeamData = (clubSnap: any) => {
-          if (!clubSnap.exists()) return { heroes: [], strategy: 'Balanced Play' };
+          if (!clubSnap.exists()) return { heroes: [], strategy: 'Balanced Play', staffBonus: 0, infraBonus: 0 };
           const data = clubSnap.data();
-          const squad = (data.ownedPlayers || []).filter((p: any) => 
-            Object.values(data.lineup || {}).includes(p.id)
-          ).map((p: any) => ({
+          
+          // Fallback: если lineup не задан, берем первых 5 игроков
+          const lineupIds = Object.values(data.lineup || {});
+          let squad = (data.ownedPlayers || []).filter((p: any) => 
+            lineupIds.includes(p.id)
+          );
+          
+          if (squad.length < 5) {
+            squad = (data.ownedPlayers || []).slice(0, 5);
+          }
+
+          const finalSquad = squad.map((p: any) => ({
             ...p,
             isSub: p.id === data.lineup?.sub_carry || p.id === data.lineup?.sub_mid || 
                    p.id === data.lineup?.sub_offlane || p.id === data.lineup?.sub_support || 
                    p.id === data.lineup?.sub_full_support
           }));
+
           return {
-            heroes: squad,
+            heroes: finalSquad,
             strategy: data.strategy || 'Balanced Play',
             staffBonus: data.staff?.coach?.skills?.primary || 0,
             infraBonus: data.bootcamp?.bootcampLevel || 0
@@ -81,39 +92,34 @@ export async function forceResolveGroupMatches(leagueId: string, divisionId: num
         const sB = parseInt(seriesScoreParts[1]);
         const winnerId = sA > sB ? m.homeId : (sB > sA ? m.awayId : null);
 
-        await runTransaction(db, async (transaction) => {
-          const tableRef = doc(db, 'league_tables_v2', tableId);
-          const tableSnap = await transaction.get(tableRef);
-          if (tableSnap.exists()) {
-            const tableData = tableSnap.data();
-            const stats = { ...tableData.stats };
-            
-            const updateStats = (id: string, sa: number, sb: number) => {
-              if (stats[id]) {
-                stats[id].matchesPlayed++;
-                stats[id].wins += (sa > sb ? 1 : 0);
-                stats[id].draws += (sa === sb ? 1 : 0);
-                stats[id].losses += (sb > sa ? 1 : 0);
-                stats[id].points += (sa > sb ? 3 : (sa === sb ? 1 : 0));
-                stats[id].diff += (sa - sb);
-              }
-            };
-
-            updateStats(m.homeId, sA, sB);
-            updateStats(m.awayId, sB, sA);
-            transaction.update(tableRef, { stats, updatedAt: serverTimestamp() });
-          }
-
-          transaction.update(docSnap.ref, {
-            scoreA: sA, scoreB: sB,
-            winnerId,
-            status: 'finished',
-            isFinished: true,
-            simulation,
-            finishedAt: serverTimestamp(),
-            version: 140
-          });
+        // Обновляем матч в батче
+        batch.update(docSnap.ref, {
+          scoreA: sA, scoreB: sB,
+          winnerId,
+          status: 'finished',
+          isFinished: true,
+          simulation,
+          finishedAt: serverTimestamp(),
+          version: 140
         });
+
+        // Агрегируем статы для таблицы
+        if (!tableStatsAggr.has(tableId)) tableStatsAggr.set(tableId, {});
+        const aggr = tableStatsAggr.get(tableId)!;
+
+        const updateStats = (id: string, sa: number, sb: number) => {
+          if (!id) return;
+          const prefix = `stats.${id}`;
+          aggr[`${prefix}.matchesPlayed`] = (aggr[`${prefix}.matchesPlayed`] || 0) + 1;
+          aggr[`${prefix}.wins`] = (aggr[`${prefix}.wins`] || 0) + (sa > sb ? 1 : 0);
+          aggr[`${prefix}.draws`] = (aggr[`${prefix}.draws`] || 0) + (sa === sb ? 1 : 0);
+          aggr[`${prefix}.losses`] = (aggr[`${prefix}.losses`] || 0) + (sb > sa ? 1 : 0);
+          aggr[`${prefix}.points`] = (aggr[`${prefix}.points`] || 0) + (sa > sb ? 3 : (sa === sb ? 1 : 0));
+          aggr[`${prefix}.diff`] = (aggr[`${prefix}.diff`] || 0) + (sa - sb);
+        };
+
+        updateStats(m.homeId, sA, sB);
+        updateStats(m.awayId, sB, sA);
 
         resolvedCount++;
       } catch (e) {
@@ -122,5 +128,16 @@ export async function forceResolveGroupMatches(leagueId: string, divisionId: num
     }
   }
 
+  // Применяем агрегированные изменения к таблицам
+  for (const [tableId, stats] of tableStatsAggr.entries()) {
+    const tableRef = doc(db, 'league_tables_v2', tableId);
+    const firestoreStats: any = { updatedAt: serverTimestamp() };
+    for (const [key, val] of Object.entries(stats)) {
+      firestoreStats[key] = increment(val);
+    }
+    batch.set(tableRef, firestoreStats, { merge: true });
+  }
+
+  await batch.commit();
   return { success: true, count: resolvedCount };
 }

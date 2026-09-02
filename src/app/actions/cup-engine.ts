@@ -1,8 +1,8 @@
-
 'use server';
 
 /**
  * @fileOverview Ультимативный антикризисный двигатель Кубка v14.
+ * Исправлены пустые матчи и нестабильная сортировка.
  */
 
 import { 
@@ -65,7 +65,11 @@ export async function generatePyramidCup(targetSeasonNumber?: number) {
       bracketSize *= 2;
     }
 
-    leagueTeams.sort((a, b) => b.power - a.power); 
+    // Стабильная сортировка с tie-breaker по ID
+    leagueTeams.sort((a, b) => {
+      if (b.power !== a.power) return b.power - a.power;
+      return a.id.localeCompare(b.id);
+    });
 
     const slots = new Array(bracketSize).fill(null);
     leagueTeams.forEach((team, idx) => {
@@ -80,7 +84,8 @@ export async function generatePyramidCup(targetSeasonNumber?: number) {
       const home = slots[left];
       const away = slots[right];
 
-      if (leagueTeams.length === 0) break;
+      // Прерываем, если в этой части сетки больше нет команд (избегаем TBD vs TBD)
+      if (!home && !away) break;
 
       const cupMatchId = `season_${SEASON_ID}_league_${league.id}_round_1_match_${matchNum}`;
 

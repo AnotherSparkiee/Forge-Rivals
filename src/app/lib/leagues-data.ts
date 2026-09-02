@@ -1,5 +1,5 @@
 /**
- * @fileOverview Ядро лиг v72: Формат имен ботов Bot01{Level}{Group}{Rank}.
+ * @fileOverview Ядро лиг v73: Недетерминированные результаты.
  */
 
 import { GLOBAL_EPOCH_ISO } from './time-utils';
@@ -35,8 +35,6 @@ export function getBotId(leagueId: string, level: number, group: number, rank: n
 
 /**
  * Генерирует публичное имя для бота.
- * Формат: Bot01{Level}{Group}{Rank}
- * Гарантирует уникальность среди всех 511 групп.
  */
 export function getBotName(level: number, group: number, rank: number): string {
   const leagueIdx = "01";
@@ -77,7 +75,7 @@ export function generateSeasonCalendar(teams: any[], seasonNumber: number, leagu
   const [hh, mm] = league.startTime.split(':').map(Number);
   
   const epochUtc = new Date(GLOBAL_EPOCH_ISO);
-  const cycleDuration = 15; 
+  const cycleDuration = 17; // Синхронизировано с SEASON_CYCLE_DAYS
   const dayMs = 24 * 60 * 60 * 1000;
   const seasonStartMs = epochUtc.getTime() + (seasonNumber - 1) * cycleDuration * dayMs;
 
@@ -118,7 +116,8 @@ export function generateSeasonCalendar(teams: any[], seasonNumber: number, leagu
 }
 
 /**
- * ДЕТЕРМИНИРОВАННЫЙ РАСЧЕТ РЕЗУЛЬТАТА.
+ * РАСЧЕТ РЕЗУЛЬТАТА.
+ * Добавлен случайный элемент для исключения предсказуемости.
  */
 export function getMatchResult(
   rankA: number, 
@@ -128,17 +127,22 @@ export function getMatchResult(
   season: number, 
   tour: number
 ): [number, number] {
-  const combinedKey = `v11-L${level}-G${group}-S${season}-T${tour}-R${rankA}-vs-R${rankB}`;
+  const combinedKey = `v12-L${level}-G${group}-S${season}-T${tour}-R${rankA}-vs-R${rankB}`;
   let hash = 0;
   for (let i = 0; i < combinedKey.length; i++) {
     hash = ((hash << 5) - hash) + combinedKey.charCodeAt(i);
     hash |= 0;
   }
-  const absHash = Math.abs(hash);
+  
+  // Добавляем случайный фактор на основе текущего времени (миллисекунды)
+  const randomFactor = Math.floor(Math.random() * 1000);
+  const absHash = Math.abs(hash + randomFactor);
+  
   const rankDiff = rankB - rankA;
   const baseChance = 35 + (rankDiff * 2);
   const roll = absHash % 100;
+  
   if (roll < baseChance) return [2, 0];
-  if (roll > (100 - baseChance)) return [0, 2];
+  if (roll > (100 - (baseChance / 2))) return [0, 2];
   return [1, 1];
 }
