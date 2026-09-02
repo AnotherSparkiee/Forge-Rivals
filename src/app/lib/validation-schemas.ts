@@ -1,0 +1,33 @@
+import { z } from 'zod';
+import { TEAMS_PER_GROUP } from './leagues-data';
+
+/**
+ * @fileOverview Схемы валидации для Server Actions.
+ */
+
+export const EmailInputSchema = z.object({
+  email: z.string().email(),
+});
+
+export const VerifyCodeSchema = z.object({
+  email: z.string().email(),
+  code: z.string().length(6).regex(/^\d+$/),
+});
+
+export const InitializeClubSchema = z.object({
+  clubName: z.string().min(3).max(20),
+  tier: z.number().int().min(1).max(9),
+  group: z.number().int().positive(),
+  rank: z.number().int().min(1).max(TEAMS_PER_GROUP),
+  selectedLeagueId: z.string(),
+  clubLogo: z.string().url().optional().nullable(),
+  country: z.string().optional().nullable(),
+  email: z.string().email().nullable(),
+});
+
+export const FinancialOpSchema = z.object({
+  idempotencyKey: z.string().min(10),
+  amount: z.number().int(),
+  type: z.enum(['credits', 'crystals']),
+  description: z.string().optional(),
+});

@@ -1,7 +1,7 @@
 'use server';
 
 /**
- * @fileOverview Серверный модуль инициализации v149 (AUTO-SECTOR PROVISIONING).
+ * @fileOverview Модуль инициализации клуба v150 (Zod & Security).
  */
 
 import { 
@@ -19,22 +19,9 @@ import {
   generateSeasonCalendar
 } from '@/app/lib/leagues-data';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
+import { InitializeClubSchema } from '@/app/lib/validation-schemas';
+import { logger } from '@/app/lib/logger';
 
-function validateProfileData(data: any) {
-  const clubName = String(data.clubName || "").trim();
-  if (clubName.length < 3 || clubName.length > 20) {
-    throw new Error("INVALID_CLUB_NAME_LENGTH");
-  }
-  const tier = Number(data.tier);
-  if (isNaN(tier) || tier < 1 || tier > 9) {
-    throw new Error("INVALID_LEAGUE_LEVEL");
-  }
-  return { clubName, tier };
-}
-
-/**
- * Инициализирует структуру группы прямо внутри транзакции.
- */
 async function provisionGroupInTransaction(
   transaction: any, 
   db: any, 
@@ -69,11 +56,9 @@ async function provisionGroupInTransaction(
   for (const m of calendar) {
     const mId = `match_v140_S${seasonNum}_L${leagueId}_V${tier}_G${group}_T${m.tour}_R${m.homeRank}_vs_R${m.awayRank}`;
     transaction.set(doc(db, 'matches_v2', mId), {
-      ...m,
-      id: mId,
+      ...m, id: mId,
       leagueId, level: tier, groupId: group, season: seasonNum,
-      isFinished: false, scoreA: 0, scoreB: 0,
-      version: 140
+      isFinished: false, scoreA: 0, scoreB: 0, version: 140
     });
   }
 
@@ -88,7 +73,7 @@ export async function findStrategicPlacement(leagueId: string) {
     const q = query(
       collection(db, 'players_v14'), 
       where('selectedLeagueId', '==', leagueId),
-      limit(1000) // Добавлен лимит для безопасности
+      limit(1000)
     );
     const snap = await getDocs(q);
     
@@ -96,8 +81,7 @@ export async function findStrategicPlacement(leagueId: string) {
     snap.forEach(d => {
       const data = d.data();
       if (data.leagueLevel && data.groupId && data.rank) {
-        const key = `${data.leagueLevel}_${data.groupId}_${data.rank}`;
-        occupiedSlots.add(key);
+        occupiedSlots.add(`${data.leagueLevel}_${data.groupId}_${data.rank}`);
       }
     });
 
@@ -106,47 +90,45 @@ export async function findStrategicPlacement(leagueId: string) {
       for (let group = 1; group <= groupsInTier; group++) {
         for (let rank = 1; rank <= 8; rank++) {
           const key = `${tier}_${group}_${rank}`;
-          if (!occupiedSlots.has(key)) {
-            return { tier: Number(tier), group: Number(group), rank: Number(rank) };
-          }
+          if (!occupiedSlots.has(key)) return { tier, group, rank };
         }
       }
     }
     return { tier: 9, group: 1, rank: 1 };
   } catch (error) {
+    logger.error("Error in findStrategicPlacement", error);
     return { tier: 9, group: 1, rank: 1 };
   }
 }
 
 export async function initializeClubV13(userId: string, data: any) {
-  if (!userId) return { success: false, error: "AUTH_REQUIRED" };
-  const { clubName, tier: validatedTier } = validateProfileData(data);
-  
-  const authRes = await authenticateAsSystem();
-  if (!authRes.success) {
-    return { success: false, error: `SYSTEM_AUTH_FAILED_${authRes.error}` };
+  // 1. Валидация входа
+  const validation = InitializeClubSchema.safeParse(data);
+  if (!validation.success) {
+    logger.warn("Invalid initializeClubV13 parameters", { errors: validation.error.format() });
+    return { success: false, error: "INVALID_PARAMS" };
   }
 
-  await new Promise(resolve => setTimeout(resolve, 500));
+  const authRes = await authenticateAsSystem();
+  if (!authRes.success) return { success: false, error: `SYSTEM_AUTH_FAILED_${authRes.error}` };
 
   const { firestore: db } = initializeFirebase();
+  const seasonNum = getGlobalSeasonInfo().activeSeasonNumber;
+  const { clubName, tier, group, rank, selectedLeagueId: leagueId } = validation.data;
 
   const playerRef = doc(db, 'players_v14', userId);
-  const leagueId = String(data.selectedLeagueId || "ALPHA");
-  const tier = validatedTier;
-  const group = Number(data.group || 1);
-  const rank = Number(data.rank || 1);
-  const seasonNum = getGlobalSeasonInfo().activeSeasonNumber;
-  
   const tableId = `table_v140_S${seasonNum}_L${leagueId}_V${tier}_G${group}`;
   const tableRef = doc(db, 'league_tables_v2', tableId);
   const counterRef = doc(db, 'system_v1', 'global_stats');
 
   try {
     const result = await runTransaction(db, async (transaction) => {
-      const playerSnap = await transaction.get(playerRef);
-      const tableSnap = await transaction.get(tableRef);
-      const counterSnap = await transaction.get(counterRef);
+      // ПОРЯДОК: Сначала все GET
+      const [playerSnap, tableSnap, counterSnap] = await Promise.all([
+        transaction.get(playerRef),
+        transaction.get(tableRef),
+        transaction.get(counterRef)
+      ]);
 
       if (playerSnap.exists()) {
         const p = playerSnap.data();
@@ -161,37 +143,23 @@ export async function initializeClubV13(userId: string, data: any) {
       }
 
       const currentStats = { ...stats };
-      let botToReplaceId = Object.keys(currentStats).find(id => Number(currentStats[id].rank) === rank && currentStats[id].isBot === true) || null;
-      if (!botToReplaceId) {
-        botToReplaceId = Object.keys(currentStats).find(id => currentStats[id].isBot === true) || null;
-      }
+      const botId = Object.keys(currentStats).find(id => Number(currentStats[id].rank) === rank && currentStats[id].isBot);
+      if (!botId) throw new Error("SECTOR_NOT_READY");
 
-      if (!botToReplaceId) throw new Error("GROUP_FULL");
-
-      const baseStats = currentStats[botToReplaceId];
+      const baseStats = currentStats[botId];
       const actualRank = Number(baseStats.rank);
       
-      delete currentStats[botToReplaceId];
-      currentStats[userId] = {
-        ...baseStats,
-        id: userId,
-        name: clubName,
-        clubLogo: data.clubLogo || null,
-        rank: actualRank,
-        isBot: false
-      };
+      delete currentStats[botId];
+      currentStats[userId] = { ...baseStats, id: userId, name: clubName, clubLogo: data.clubLogo || null, rank: actualRank, isBot: false };
 
       transaction.update(tableRef, { stats: currentStats, updatedAt: serverTimestamp() });
       
-      let nextNumericId = 1001;
-      if (counterSnap.exists()) {
-        nextNumericId = (counterSnap.data().totalPlayers || 1000) + 1;
-      }
+      const nextNumericId = (counterSnap.exists() ? (counterSnap.data().totalPlayers || 1000) : 1000) + 1;
       transaction.set(counterRef, { totalPlayers: nextNumericId, updatedAt: serverTimestamp() }, { merge: true });
 
       const finalPlayerData = {
-        id: userId, email: data.email || null, numericId: nextNumericId,
-        displayName: clubName, clubName: clubName, country: data.country || 'International',
+        id: userId, email: data.email, numericId: nextNumericId,
+        displayName: clubName, clubName, country: data.country || 'International',
         selectedLeagueId: leagueId, leagueLevel: tier, groupId: group, rank: actualRank,
         credits: 1000000, crystals: 50, experiencePoints: 0, managerLevel: 1,
         lastProcessedSeason: seasonNum, lastLoginDate: new Date().toISOString(),
@@ -199,37 +167,30 @@ export async function initializeClubV13(userId: string, data: any) {
       };
 
       transaction.set(playerRef, finalPlayerData);
-      return { success: true, tier, group, rank: actualRank, botToReplaceId };
+      return { success: true, tier, group, rank: actualRank, botToReplaceId: botId, numericId: nextNumericId };
     });
 
     if (result.success && result.botToReplaceId) {
-      const matchesQ = query(collection(db, 'matches_v2'), 
-        where('leagueId', '==', leagueId),
-        where('level', '==', tier),
-        where('groupId', '==', group),
-        where('version', '==', 140)
-      );
-      const matchesSnap = await getDocs(matchesQ);
-      const { writeBatch } = await import('firebase/firestore');
-      const batch = writeBatch(db);
-      
-      matchesSnap.forEach(mDoc => {
-        const mData = mDoc.data();
-        const updates: any = {};
-        if (mData.homeId === result.botToReplaceId) { 
-          updates.homeId = userId; updates.homeName = clubName; 
-        }
-        if (mData.awayId === result.botToReplaceId) { 
-          updates.awayId = userId; updates.awayName = clubName; 
-        }
-        if (Object.keys(updates).length > 0) batch.update(mDoc.ref, updates);
+      logger.info("New club initialized", { userId, clubName, tier, group, rank });
+      // Фоновое обновление матчей (без ожидания)
+      const matchesQ = query(collection(db, 'matches_v2'), where('leagueId', '==', leagueId), where('level', '==', tier), where('groupId', '==', group), where('version', '==', 140));
+      getDocs(matchesQ).then(snap => {
+        const { writeBatch } = require('firebase/firestore');
+        const b = writeBatch(db);
+        snap.forEach(d => {
+          const m = d.data();
+          const up: any = {};
+          if (m.homeId === result.botToReplaceId) { up.homeId = userId; up.homeName = clubName; }
+          if (m.awayId === result.botToReplaceId) { up.awayId = userId; up.awayName = clubName; }
+          if (Object.keys(up).length > 0) b.update(d.ref, up);
+        });
+        b.commit();
       });
-      await batch.commit();
     }
 
     return result;
   } catch (error: any) {
-    console.error("[INITIALIZE CLUB ERROR]:", error.message);
+    logger.error("Transaction failed in initializeClubV13", error, { userId });
     return { success: false, error: error.message };
   }
 }
@@ -244,31 +205,29 @@ export async function releasePlayerSlot(userId: string) {
     await runTransaction(db, async (transaction) => {
       const playerSnap = await transaction.get(playerRef);
       if (!playerSnap.exists()) return;
-      const pData = playerSnap.data();
-      const { leagueLevel: tier, groupId: group, rank, selectedLeagueId: leagueId, lastProcessedSeason: seasonNum } = pData;
+      const p = playerSnap.data();
+      const { leagueLevel: tier, groupId: group, rank, selectedLeagueId: leagueId, lastProcessedSeason: seasonNum } = p;
 
-      if (tier && group && rank && leagueId) {
-        const tableId = `table_v140_S${seasonNum || 1}_L${leagueId}_V${tier}_G${group}`;
-        const tableRef = doc(db, 'league_tables_v2', tableId);
-        const tableSnap = await transaction.get(tableRef);
+      const tableId = `table_v140_S${seasonNum || 1}_L${leagueId}_V${tier}_G${group}`;
+      const tableRef = doc(db, 'league_tables_v2', tableId);
+      const tableSnap = await transaction.get(tableRef);
 
-        if (tableSnap.exists()) {
-          const stats = { ...tableSnap.data().stats };
-          const botId = getBotId(leagueId, tier, group, rank);
-          const botName = getBotName(tier, group, rank);
-
-          if (stats[userId]) {
-            const currentStats = stats[userId];
-            delete stats[userId];
-            stats[botId] = { ...currentStats, id: botId, name: botName, isBot: true, clubLogo: null, rank: Number(rank) };
-            transaction.update(tableRef, { stats, updatedAt: serverTimestamp() });
-          }
+      if (tableSnap.exists()) {
+        const stats = { ...tableSnap.data().stats };
+        const bId = getBotId(leagueId, tier, group, rank);
+        if (stats[userId]) {
+          const cur = stats[userId];
+          delete stats[userId];
+          stats[bId] = { ...cur, id: bId, name: getBotName(tier, group, rank), isBot: true, clubLogo: null, rank: Number(rank) };
+          transaction.update(tableRef, { stats, updatedAt: serverTimestamp() });
         }
       }
       transaction.delete(playerRef);
     });
+    logger.info("Player slot released", { userId });
     return { success: true };
   } catch (e: any) {
+    logger.error("Error in releasePlayerSlot", e, { userId });
     return { success: false, error: e.message };
   }
 }
