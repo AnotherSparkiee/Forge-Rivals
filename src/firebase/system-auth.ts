@@ -25,7 +25,12 @@ export async function authenticateAsSystem(): Promise<{ success: boolean; error?
   const password = process.env.SYSTEM_ACCOUNT_PASSWORD;
   
   if (!password) {
-    console.error("[SYSTEM AUTH] CRITICAL: SYSTEM_ACCOUNT_PASSWORD is not defined in environment variables.");
+    const isDev = process.env.NODE_ENV === 'development';
+    const errorMsg = isDev 
+      ? "PASSWORD_MISSING: For local development, ensure SYSTEM_ACCOUNT_PASSWORD is in your .env file."
+      : "PASSWORD_MISSING: Ensure the secret is set via 'firebase apphosting:secrets:set SYSTEM_ACCOUNT_PASSWORD'";
+    
+    console.error(`[SYSTEM AUTH] CRITICAL: ${errorMsg}`);
     return { success: false, error: "PASSWORD_MISSING_IN_ENV" };
   }
 
@@ -40,11 +45,12 @@ export async function authenticateAsSystem(): Promise<{ success: boolean; error?
 
   // 4. Выполняем вход
   try {
+    // Используем trim() для предотвращения ошибок с пробелами
     const userCredential = await signInWithEmailAndPassword(auth, SYSTEM_EMAIL, password.trim());
-    console.log(`[SYSTEM AUTH SUCCESS] Authorized as administrator.`);
+    console.log(`[SYSTEM AUTH SUCCESS] Authorized as administrator (UID: ${userCredential.user.uid}).`);
     return { success: true };
   } catch (e: any) {
-    console.error(`[SYSTEM AUTH FAILURE] Login failed: ${e.code}`);
+    console.error(`[SYSTEM AUTH FAILURE] Login failed for ${SYSTEM_EMAIL}: ${e.code}`);
     return { success: false, error: e.code || "AUTH_UNKNOWN_ERROR" };
   }
 }
