@@ -10,3 +10,5 @@ runConfig:
 environmentVariables:
   - variable: SYSTEM_ACCOUNT_PASSWORD
     secret: SYSTEM_ACCOUNT_PASSWORD
+  - variable: CRON_SECRET
+    value: lote_secure_cron_token_2026
