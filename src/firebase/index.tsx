@@ -6,16 +6,23 @@ import { firebaseConfig } from "./config";
 /**
  * Returns initialized Firebase services.
  * This function is isomorphic and can be called from both client and server (Server Actions).
+ * 
+ * Optimized for Firebase Studio / Cloud Workstations:
+ * Forces Long Polling and disables Fetch Streams to ensure connectivity through proxies.
  */
 function getSdks(app: FirebaseApp) {
   let firestore;
   try {
-    // В облачных средах принудительное включение long polling повышает стабильность
+    // В облачных средах и проксированных окружениях принудительное включение 
+    // long polling и отключение fetch streams значительно повышает стабильность.
     firestore = initializeFirestore(app, {
       experimentalForceLongPolling: true,
+      useFetchStreams: false,
     });
   } catch (e) {
-    // Если Firestore уже инициализирован, просто получаем инстанс
+    // Если Firestore уже инициализирован, просто получаем инстанс.
+    // Обратите внимание: существующий инстанс может иметь другие настройки,
+    // но в рамках этого приложения все вызовы идут через getSdks.
     firestore = getFirestore(app);
   }
 
