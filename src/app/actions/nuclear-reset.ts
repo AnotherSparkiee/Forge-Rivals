@@ -2,9 +2,9 @@
 'use server';
 
 /**
- * Скрипт "Ядерной очистки" v141 (Safe Force Purge).
+ * Скрипт "Ядерной очистки" v142 (Safe Global Purge).
  * Оптимизирован для предотвращения таймаутов сервера.
- * Удаляет документы порциями, пропуская ошибки доступа.
+ * Очищает ВСЕ старые коллекции (v10-v14) и системные документы.
  */
 
 import { 
@@ -14,13 +14,13 @@ import {
 import { initializeFirebase } from '@/firebase';
 
 const DELETE_BATCH_SIZE = 500;
-const BATCHES_PER_CALL = 3; // Снижено для стабильности (макс 1500 доков за вызов)
+const BATCHES_PER_CALL = 3; 
 
 export async function totalNuclearResetV131() {
   const { firestore: db } = initializeFirebase();
-  console.log("[NUCLEAR v141] Initiating Protected Purge...");
+  console.log("[NUCLEAR v142] Initiating Global Asset Liquidation...");
 
-  // 1. ПРИНУДИТЕЛЬНОЕ УДАЛЕНИЕ СИСТЕМНЫХ ФЛАГОВ
+  // 1. ПРИНУДИТЕЛЬНОЕ УДАЛЕНИЕ СИСТЕМНЫХ ФЛАГОВ И СТАТУСОВ
   const systemDocs = [
     'repair_v131_S1_LALPHA', 'init_v131_S1_LALPHA',
     'repair_v140_S1_LALPHA', 'init_v140_S1_LALPHA',
@@ -33,14 +33,19 @@ export async function totalNuclearResetV131() {
     } catch (e) {}
   }
 
-  // 2. СПИСОК КОЛЛЕКЦИЙ ДЛЯ ЗАЧИСТКИ
+  // 2. ПОЛНЫЙ СПИСОК КОЛЛЕКЦИЙ ВСЕХ ВЕРСИЙ ДЛЯ ЗАЧИСТКИ
   const colls = [
-    'league_tables_v2', 'matches_v2', // v140
-    'league_tables_v1', 'matches_v1', // v130
-    'players_v14', 'players_v13', 'players_v12', 'players_v11', 'players_v10',
+    // ВЕРСИЯ 140
+    'league_tables_v2', 'matches_v2', 'players_v14',
+    // ВЕРСИЯ 130
+    'league_tables_v1', 'matches_v1', 'players_v13',
+    // СТАРЫЕ ВЕРСИИ
+    'players_v12', 'players_v11', 'players_v10',
+    // СОЦИАЛЬНЫЕ И МАРКЕТ
     'global_chat_v2', 'market_v7', 'friend_requests_v4', 
     'private_messages_v3', 'cup_matches', 'notifications_v7',
-    'cup_pyramid_v1', 'cw_basket_v2', 'friendly_lobbies_v3'
+    'cup_pyramid_v1', 'cw_basket_v2', 'friendly_lobbies_v3',
+    'associations_v4'
   ];
   
   let totalDeletedInThisCall = 0;
@@ -62,9 +67,10 @@ export async function totalNuclearResetV131() {
             batchDeletedCount = snap.size;
             totalDeletedInThisCall += batchDeletedCount;
           } catch (batchErr) {
-            console.warn(`[NUCLEAR] Batch failed for ${coll}, likely security rules. Skipping.`);
+            console.warn(`[NUCLEAR] Batch failed for ${coll}, likely restricted. Skipping.`);
           }
-          break; // Переход к следующему батчу после одной коллекции
+          // После очистки одной коллекции в батче, переходим к следующему циклу батча
+          break; 
         }
       }
       
@@ -81,6 +87,6 @@ export async function totalNuclearResetV131() {
     success: true, 
     isComplete,
     deletedCount: totalDeletedInThisCall,
-    msg: isComplete ? "Universe Fully Purged" : `Purging... ${totalDeletedInThisCall} docs removed.` 
+    msg: isComplete ? "Universe v10-v14 Fully Sterilized" : `Decontaminating... ${totalDeletedInThisCall} docs removed.` 
   };
 }

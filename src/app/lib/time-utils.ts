@@ -1,8 +1,8 @@
 
 /**
- * @fileOverview Ядро времени v121 (Season 1 Launch Configuration). 
+ * @fileOverview Ядро времени v122 (Advanced Cycle Configuration). 
  * Точка отсчета: 31 августа 2026 года, 00:00 MSK (День 1 Сезона 1).
- * Цикл расширен до 17 дней для технических нужд.
+ * Цикл: 14 дней игр + 3 технических дня = 17 дней.
  */
 
 let syncPoint = {
@@ -15,7 +15,7 @@ const MSK_OFFSET = 3 * 60 * 60 * 1000;
 
 // Полночь 31 августа 2026 по МСК = 21:00 30 августа UTC
 export const GLOBAL_EPOCH_ISO = '2026-08-30T21:00:00Z'; 
-export const SEASON_CYCLE_DAYS = 17; // 14 матчей + 3 тех. дня
+export const SEASON_CYCLE_DAYS = 17; 
 
 export function setServerTime(serverMs: number) {
   if (typeof performance !== 'undefined') {
@@ -82,32 +82,27 @@ export function getGlobalSeasonInfo() {
 
   if (diffMs < 0) {
     return {
-      seasonDay: 1,
-      dayOfCycle: 1, 
-      seasonNumber: 1, 
-      activeSeasonNumber: 1,
-      isOffseason: false, 
-      isGenerationReady: false,
-      timeToStartMs: Math.abs(diffMs), 
-      currentSeasonStart: epochUtc, 
-      nextSeasonStart: new Date(epochUtc.getTime() + cycleMs),
-      generationTime: new Date(epochUtc.getTime() + (14 * dayMs) + (16 * 3600000))
+      seasonDay: 1, dayOfCycle: 1, seasonNumber: 1, activeSeasonNumber: 1,
+      isOffseason: false, isTransitionDay: false, isPreparationDay: false,
+      timeToStartMs: Math.abs(diffMs), currentSeasonStart: epochUtc,
+      nextSeasonStart: new Date(epochUtc.getTime() + cycleMs)
     };
   }
 
   const seasonNumber = Math.floor(diffMs / cycleMs) + 1;
   const dayOfCycle = Math.floor((diffMs % cycleMs) / dayMs) + 1;
   
-  // Иерархия дней:
-  // 1-14: Активные игры
+  // Иерархия дней (Цикл 17 дней):
+  // 1-14: Активные игры лиги
   // 15: Подведение итогов (Offseason)
-  // 16: Переход (Promotions)
-  // 17: Подготовка (Tech Day)
+  // 16: Переход / Ротации (Transition)
+  // 17: Техническая подготовка (Preparation)
+  
   const isOffseason = dayOfCycle >= 15;
+  const isTransitionDay = dayOfCycle === 16;
+  const isPreparationDay = dayOfCycle === 17;
 
   const currentSeasonStart = new Date(epochUtc.getTime() + (seasonNumber - 1) * cycleMs);
-  const generationTime = new Date(currentSeasonStart.getTime() + (14 * dayMs) + (16 * 3600000));
-  const isGenerationReady = simNow.getTime() >= generationTime.getTime();
 
   return {
     seasonDay: dayOfCycle > 14 ? 0 : dayOfCycle,
@@ -115,9 +110,8 @@ export function getGlobalSeasonInfo() {
     seasonNumber,
     activeSeasonNumber: seasonNumber,
     isOffseason,
-    isTransitionDay: dayOfCycle === 16,
-    isGenerationReady,
-    generationTime,
+    isTransitionDay,
+    isPreparationDay,
     currentSeasonStart,
     nextSeasonStart: new Date(currentSeasonStart.getTime() + cycleMs)
   };

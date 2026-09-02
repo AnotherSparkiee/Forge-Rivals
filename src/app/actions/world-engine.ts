@@ -2,9 +2,8 @@
 'use server';
 
 /**
- * Глобальный двигатель мира v143 (Safe Multi-Batch Architecture).
- * Оптимизирован для максимальной надежности. Использует цепочку батчей.
- * Гарантия 8/8.
+ * Глобальный двигатель мира v144 (Validated Multi-Batch Architecture).
+ * Оптимизирован для максимальной надежности при работе с клиентским SDK на сервере.
  */
 
 import { 
@@ -42,6 +41,7 @@ const MAX_LEVELS_SAFE = 9;
 
 /**
  * Внедряет данные одной группы.
+ * Добавлена строгая проверка полноты данных перед записью.
  */
 export async function injectGroupData(
   batch: any, 
@@ -55,6 +55,9 @@ export async function injectGroupData(
   const initialStats: any = {};
   const teamsForCalendar = [];
 
+  // Валидация входных координат
+  if (!leagueId || tier < 1 || tier > 9 || group < 1) return;
+
   for (let r = 1; r <= TEAMS_PER_GROUP; r++) {
     const bId = getBotId(leagueId, tier, group, r);
     const bName = getBotName(tier, group, r);
@@ -66,7 +69,11 @@ export async function injectGroupData(
     teamsForCalendar.push({ id: bId, name: bName, rank: r });
   }
 
-  if (Object.keys(initialStats).length !== 8) return;
+  // Критическая проверка целостности: в группе должно быть ровно 8 команд
+  if (Object.keys(initialStats).length !== 8) {
+    console.warn(`[WORLD ENGINE] Integrity check failed for Group ${group} Tier ${tier}`);
+    return;
+  }
 
   const tableRef = doc(db, 'league_tables_v2', tableId);
   batch.set(tableRef, {
@@ -91,7 +98,6 @@ export async function injectGroupData(
 
 /**
  * Автономная постройка одной группы (JIT).
- * ЭКСПОРТ ВОССТАНОВЛЕН ДЛЯ build stability.
  */
 export async function createGroupStructure(
   db: Firestore, 
