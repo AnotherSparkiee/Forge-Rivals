@@ -1,12 +1,12 @@
 'use server';
 
 /**
- * Глобальный двигатель мира v145 (Safe Transactions).
+ * Глобальный двигатель мира v146 (Strict Typing).
  */
 
 import { 
-  doc, writeBatch, 
-  Firestore, serverTimestamp, getDoc, setDoc, runTransaction 
+  doc, Transaction, 
+  Firestore, serverTimestamp, runTransaction 
 } from 'firebase/firestore';
 import { authenticateAsSystem } from '@/firebase/system-auth';
 import { initializeFirebase } from '@/firebase';
@@ -37,7 +37,7 @@ function getGroupCoordinates(index: number) {
 }
 
 async function injectGroupData(
-  transaction: any, 
+  transaction: Transaction, 
   db: Firestore, 
   leagueId: string, 
   tier: number, 

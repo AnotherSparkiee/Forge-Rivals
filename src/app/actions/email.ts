@@ -41,10 +41,10 @@ export async function sendVerificationEmail(email: string) {
     const code = isTestEmail ? "123456" : Math.floor(100000 + Math.random() * 900000).toString();
     const expiresAt = new Date(Date.now() + 15 * 60000);
 
-    // 4. Сохранение
+    // 4. Сохранение (используем Timestamp для консистентности)
     await setDoc(codeRef, {
       code,
-      expiresAt: expiresAt.toISOString(),
+      expiresAt: Timestamp.fromDate(expiresAt),
       createdAt: Timestamp.now()
     }, { merge: true });
 
@@ -97,7 +97,8 @@ export async function verifyEmailCode(email: string, inputCode: string) {
     if (!codeSnap.exists()) return { success: false, error: "CODE_NOT_FOUND" };
     const data = codeSnap.data();
     
-    if (new Date() > new Date(data.expiresAt)) {
+    // Сравнение через Timestamp
+    if (Timestamp.now().toMillis() > data.expiresAt.toMillis()) {
       await deleteDoc(codeRef);
       return { success: false, error: "CODE_EXPIRED" };
     }

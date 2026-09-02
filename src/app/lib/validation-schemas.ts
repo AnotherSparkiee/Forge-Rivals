@@ -3,6 +3,7 @@ import { TEAMS_PER_GROUP } from './leagues-data';
 
 /**
  * @fileOverview Схемы валидации для Server Actions.
+ * Добавлены лимиты сумм для защиты от переполнения.
  */
 
 export const EmailInputSchema = z.object({
@@ -27,7 +28,7 @@ export const InitializeClubSchema = z.object({
 
 export const FinancialOpSchema = z.object({
   idempotencyKey: z.string().min(10),
-  amount: z.number().int(),
+  amount: z.number().int().min(-1000000).max(1000000), // Защита от аномалий
   type: z.enum(['credits', 'crystals']),
   description: z.string().optional(),
 });
