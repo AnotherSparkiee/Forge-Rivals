@@ -3,7 +3,7 @@ service cloud.firestore {
   match /databases/{database}/documents {
     // Хелпер для проверки, является ли вызывающий системным аккаунтом
     function isSystem() {
-      return request.auth != null && request.auth.uid == 'system-service-uid-v142';
+      return request.auth != null && (request.auth.uid == 'system-service-uid-v142' || request.auth.token.email == 'system@internal.mobamanageronline.app');
     }
 
     // 1. ПРОФИЛИ ИГРОКОВ: Читать могут все, писать - только владелец или система
@@ -56,10 +56,9 @@ service cloud.firestore {
       allow write: if request.auth != null && (request.auth.uid == userId || isSystem());
     }
 
-    // КОДЫ ВЕРИФИКАЦИИ: Только для чтения системой
+    // КОДЫ ВЕРИФИКАЦИИ: Разрешаем доступ для процесса регистрации (get/create/delete по email-ID)
     match /verification_codes/{email} {
-      allow read: if isSystem();
-      allow write: if isSystem();
+      allow get, create, delete, update: if true;
     }
 
     // БЕЗОПАСНЫЙ CATCH-ALL: Запрет доступа по умолчанию

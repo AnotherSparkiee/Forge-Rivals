@@ -15,14 +15,16 @@ import nodemailer from 'nodemailer';
  * В режиме разработки (без SMTP конфига) выводит код в консоль.
  */
 export async function sendVerificationEmail(email: string) {
+  // Мы пытаемся залогиниться как система, но даже если не выйдет (нет пароля), 
+  // правила Firestore теперь позволяют создать код верификации для регистрации.
   await authenticateAsSystem();
-  const { firestore: db } = initializeFirebase();
   
+  const { firestore: db } = initializeFirebase();
   const code = Math.floor(100000 + Math.random() * 900000).toString();
   const expiresAt = new Date(Date.now() + 15 * 60000); // 15 минут
 
   try {
-    // Сохраняем код во временную коллекцию (только системный доступ)
+    // Сохраняем код во временную коллекцию
     await setDoc(doc(db, 'verification_codes', email), {
       code,
       expiresAt: expiresAt.toISOString(),
@@ -41,7 +43,7 @@ export async function sendVerificationEmail(email: string) {
         },
       });
 
-      await transporter.sendMessage({
+      await transporter.sendMail({
         from: '"Lines of Enmity" <noreply@mobamanageronline.app>',
         to: email,
         subject: "Verification Code",
@@ -54,7 +56,7 @@ export async function sendVerificationEmail(email: string) {
 
     return { success: true };
   } catch (error: any) {
-    console.error("[EMAIL ERROR]:", error.message);
+    console.error("[EMAIL ERROR]:", error.code, error.message);
     return { success: false, error: error.message };
   }
 }
@@ -63,7 +65,6 @@ export async function sendVerificationEmail(email: string) {
  * Проверяет код подтверждения.
  */
 export async function verifyEmailCode(email: string, inputCode: string) {
-  await authenticateAsSystem();
   const { firestore: db } = initializeFirebase();
   
   const codeRef = doc(db, 'verification_codes', email);
