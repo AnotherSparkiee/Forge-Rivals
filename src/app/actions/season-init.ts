@@ -35,6 +35,7 @@ function validateProfileData(data: any) {
 /**
  * Инициализирует структуру группы (таблицу и матчи) прямо внутри транзакции.
  * Это решает проблему SECTOR_NOT_READY для первых пользователей.
+ * ВАЖНО: Вызывается ПОСЛЕ всех reads в транзакции.
  */
 async function provisionGroupInTransaction(
   transaction: any, 
@@ -149,17 +150,20 @@ export async function initializeClubV13(userId: string, data: any) {
 
   try {
     const result = await runTransaction(db, async (transaction) => {
+      // КРИТИЧЕСКИ ВАЖНО: Сначала выполняем ВСЕ reads
       const playerSnap = await transaction.get(playerRef);
+      const tableSnap = await transaction.get(tableRef);
+      const counterSnap = await transaction.get(counterRef);
+
       if (playerSnap.exists()) {
         const p = playerSnap.data();
         return { success: true, tier: p.leagueLevel, group: p.groupId, rank: p.rank, numericId: p.numericId };
       }
 
-      let tableSnap = await transaction.get(tableRef);
+      // Теперь переходим к логике и writes
       let stats;
-
       if (!tableSnap.exists()) {
-        // Если сектора нет - создаем его на лету
+        // Если сектора нет - создаем его
         stats = await provisionGroupInTransaction(transaction, db, leagueId, tier, group, seasonNum, tableRef);
       } else {
         stats = tableSnap.data().stats;
@@ -186,10 +190,10 @@ export async function initializeClubV13(userId: string, data: any) {
         isBot: false
       };
 
+      // Выполняем апдейты
       transaction.update(tableRef, { stats: currentStats, updatedAt: serverTimestamp() });
       
-      // Получаем номер ID
-      const counterSnap = await transaction.get(counterRef);
+      // Получаем номер ID из заранее считанного снапшота
       let nextNumericId = 1001;
       if (counterSnap.exists()) {
         nextNumericId = (counterSnap.data().totalPlayers || 1000) + 1;
