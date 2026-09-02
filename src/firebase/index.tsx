@@ -8,16 +8,15 @@ import { firebaseConfig } from "./config";
  * This function is isomorphic and can be called from both client and server (Server Actions).
  */
 function getSdks(app: FirebaseApp) {
-  // Check if we need to initialize with specific settings
-  // In cloud environments like Google Cloud Workstations, long polling is often more reliable
   let firestore;
   try {
-    firestore = getFirestore(app);
-  } catch (e) {
-    // If not initialized, use specialized initialization
+    // В облачных средах принудительное включение long polling повышает стабильность
     firestore = initializeFirestore(app, {
       experimentalForceLongPolling: true,
     });
+  } catch (e) {
+    // Если Firestore уже инициализирован, просто получаем инстанс
+    firestore = getFirestore(app);
   }
 
   return {
@@ -33,26 +32,11 @@ function getSdks(app: FirebaseApp) {
  */
 export function initializeFirebase() {
   if (getApps().length > 0) {
-    const app = getApp();
-    // Return existing instances
-    return {
-      firebaseApp: app,
-      auth: getAuth(app),
-      firestore: getFirestore(app),
-    };
+    return getSdks(getApp());
   }
 
   const app = initializeApp(firebaseConfig);
-  // Initialize Firestore with long polling for reliability in proxied environments
-  const firestore = initializeFirestore(app, {
-    experimentalForceLongPolling: true,
-  });
-
-  return {
-    firebaseApp: app,
-    auth: getAuth(app),
-    firestore,
-  };
+  return getSdks(app);
 }
 
 // Export all providers and hooks

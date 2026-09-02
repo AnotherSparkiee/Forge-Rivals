@@ -13,15 +13,19 @@ import {FirestorePermissionError} from '@/firebase/errors';
 
 /**
  * Sanitizes data by replacing undefined values with null to prevent Firestore crashes.
+ * Added recursion protection via WeakSet.
  */
-function sanitizeData(data: any): any {
+function sanitizeData(data: any, seen = new WeakSet()): any {
   if (data === null || typeof data !== 'object') return data;
+  if (seen.has(data)) return null; 
+  seen.add(data);
+
   const sanitized = Array.isArray(data) ? [] : {} as any;
   for (const key in data) {
     if (Object.prototype.hasOwnProperty.call(data, key)) {
       const val = data[key];
       if (val === undefined) sanitized[key] = null;
-      else if (typeof val === 'object') sanitized[key] = sanitizeData(val);
+      else if (typeof val === 'object') sanitized[key] = sanitizeData(val, seen);
       else sanitized[key] = val;
     }
   }
@@ -31,7 +35,6 @@ function sanitizeData(data: any): any {
 /**
  * Initiates a setDoc operation for a document reference.
  * Does NOT await the write operation internally.
- * Includes data sanitization to prevent "undefined" field errors.
  */
 export function setDocumentNonBlocking(docRef: DocumentReference, data: any, options?: SetOptions) {
   const cleanData = sanitizeData(data);
@@ -51,7 +54,6 @@ export function setDocumentNonBlocking(docRef: DocumentReference, data: any, opt
 
 /**
  * Initiates an add operation by generating a document ID and using setDoc.
- * This is more robust in some environments than addDoc.
  */
 export function addDocumentNonBlocking(colRef: CollectionReference, data: any) {
   const newDocRef = doc(colRef);
@@ -73,7 +75,6 @@ export function addDocumentNonBlocking(colRef: CollectionReference, data: any) {
 
 /**
  * Initiates an update operation for a document reference.
- * Uses setDoc with { merge: true } for better resilience against "Missing Permissions" errors.
  */
 export function updateDocumentNonBlocking(docRef: DocumentReference, data: any) {
   const cleanData = sanitizeData(data);

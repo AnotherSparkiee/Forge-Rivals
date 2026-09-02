@@ -1,4 +1,3 @@
-
 'use server';
 
 /**
@@ -46,21 +45,29 @@ export async function totalNuclearResetV131() {
   let totalDeletedInThisCall = 0;
 
   try {
+    // Цикл по батчам для обработки нескольких коллекций за один вызов
     for (let b = 0; b < BATCHES_PER_CALL; b++) {
-      let batchDeletedCount = 0;
+      const batch = writeBatch(db);
+      let batchCount = 0;
+
       for (const coll of colls) {
-        const q = query(collection(db, coll), limit(DELETE_BATCH_SIZE));
+        if (batchCount >= DELETE_BATCH_SIZE) break;
+
+        const q = query(collection(db, coll), limit(DELETE_BATCH_SIZE - batchCount));
         const snap = await getDocs(q);
-        if (!snap.empty) {
-          const batch = writeBatch(db);
-          snap.docs.forEach(d => batch.delete(d.ref));
-          await batch.commit();
-          batchDeletedCount = snap.size;
-          totalDeletedInThisCall += batchDeletedCount;
-          break; 
-        }
+        
+        snap.docs.forEach(d => {
+          batch.delete(d.ref);
+          batchCount++;
+        });
       }
-      if (batchDeletedCount === 0) break;
+
+      if (batchCount > 0) {
+        await batch.commit();
+        totalDeletedInThisCall += batchCount;
+      } else {
+        break; // Больше нечего удалять во всех коллекциях
+      }
     }
   } catch (globalErr: any) {
     console.error("[NUCLEAR RESET CRITICAL ERROR]:", globalErr.message);

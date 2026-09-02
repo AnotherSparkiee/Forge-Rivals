@@ -20,6 +20,13 @@ export const LEAGUES: LeagueOption[] = [
 ];
 
 /**
+ * Генерирует единый формат ID для турнирных таблиц v140.
+ */
+export function getTableId(season: number, leagueId: string, level: number, group: number): string {
+  return `table_v140_S${season}_L${leagueId}_V${level}_G${group}`;
+}
+
+/**
  * Генерирует детерминированный ID бота для слота (скрытый технический ID).
  */
 export function getBotId(leagueId: string, level: number, group: number, rank: number): string {

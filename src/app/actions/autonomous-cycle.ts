@@ -1,4 +1,3 @@
-
 'use server';
 
 /**
@@ -12,7 +11,7 @@ import {
 } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import { authenticateAsSystem } from '@/firebase/system-auth';
-import { getMatchResult } from '@/app/lib/leagues-data';
+import { getMatchResult, getTableId } from '@/app/lib/leagues-data';
 import { getGlobalSeasonInfo, isMatchStarted } from '@/app/lib/time-utils';
 
 class FirestoreBatcher {
@@ -23,6 +22,12 @@ class FirestoreBatcher {
   }
   async update(ref: any, data: any) {
     this.batch.update(ref, data);
+    this.count++;
+    if (this.count >= 480) await this.commit();
+  }
+  // Перегрузка для работы с таблицами (set/merge)
+  async updateTable(ref: any, data: any) {
+    this.batch.set(ref, data, { merge: true });
     this.count++;
     if (this.count >= 480) await this.commit();
   }
@@ -58,6 +63,9 @@ export async function resolveDailyMatches() {
   const batcher = new FirestoreBatcher(db);
   let count = 0;
 
+  // Агрегация статистики по таблицам для исключения ошибки "Document updated twice in batch"
+  const tableStatsAggr = new Map<string, Record<string, number>>();
+
   for (const matchDoc of snap.docs) {
     const m = matchDoc.data();
     if (Number(m.tour) > currentDay) continue;
@@ -72,29 +80,34 @@ export async function resolveDailyMatches() {
       resolvedAt: serverTimestamp(), version: 140
     });
 
-    const tableId = `table_v140_S${currentSeason}_L${m.leagueId}_V${m.level}_G${m.groupId}`;
-    const tableRef = doc(db, 'league_tables_v2', tableId);
-    
-    const statsUpdate: any = {};
-    if (m.homeId) {
-      statsUpdate[`stats.${m.homeId}.matchesPlayed`] = increment(1);
-      statsUpdate[`stats.${m.homeId}.wins`] = increment(sA > sB ? 1 : 0);
-      statsUpdate[`stats.${m.homeId}.draws`] = increment(sA === sB ? 1 : 0);
-      statsUpdate[`stats.${m.homeId}.losses`] = increment(sB > sA ? 1 : 0);
-      statsUpdate[`stats.${m.homeId}.points`] = increment(sA > sB ? 3 : (sA === sB ? 1 : 0));
-      statsUpdate[`stats.${m.homeId}.diff`] = increment(sA - sB);
-    }
-    if (m.awayId) {
-      statsUpdate[`stats.${m.awayId}.matchesPlayed`] = increment(1);
-      statsUpdate[`stats.${m.awayId}.wins`] = increment(sB > sA ? 1 : 0);
-      statsUpdate[`stats.${m.awayId}.draws`] = increment(sA === sB ? 1 : 0);
-      statsUpdate[`stats.${m.awayId}.losses`] = increment(sA > sB ? 1 : 0);
-      statsUpdate[`stats.${m.awayId}.points`] = increment(sB > sA ? 3 : (sA === sB ? 1 : 0));
-      statsUpdate[`stats.${m.awayId}.diff`] = increment(sB - sA);
-    }
+    const tableId = getTableId(currentSeason, m.leagueId, m.level, m.groupId);
+    if (!tableStatsAggr.has(tableId)) tableStatsAggr.set(tableId, {});
+    const aggr = tableStatsAggr.get(tableId)!;
 
-    await batcher.update(tableRef, { ...statsUpdate, updatedAt: serverTimestamp() });
+    const updateStats = (id: string, sa: number, sb: number) => {
+      if (!id) return;
+      const prefix = `stats.${id}`;
+      aggr[`${prefix}.matchesPlayed`] = (aggr[`${prefix}.matchesPlayed`] || 0) + 1;
+      aggr[`${prefix}.wins`] = (aggr[`${prefix}.wins`] || 0) + (sa > sb ? 1 : 0);
+      aggr[`${prefix}.draws`] = (aggr[`${prefix}.draws`] || 0) + (sa === sb ? 1 : 0);
+      aggr[`${prefix}.losses`] = (aggr[`${prefix}.losses`] || 0) + (sb > sa ? 1 : 0);
+      aggr[`${prefix}.points`] = (aggr[`${prefix}.points`] || 0) + (sa > sb ? 3 : (sa === sb ? 1 : 0));
+      aggr[`${prefix}.diff`] = (aggr[`${prefix}.diff`] || 0) + (sa - sb);
+    };
+
+    updateStats(m.homeId, sA, sB);
+    updateStats(m.awayId, sB, sA);
     count++;
+  }
+
+  // Применяем агрегированные изменения к таблицам
+  for (const [tableId, stats] of tableStatsAggr.entries()) {
+    const tableRef = doc(db, 'league_tables_v2', tableId);
+    const firestoreStats: any = { updatedAt: serverTimestamp() };
+    for (const [key, val] of Object.entries(stats)) {
+      firestoreStats[key] = increment(val);
+    }
+    await batcher.updateTable(tableRef, firestoreStats);
   }
 
   await batcher.commit();

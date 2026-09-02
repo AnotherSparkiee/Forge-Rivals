@@ -126,9 +126,9 @@ function calculateTeamPotential(team: z.infer<typeof TeamSchema>) {
     totalOvr += (hero.overallRating || 10);
     const weights = ROLE_WEIGHTS[hero.role] || ROLE_WEIGHTS['Midlaner'];
     
-    // Влияние Формы и Усталости (100 - идеал)
-    const formMult = 0.8 + (Number(hero.form || 100) / 500); // 0.8 - 1.0
-    const fatigueMult = 0.7 + (Number(hero.fatigue || 100) / 333); // 0.7 - 1.0
+    // Использование nullish coalescing для корректной обработки 0
+    const formMult = 0.8 + (Number(hero.form ?? 100) / 500); // 0.8 - 1.0
+    const fatigueMult = 0.7 + (Number(hero.fatigue ?? 100) / 333); // 0.7 - 1.0
     const physicalModifier = formMult * fatigueMult;
 
     let heroContribution = Number(hero.overallRating || 0) * 1.5;
