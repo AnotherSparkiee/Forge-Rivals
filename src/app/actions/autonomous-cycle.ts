@@ -2,9 +2,7 @@
 'use server';
 
 /**
- * @fileOverview ГЛОБАЛЬНЫЙ АВТОНОМНЫЙ ДВИГАТЕЛЬ ЛИГИ v142.
- * Поддерживает расширенный цикл 17 дней.
- * Оптимизирован для массового расчета (до 500 матчей).
+ * @fileOverview ГЛОБАЛЬНЫЙ АВТОНОМНЫЙ ДВИГАТЕЛЬ v144 (Privileged Auth).
  */
 
 import { 
@@ -12,9 +10,19 @@ import {
   writeBatch, serverTimestamp, increment,
   Firestore, limit
 } from 'firebase/firestore';
+import { signInWithEmailAndPassword } from 'firebase/auth';
 import { initializeFirebase } from '@/firebase';
 import { getMatchResult } from '@/app/lib/leagues-data';
 import { getGlobalSeasonInfo, isMatchStarted } from '@/app/lib/time-utils';
+
+const SYSTEM_EMAIL = "system@internal.mobamanageronline.app";
+
+async function authenticateAsSystem() {
+  const { auth } = initializeFirebase();
+  const password = process.env.SYSTEM_ACCOUNT_PASSWORD;
+  if (!password) throw new Error("SYSTEM_AUTH_CRITICAL_ERROR");
+  await signInWithEmailAndPassword(auth, SYSTEM_EMAIL, password);
+}
 
 class FirestoreBatcher {
   private count = 0;
@@ -36,24 +44,14 @@ class FirestoreBatcher {
   }
 }
 
-/**
- * Расчет всех матчей, время которых наступило.
- */
 export async function resolveDailyMatches() {
-  const { firestore: db } = initializeFirebase();
   const info = getGlobalSeasonInfo();
+  if (info.isOffseason) return { success: true, count: 0, msg: "Offseason Active", progress: "Matches Paused" };
+
+  await authenticateAsSystem();
+  const { firestore: db } = initializeFirebase();
   const currentSeason = info.activeSeasonNumber;
   const currentDay = info.dayOfCycle;
-  
-  // В дни 15, 16, 17 матчи лиги не проводятся
-  if (info.isOffseason) {
-    return { 
-      success: true, 
-      count: 0, 
-      msg: `Cycle Day ${currentDay}: League matches paused for technical transition.`, 
-      progress: "Offseason Active" 
-    };
-  }
 
   const q = query(
     collection(db, 'matches_v2'),
@@ -71,23 +69,18 @@ export async function resolveDailyMatches() {
 
   for (const matchDoc of snap.docs) {
     const m = matchDoc.data();
-    
-    // Валидация: Только те туры, что уже наступили по календарю
     if (Number(m.tour) > currentDay) continue;
-    // Валидация: Только те игры, чье время старта уже наступило (с учетом симуляции)
     if (!isMatchStarted(m.startTime)) continue;
 
     const [sA, sB] = getMatchResult(m.homeRank, m.awayRank, m.level, m.groupId, m.season, m.tour);
     const winnerId = sA > sB ? (m.homeId || null) : (sB > sA ? (m.awayId || null) : null);
 
-    // 1. Обновляем документ матча
     await batcher.update(matchDoc.ref, {
       scoreA: sA, scoreB: sB, winnerId,
       status: 'finished', isFinished: true,
       resolvedAt: serverTimestamp(), version: 140
     });
 
-    // 2. Обновляем статистику в таблице
     const tableId = `table_v140_S${currentSeason}_L${m.leagueId}_V${m.level}_G${m.groupId}`;
     const tableRef = doc(db, 'league_tables_v2', tableId);
     
@@ -117,18 +110,9 @@ export async function resolveDailyMatches() {
   return { success: true, count, progress: `Resolved ${count} matches` };
 }
 
-/**
- * Переход между сезонами (Срабатывает в День 16).
- */
 export async function performSeasonTransition() {
   const info = getGlobalSeasonInfo();
-  if (!info.isTransitionDay) {
-    return { 
-      success: false, 
-      error: "TRANSITION_PROTOCOL_LOCKED", 
-      currentDay: info.dayOfCycle,
-      msg: "Transition can only be executed on Cycle Day 16."
-    };
-  }
-  return { success: true, status: "TRANSITION_EXECUTED", progress: "100%", msg: "Season transition successful." };
+  if (!info.isTransitionDay) return { success: false, error: "LOCKED", msg: "Transition only on Day 16" };
+  await authenticateAsSystem();
+  return { success: true, status: "EXECUTED", progress: "100%", msg: "Season transition simulation successful." };
 }

@@ -2,14 +2,14 @@
 'use server';
 
 /**
- * Глобальный двигатель мира v144 (Validated Multi-Batch Architecture).
- * Оптимизирован для максимальной надежности при работе с клиентским SDK на сервере.
+ * Глобальный двигатель мира v145 (Privileged System Auth).
  */
 
 import { 
   doc, writeBatch, 
   Firestore, serverTimestamp, getDoc, setDoc 
 } from 'firebase/firestore';
+import { signInWithEmailAndPassword } from 'firebase/auth';
 import { initializeFirebase } from '@/firebase';
 import { 
   getBotId, 
@@ -20,13 +20,22 @@ import {
 } from '@/app/lib/leagues-data';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 
+const SYSTEM_EMAIL = "system@internal.mobamanageronline.app";
+
+async function authenticateAsSystem() {
+  const { auth } = initializeFirebase();
+  const password = process.env.SYSTEM_ACCOUNT_PASSWORD;
+  if (!password) throw new Error("SYSTEM_AUTH_CRITICAL_ERROR: Password missing");
+  await signInWithEmailAndPassword(auth, SYSTEM_EMAIL, password);
+}
+
 const GROUPS_PER_CALL = 8; 
 
 function getGroupCoordinates(index: number) {
   if (index < 1) return { tier: 1, group: 1 };
   let tier = 1;
   let runningTotal = 0;
-  while (tier <= MAX_LEVELS_SAFE) {
+  while (tier <= 9) {
     const groupsInTier = Math.pow(2, tier - 1);
     if (index <= runningTotal + groupsInTier) {
       return { tier, group: index - runningTotal };
@@ -37,12 +46,6 @@ function getGroupCoordinates(index: number) {
   return { tier: 9, group: 256 };
 }
 
-const MAX_LEVELS_SAFE = 9;
-
-/**
- * Внедряет данные одной группы.
- * Добавлена строгая проверка полноты данных перед записью.
- */
 export async function injectGroupData(
   batch: any, 
   db: Firestore, 
@@ -51,12 +54,11 @@ export async function injectGroupData(
   group: number, 
   seasonNum: number
 ) {
+  if (!leagueId || tier < 1 || tier > 9 || group < 1) return;
+
   const tableId = `table_v140_S${seasonNum}_L${leagueId}_V${tier}_G${group}`;
   const initialStats: any = {};
   const teamsForCalendar = [];
-
-  // Валидация входных координат
-  if (!leagueId || tier < 1 || tier > 9 || group < 1) return;
 
   for (let r = 1; r <= TEAMS_PER_GROUP; r++) {
     const bId = getBotId(leagueId, tier, group, r);
@@ -69,11 +71,7 @@ export async function injectGroupData(
     teamsForCalendar.push({ id: bId, name: bName, rank: r });
   }
 
-  // Критическая проверка целостности: в группе должно быть ровно 8 команд
-  if (Object.keys(initialStats).length !== 8) {
-    console.warn(`[WORLD ENGINE] Integrity check failed for Group ${group} Tier ${tier}`);
-    return;
-  }
+  if (Object.keys(initialStats).length !== 8) return;
 
   const tableRef = doc(db, 'league_tables_v2', tableId);
   batch.set(tableRef, {
@@ -96,9 +94,6 @@ export async function injectGroupData(
   }
 }
 
-/**
- * Автономная постройка одной группы (JIT).
- */
 export async function createGroupStructure(
   db: Firestore, 
   leagueId: string, 
@@ -106,15 +101,16 @@ export async function createGroupStructure(
   group: number, 
   seasonNum: number
 ) {
+  // Важно: вызывается из другого Server Action, поэтому повторная авторизация может не требоваться, 
+  // но для надежности проводим её.
+  await authenticateAsSystem();
   const batch = writeBatch(db);
   await injectGroupData(batch, db, leagueId, tier, group, seasonNum);
   await batch.commit();
 }
 
-/**
- * Основная функция постройки.
- */
 export async function initializeLeagueWorld(leagueId: string, targetSeason?: number) {
+  await authenticateAsSystem();
   const { firestore: db } = initializeFirebase();
   const info = getGlobalSeasonInfo();
   const seasonNum = targetSeason || info.activeSeasonNumber;
@@ -154,10 +150,5 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
     version: 140
   }, { merge: true });
 
-  return { 
-    status: isComplete ? 'FINISHED' : 'BATCH_DONE', 
-    currentIndex: nextIndex, 
-    isComplete,
-    progress: `Index: ${nextIndex}/${TOTAL_GROUPS}`
-  };
+  return { status: isComplete ? 'FINISHED' : 'BATCH_DONE', currentIndex: nextIndex, isComplete, progress: `Index: ${nextIndex}/${TOTAL_GROUPS}` };
 }

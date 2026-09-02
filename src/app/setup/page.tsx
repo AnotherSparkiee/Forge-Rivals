@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -8,19 +9,15 @@ import { Input } from '@/components/ui/input';
 import { COUNTRIES } from '@/app/lib/countries-data';
 import { 
   Loader2, ChevronLeft, Edit3, Flag, Shield, 
-  CalendarDays, Target, Swords, Timer, ChevronRight,
-  ShieldCheck, ArrowRight
+  ChevronRight, ArrowRight
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useGameState, LineupSlot } from '@/app/lib/store';
 import { getRandomStartingSquad } from '@/app/lib/moba-data';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { findStrategicPlacement, initializeClubV13 } from '@/app/actions/season-init';
-import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { useUser, useFirestore } from '@/firebase';
 import { cn } from '@/lib/utils';
-import { collection, query, where } from 'firebase/firestore';
-import { getBotName } from '../lib/leagues-data';
-import { Badge } from '@/components/ui/badge';
 
 const CLUBS = [
   { id: 'parivision', name: 'Parivision', logo: 'https://iili.io/CYIAgVa.webp' },
@@ -38,9 +35,8 @@ type SetupStep = 'name' | 'country' | 'club';
 export default function SetupPage() {
   const router = useRouter();
   const { user, isUserLoading } = useUser();
-  const db = useFirestore();
   const { toast } = useToast();
-  const { language, isLoaded, saveToLocal, seasonNumber } = useGameState();
+  const { language, isLoaded, saveToLocal } = useGameState();
   
   const [step, setStep] = useState<SetupStep>('name');
   const [teamName, setTeamName] = useState('');
@@ -64,7 +60,6 @@ export default function SetupPage() {
     
     try {
       const targetLeagueId = "ALPHA";
-      // 1. Предварительный поиск свободного места
       const placement = await findStrategicPlacement(targetLeagueId);
       const selectedCountry = COUNTRIES.find(c => c.code === selectedCountryCode);
       const selectedClub = CLUBS.find(c => c.id === selectedClubId);
@@ -86,7 +81,7 @@ export default function SetupPage() {
 
       const finalClubName = teamName.trim();
 
-      // 2. Серверная инициализация (возвращает финальные координаты)
+      // 2. Серверная инициализация
       const result = await initializeClubV13(user.uid, {
         tier: placement.tier,
         group: placement.group,
@@ -98,6 +93,8 @@ export default function SetupPage() {
       });
 
       if (!result.success) {
+        // ROLLBACK: Удаляем Auth аккаунт если размещение не удалось
+        if (user) await user.delete();
         throw new Error(result.error || "INITIALIZATION_FAILED");
       }
 
