@@ -1,8 +1,7 @@
 'use server';
 
 /**
- * @fileOverview Серверный модуль инициализации v147 (RESILIENT SYSTEM AUTH).
- * Улучшена синхронизация авторизации перед транзакциями.
+ * @fileOverview Серверный модуль инициализации v148 (SECURE SYSTEM AUTH).
  */
 
 import { 
@@ -32,7 +31,7 @@ function validateProfileData(data: any) {
 }
 
 export async function findStrategicPlacement(leagueId: string) {
-  const authRes = await authenticateAsSystem();
+  await authenticateAsSystem();
   const { firestore: db } = initializeFirebase();
 
   try {
@@ -72,19 +71,20 @@ export async function initializeClubV13(userId: string, data: any) {
   if (!userId) return { success: false, error: "AUTH_REQUIRED" };
   const { clubName, tier: validatedTier } = validateProfileData(data);
   
-  // 1. СИСТЕМНАЯ АВТОРИЗАЦИЯ
+  // 1. СИСТЕМНАЯ АВТОРИЗАЦИЯ (Использует секреты)
   const authRes = await authenticateAsSystem();
   if (!authRes.success) {
+    console.error(`[INIT] System Authentication failed: ${authRes.error}`);
     return { success: false, error: `SYSTEM_AUTH_FAILED_${authRes.error}` };
   }
 
-  // 2. Ждем синхронизации токена (критично для Server Actions)
+  // 2. Ждем синхронизации токена
   await new Promise(resolve => setTimeout(resolve, 500));
 
   const { firestore: db, auth } = initializeFirebase();
 
-  // Дополнительная проверка системного пользователя
-  if (!auth.currentUser || auth.currentUser.email !== "system@internal.mobamanageronline.app") {
+  // Проверка авторизации
+  if (!auth.currentUser || !auth.currentUser.email?.endsWith('@internal.mobamanageronline.app')) {
     return { success: false, error: "SYSTEM_AUTH_STATE_MISMATCH" };
   }
 
@@ -98,7 +98,6 @@ export async function initializeClubV13(userId: string, data: any) {
   const tableRef = doc(db, 'league_tables_v2', tableId);
   const counterRef = doc(db, 'system_v1', 'global_stats');
 
-  // Предварительный расчет numericId вне транзакции для стабильности в Web SDK
   let nextNumericId = 1000;
   try {
     const counterSnap = await getDoc(counterRef);
@@ -111,31 +110,24 @@ export async function initializeClubV13(userId: string, data: any) {
 
   try {
     const result = await runTransaction(db, async (transaction) => {
-      // Проверка существующего профиля
       const playerSnap = await transaction.get(playerRef);
       if (playerSnap.exists()) {
         const p = playerSnap.data();
         return { success: true, tier: p.leagueLevel, group: p.groupId, rank: p.rank, numericId: p.numericId };
       }
 
-      // Проверка доступности таблицы
       let tableSnap = await transaction.get(tableRef);
-      if (!tableSnap.exists()) {
-        throw new Error("SECTOR_NOT_READY");
-      }
+      if (!tableSnap.exists()) throw new Error("SECTOR_NOT_READY");
 
       const tableData = tableSnap.data();
       const stats = { ...tableData.stats };
 
-      // Поиск бота для замены
       let botToReplaceId = Object.keys(stats).find(id => Number(stats[id].rank) === rank && stats[id].isBot === true) || null;
       if (!botToReplaceId) {
         botToReplaceId = Object.keys(stats).find(id => stats[id].isBot === true) || null;
       }
 
-      if (!botToReplaceId) {
-        throw new Error("GROUP_FULL");
-      }
+      if (!botToReplaceId) throw new Error("GROUP_FULL");
 
       const baseStats = stats[botToReplaceId];
       const actualRank = Number(baseStats.rank);
@@ -150,11 +142,9 @@ export async function initializeClubV13(userId: string, data: any) {
         isBot: false
       };
 
-      // ОБНОВЛЕНИЕ ТАБЛИЦЫ И СЧЕТЧИКА
       transaction.update(tableRef, { stats, updatedAt: serverTimestamp() });
       transaction.set(counterRef, { totalPlayers: nextNumericId, updatedAt: serverTimestamp() }, { merge: true });
 
-      // СОЗДАНИЕ ПРОФИЛЯ
       const finalPlayerData = {
         id: userId,
         email: data.email || null,
@@ -177,11 +167,9 @@ export async function initializeClubV13(userId: string, data: any) {
       };
 
       transaction.set(playerRef, finalPlayerData);
-
       return { success: true, tier, group, rank: actualRank, numericId: nextNumericId, botToReplaceId };
     });
 
-    // Обновление матчей (вне транзакции)
     if (result.success && result.botToReplaceId) {
       const matchesQ = query(collection(db, 'matches_v2'), 
         where('leagueId', '==', leagueId),

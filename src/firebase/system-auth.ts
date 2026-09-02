@@ -3,43 +3,48 @@ import { initializeFirebase } from './index';
 
 /**
  * @fileOverview Централизованный модуль системной авторизации.
- * Использует учетную запись system@internal.mobamanageronline.app для привилегированных операций.
+ * Использует учетную запись system@internal.mobamanageronline.app.
+ * ПАРОЛЬ ЧИТАЕТСЯ ТОЛЬКО ИЗ ПЕРЕМЕННЫХ ОКРУЖЕНИЯ (СЕКРЕТОВ).
  */
 
 const SYSTEM_EMAIL = "system@internal.mobamanageronline.app";
-const SYSTEM_PASSWORD = "ftorres9";
 
 /**
  * Аутентификация как системный аккаунт.
- * Принудительно использует предоставленный пароль и очищает сессию перед входом.
+ * Использует секрет SYSTEM_ACCOUNT_PASSWORD из Firebase App Hosting.
  */
 export async function authenticateAsSystem(): Promise<{ success: boolean; error?: string }> {
   const { auth } = initializeFirebase();
   
   // 1. Если сессия уже активна и это системный аккаунт - пропускаем вход
   if (auth.currentUser?.email === SYSTEM_EMAIL) {
-    console.log(`[SYSTEM AUTH] Already authenticated as ${SYSTEM_EMAIL}`);
     return { success: true };
   }
 
-  // 2. Очистка текущей сессии на сервере перед входом администратора
-  // Это предотвращает конфликты, если в текущем потоке Server Action был другой юзер
+  // 2. Получение пароля из окружения (БЕЗОПАСНО)
+  const password = process.env.SYSTEM_ACCOUNT_PASSWORD;
+  
+  if (!password) {
+    console.error("[SYSTEM AUTH] CRITICAL: SYSTEM_ACCOUNT_PASSWORD is not defined in environment variables.");
+    return { success: false, error: "PASSWORD_MISSING_IN_ENV" };
+  }
+
+  // 3. Очистка текущей сессии на сервере перед входом администратора
   try {
     if (auth.currentUser) {
       await signOut(auth);
     }
   } catch (e) {
-    console.warn("[SYSTEM AUTH] Sign out before login failed, continuing...");
+    // Игнорируем ошибки выхода
   }
 
-  // 3. Выполняем вход с жестко заданными учетными данными
+  // 4. Выполняем вход
   try {
-    const userCredential = await signInWithEmailAndPassword(auth, SYSTEM_EMAIL, SYSTEM_PASSWORD);
-    console.log(`[SYSTEM AUTH SUCCESS] Signed in as ${userCredential.user.email} (UID: ${userCredential.user.uid})`);
+    const userCredential = await signInWithEmailAndPassword(auth, SYSTEM_EMAIL, password.trim());
+    console.log(`[SYSTEM AUTH SUCCESS] Authorized as administrator.`);
     return { success: true };
   } catch (e: any) {
-    console.error(`[SYSTEM AUTH FAILURE] Login failed for ${SYSTEM_EMAIL}. Error code: ${e.code}`);
-    // Если ошибка invalid-credential, скорее всего не включен Email/Password провайдер в консоли
+    console.error(`[SYSTEM AUTH FAILURE] Login failed: ${e.code}`);
     return { success: false, error: e.code || "AUTH_UNKNOWN_ERROR" };
   }
 }
