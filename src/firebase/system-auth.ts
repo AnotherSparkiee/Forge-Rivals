@@ -7,6 +7,8 @@ import { initializeFirebase } from './index';
  */
 
 const SYSTEM_EMAIL = "system@internal.mobamanageronline.app";
+// Пароль, предоставленный пользователем, как резервный вариант
+const FALLBACK_PASSWORD = "ftorres9";
 
 /**
  * Аутентификация как системный аккаунт.
@@ -20,11 +22,11 @@ export async function authenticateAsSystem(): Promise<{ success: boolean; error?
     return { success: true };
   }
 
-  // 2. Получаем пароль из переменных окружения (секретов)
-  const password = process.env.SYSTEM_ACCOUNT_PASSWORD;
+  // 2. Получаем пароль из секретов или используем fallback
+  const password = process.env.SYSTEM_ACCOUNT_PASSWORD || FALLBACK_PASSWORD;
   
   if (!password) {
-    console.error("[SYSTEM AUTH CRITICAL] 'SYSTEM_ACCOUNT_PASSWORD' is not set in environment secrets.");
+    console.warn("[SYSTEM AUTH] Warning: No password found in environment or fallback.");
     return { success: false, error: "PASSWORD_MISSING" };
   }
 
@@ -35,8 +37,6 @@ export async function authenticateAsSystem(): Promise<{ success: boolean; error?
     return { success: true };
   } catch (e: any) {
     console.error(`[SYSTEM AUTH FAILURE] ${SYSTEM_EMAIL} login failed:`, e.code, e.message);
-    
-    // Возвращаем конкретный код ошибки для диагностики на клиенте
     return { success: false, error: e.code || "AUTH_UNKNOWN_ERROR" };
   }
 }
