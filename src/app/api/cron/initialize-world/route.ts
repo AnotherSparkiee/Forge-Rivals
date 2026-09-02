@@ -3,11 +3,10 @@ import { runGlobalEmergencyRepair } from '@/app/actions/fix-calendar';
 
 /**
  * @fileOverview Единственная точка входа для подготовки мира.
- * Вызывается Cloud Scheduler.
- * Установлен увеличенный лимит выполнения для монолитной постройки мира v131.
+ * Защищена секретным токеном CRON_SECRET.
  */
 
-export const maxDuration = 300; // 5 минут (стандартный максимум для Vercel/Firebase)
+export const maxDuration = 300; 
 
 export async function GET(request: Request) {
   const authHeader = request.headers.get('authorization');

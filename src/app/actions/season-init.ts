@@ -7,7 +7,7 @@
 import { 
   collection, getDocs, query, where, doc, getDoc, 
   serverTimestamp, runTransaction, increment,
-  Timestamp
+  Timestamp, limit
 } from 'firebase/firestore';
 import { authenticateAsSystem } from '@/firebase/system-auth';
 import { initializeFirebase } from '@/firebase';
@@ -33,9 +33,7 @@ function validateProfileData(data: any) {
 }
 
 /**
- * Инициализирует структуру группы (таблицу и матчи) прямо внутри транзакции.
- * Это решает проблему SECTOR_NOT_READY для первых пользователей.
- * ВАЖНО: Вызывается ПОСЛЕ всех reads в транзакции.
+ * Инициализирует структуру группы прямо внутри транзакции.
  */
 async function provisionGroupInTransaction(
   transaction: any, 
@@ -60,7 +58,6 @@ async function provisionGroupInTransaction(
     teamsForCalendar.push({ id: bId, name: bName, rank: r });
   }
 
-  // 1. Создаем таблицу
   transaction.set(tableRef, {
     id: tableRef.id, leagueId, level: tier, group, season: seasonNum,
     stats: initialStats,
@@ -68,7 +65,6 @@ async function provisionGroupInTransaction(
     version: 140
   });
 
-  // 2. Генерируем и записываем матчи (14 документов)
   const calendar = generateSeasonCalendar(teamsForCalendar, seasonNum, leagueId);
   for (const m of calendar) {
     const mId = `match_v140_S${seasonNum}_L${leagueId}_V${tier}_G${group}_T${m.tour}_R${m.homeRank}_vs_R${m.awayRank}`;
@@ -91,7 +87,8 @@ export async function findStrategicPlacement(leagueId: string) {
   try {
     const q = query(
       collection(db, 'players_v14'), 
-      where('selectedLeagueId', '==', leagueId)
+      where('selectedLeagueId', '==', leagueId),
+      limit(1000) // Добавлен лимит для безопасности
     );
     const snap = await getDocs(q);
     
@@ -104,7 +101,6 @@ export async function findStrategicPlacement(leagueId: string) {
       }
     });
 
-    // Начинаем поиск с Tier 9 (низшая лига), чтобы новички не попадали сразу к топам
     for (let tier = 9; tier >= 1; tier--) {
       const groupsInTier = getGroupsCountInLevel(tier);
       for (let group = 1; group <= groupsInTier; group++) {
@@ -126,14 +122,12 @@ export async function initializeClubV13(userId: string, data: any) {
   if (!userId) return { success: false, error: "AUTH_REQUIRED" };
   const { clubName, tier: validatedTier } = validateProfileData(data);
   
-  // 1. СИСТЕМНАЯ АВТОРИЗАЦИЯ
   const authRes = await authenticateAsSystem();
   if (!authRes.success) {
     return { success: false, error: `SYSTEM_AUTH_FAILED_${authRes.error}` };
   }
 
-  // Пауза для синхронизации токена
-  await new Promise(resolve => setTimeout(resolve, 300));
+  await new Promise(resolve => setTimeout(resolve, 500));
 
   const { firestore: db } = initializeFirebase();
 
@@ -150,20 +144,17 @@ export async function initializeClubV13(userId: string, data: any) {
 
   try {
     const result = await runTransaction(db, async (transaction) => {
-      // КРИТИЧЕСКИ ВАЖНО: Сначала выполняем ВСЕ reads
       const playerSnap = await transaction.get(playerRef);
       const tableSnap = await transaction.get(tableRef);
       const counterSnap = await transaction.get(counterRef);
 
       if (playerSnap.exists()) {
         const p = playerSnap.data();
-        return { success: true, tier: p.leagueLevel, group: p.groupId, rank: p.rank, numericId: p.numericId };
+        return { success: true, tier: p.leagueLevel, group: p.groupId, rank: p.rank };
       }
 
-      // Теперь переходим к логике и writes
       let stats;
       if (!tableSnap.exists()) {
-        // Если сектора нет - создаем его
         stats = await provisionGroupInTransaction(transaction, db, leagueId, tier, group, seasonNum, tableRef);
       } else {
         stats = tableSnap.data().stats;
@@ -190,10 +181,8 @@ export async function initializeClubV13(userId: string, data: any) {
         isBot: false
       };
 
-      // Выполняем апдейты
       transaction.update(tableRef, { stats: currentStats, updatedAt: serverTimestamp() });
       
-      // Получаем номер ID из заранее считанного снапшота
       let nextNumericId = 1001;
       if (counterSnap.exists()) {
         nextNumericId = (counterSnap.data().totalPlayers || 1000) + 1;
@@ -201,31 +190,18 @@ export async function initializeClubV13(userId: string, data: any) {
       transaction.set(counterRef, { totalPlayers: nextNumericId, updatedAt: serverTimestamp() }, { merge: true });
 
       const finalPlayerData = {
-        id: userId,
-        email: data.email || null,
-        numericId: nextNumericId,
-        displayName: clubName,
-        clubName: clubName,
-        country: data.country || 'International',
-        selectedLeagueId: leagueId,
-        leagueLevel: tier,
-        groupId: group,
-        rank: actualRank,
-        credits: 1000000,
-        crystals: 50,
-        experiencePoints: 0,
-        managerLevel: 1,
-        lastProcessedSeason: seasonNum,
-        lastLoginDate: new Date().toISOString(),
-        createdAt: serverTimestamp(),
-        version: 140
+        id: userId, email: data.email || null, numericId: nextNumericId,
+        displayName: clubName, clubName: clubName, country: data.country || 'International',
+        selectedLeagueId: leagueId, leagueLevel: tier, groupId: group, rank: actualRank,
+        credits: 1000000, crystals: 50, experiencePoints: 0, managerLevel: 1,
+        lastProcessedSeason: seasonNum, lastLoginDate: new Date().toISOString(),
+        createdAt: serverTimestamp(), version: 140
       };
 
       transaction.set(playerRef, finalPlayerData);
-      return { success: true, tier, group, rank: actualRank, numericId: nextNumericId, botToReplaceId };
+      return { success: true, tier, group, rank: actualRank, botToReplaceId };
     });
 
-    // После транзакции обновляем матчи (только если заменили бота)
     if (result.success && result.botToReplaceId) {
       const matchesQ = query(collection(db, 'matches_v2'), 
         where('leagueId', '==', leagueId),
@@ -234,7 +210,6 @@ export async function initializeClubV13(userId: string, data: any) {
         where('version', '==', 140)
       );
       const matchesSnap = await getDocs(matchesQ);
-      
       const { writeBatch } = await import('firebase/firestore');
       const batch = writeBatch(db);
       
@@ -242,14 +217,10 @@ export async function initializeClubV13(userId: string, data: any) {
         const mData = mDoc.data();
         const updates: any = {};
         if (mData.homeId === result.botToReplaceId) { 
-          updates.homeId = userId; 
-          updates.homeName = clubName; 
-          updates.homeLogo = data.clubLogo || null; 
+          updates.homeId = userId; updates.homeName = clubName; 
         }
         if (mData.awayId === result.botToReplaceId) { 
-          updates.awayId = userId; 
-          updates.awayName = clubName; 
-          updates.awayLogo = data.clubLogo || null; 
+          updates.awayId = userId; updates.awayName = clubName; 
         }
         if (Object.keys(updates).length > 0) batch.update(mDoc.ref, updates);
       });
@@ -258,19 +229,14 @@ export async function initializeClubV13(userId: string, data: any) {
 
     return result;
   } catch (error: any) {
-    console.error("[INITIALIZE CLUB ERROR]:", error.code, error.message);
+    console.error("[INITIALIZE CLUB ERROR]:", error.message);
     return { success: false, error: error.message };
   }
 }
 
 export async function releasePlayerSlot(userId: string) {
   if (!userId) return { success: false };
-
-  const authRes = await authenticateAsSystem();
-  if (!authRes.success) {
-    return { success: false, error: `SYSTEM_AUTH_FAILED_${authRes.error}` };
-  }
-
+  await authenticateAsSystem();
   const { firestore: db } = initializeFirebase();
   const playerRef = doc(db, 'players_v14', userId);
   
@@ -278,25 +244,16 @@ export async function releasePlayerSlot(userId: string) {
     await runTransaction(db, async (transaction) => {
       const playerSnap = await transaction.get(playerRef);
       if (!playerSnap.exists()) return;
-
       const pData = playerSnap.data();
-      const { 
-        leagueLevel: tier, 
-        groupId: group, 
-        rank, 
-        selectedLeagueId: leagueId, 
-        lastProcessedSeason: seasonNum 
-      } = pData;
+      const { leagueLevel: tier, groupId: group, rank, selectedLeagueId: leagueId, lastProcessedSeason: seasonNum } = pData;
 
       if (tier && group && rank && leagueId) {
-        const currentSeason = seasonNum || 1;
-        const tableId = `table_v140_S${currentSeason}_L${leagueId}_V${tier}_G${group}`;
+        const tableId = `table_v140_S${seasonNum || 1}_L${leagueId}_V${tier}_G${group}`;
         const tableRef = doc(db, 'league_tables_v2', tableId);
         const tableSnap = await transaction.get(tableRef);
 
         if (tableSnap.exists()) {
-          const tableData = tableSnap.data();
-          const stats = { ...tableData.stats };
+          const stats = { ...tableSnap.data().stats };
           const botId = getBotId(leagueId, tier, group, rank);
           const botName = getBotName(tier, group, rank);
 
@@ -304,7 +261,6 @@ export async function releasePlayerSlot(userId: string) {
             const currentStats = stats[userId];
             delete stats[userId];
             stats[botId] = { ...currentStats, id: botId, name: botName, isBot: true, clubLogo: null, rank: Number(rank) };
-            
             transaction.update(tableRef, { stats, updatedAt: serverTimestamp() });
           }
         }
@@ -313,7 +269,6 @@ export async function releasePlayerSlot(userId: string) {
     });
     return { success: true };
   } catch (e: any) {
-    console.error("[RELEASE SLOT ERROR]:", e.message);
     return { success: false, error: e.message };
   }
 }

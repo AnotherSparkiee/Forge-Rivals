@@ -1,10 +1,9 @@
-
 import { NextResponse } from 'next/server';
 import { resolveDailyMatches } from '@/app/actions/autonomous-cycle';
 
 /**
  * @fileOverview Серверная точка входа для расчета матчей.
- * Должна вызываться ежедневно в 18:00 МСК (или чаще для проверки пропусков).
+ * Защищена секретным токеном CRON_SECRET.
  */
 
 export async function GET(request: Request) {

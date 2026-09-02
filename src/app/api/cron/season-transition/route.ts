@@ -1,10 +1,9 @@
-
 import { NextResponse } from 'next/server';
 import { performSeasonTransition } from '@/app/actions/autonomous-cycle';
 
 /**
  * @fileOverview Серверная точка входа для смены сезона.
- * Вызывается в последний день цикла (Offseason) для миграции лиг.
+ * Защищена секретным токеном CRON_SECRET.
  */
 
 export async function GET(request: Request) {

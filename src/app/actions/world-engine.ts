@@ -1,13 +1,12 @@
-
 'use server';
 
 /**
- * Глобальный двигатель мира v145 (Privileged System Auth).
+ * Глобальный двигатель мира v145 (Safe Transactions).
  */
 
 import { 
   doc, writeBatch, 
-  Firestore, serverTimestamp, getDoc, setDoc 
+  Firestore, serverTimestamp, getDoc, setDoc, runTransaction 
 } from 'firebase/firestore';
 import { authenticateAsSystem } from '@/firebase/system-auth';
 import { initializeFirebase } from '@/firebase';
@@ -37,16 +36,14 @@ function getGroupCoordinates(index: number) {
   return { tier: 9, group: 256 };
 }
 
-export async function injectGroupData(
-  batch: any, 
+async function injectGroupData(
+  transaction: any, 
   db: Firestore, 
   leagueId: string, 
   tier: number, 
   group: number, 
   seasonNum: number
 ) {
-  if (!leagueId || tier < 1 || tier > 9 || group < 1) return;
-
   const tableId = `table_v140_S${seasonNum}_L${leagueId}_V${tier}_G${group}`;
   const initialStats: any = {};
   const teamsForCalendar = [];
@@ -62,10 +59,8 @@ export async function injectGroupData(
     teamsForCalendar.push({ id: bId, name: bName, rank: r });
   }
 
-  if (Object.keys(initialStats).length !== 8) return;
-
   const tableRef = doc(db, 'league_tables_v2', tableId);
-  batch.set(tableRef, {
+  transaction.set(tableRef, {
     id: tableId, leagueId, level: tier, group, season: seasonNum,
     stats: initialStats,
     createdAt: serverTimestamp(),
@@ -75,27 +70,11 @@ export async function injectGroupData(
   const calendar = generateSeasonCalendar(teamsForCalendar, seasonNum, leagueId);
   for (const m of calendar) {
     const mId = `match_v140_S${seasonNum}_L${leagueId}_V${tier}_G${group}_T${m.tour}_R${m.homeRank}_vs_R${m.awayRank}`;
-    batch.set(doc(db, 'matches_v2', mId), {
-      ...m,
-      id: mId,
-      leagueId, level: tier, groupId: group, season: seasonNum,
-      isFinished: false, scoreA: 0, scoreB: 0,
-      version: 140
+    transaction.set(doc(db, 'matches_v2', mId), {
+      ...m, id: mId, leagueId, level: tier, groupId: group, season: seasonNum,
+      isFinished: false, scoreA: 0, scoreB: 0, version: 140
     });
   }
-}
-
-export async function createGroupStructure(
-  db: Firestore, 
-  leagueId: string, 
-  tier: number, 
-  group: number, 
-  seasonNum: number
-) {
-  await authenticateAsSystem();
-  const batch = writeBatch(db);
-  await injectGroupData(batch, db, leagueId, tier, group, seasonNum);
-  await batch.commit();
 }
 
 export async function initializeLeagueWorld(leagueId: string, targetSeason?: number) {
@@ -105,39 +84,44 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
   const seasonNum = targetSeason || info.activeSeasonNumber;
 
   const statusRef = doc(db, 'system_v1', `init_v140_S${seasonNum}_L${leagueId}`);
-  const statusSnap = await getDoc(statusRef);
   
-  let currentIndex = 0;
-  if (statusSnap.exists()) {
-    const data = statusSnap.data();
-    if (data.status === 'completed' && data.version === 140) {
-      return { status: 'COMPLETE', isComplete: true, currentIndex: TOTAL_GROUPS };
+  return await runTransaction(db, async (transaction) => {
+    const statusSnap = await transaction.get(statusRef);
+    let currentIndex = 0;
+    
+    if (statusSnap.exists()) {
+      const data = statusSnap.data();
+      if (data.status === 'completed' && data.version === 140) {
+        return { status: 'COMPLETE', isComplete: true, currentIndex: TOTAL_GROUPS };
+      }
+      currentIndex = data.currentIndex || 0;
     }
-    currentIndex = data.currentIndex || 0;
-  }
 
-  if (currentIndex >= TOTAL_GROUPS) return { status: 'COMPLETE', isComplete: true };
+    if (currentIndex >= TOTAL_GROUPS) return { status: 'COMPLETE', isComplete: true };
 
-  const batch = writeBatch(db);
-  let processedInThisCall = 0;
-  let nextIndex = currentIndex;
+    let processedCount = 0;
+    let nextIndex = currentIndex;
 
-  while (processedInThisCall < GROUPS_PER_CALL && nextIndex < TOTAL_GROUPS) {
-    nextIndex++;
-    const coords = getGroupCoordinates(nextIndex);
-    await injectGroupData(batch, db, leagueId, coords.tier, coords.group, seasonNum);
-    processedInThisCall++;
-  }
+    while (processedCount < GROUPS_PER_CALL && nextIndex < TOTAL_GROUPS) {
+      nextIndex++;
+      const coords = getGroupCoordinates(nextIndex);
+      await injectGroupData(transaction, db, leagueId, coords.tier, coords.group, seasonNum);
+      processedCount++;
+    }
 
-  await batch.commit();
+    const isComplete = nextIndex >= TOTAL_GROUPS;
+    transaction.set(statusRef, {
+      currentIndex: nextIndex,
+      status: isComplete ? 'completed' : 'processing',
+      updatedAt: serverTimestamp(),
+      version: 140
+    }, { merge: true });
 
-  const isComplete = nextIndex >= TOTAL_GROUPS;
-  await setDoc(statusRef, {
-    currentIndex: nextIndex,
-    status: isComplete ? 'completed' : 'processing',
-    updatedAt: serverTimestamp(),
-    version: 140
-  }, { merge: true });
-
-  return { status: isComplete ? 'FINISHED' : 'BATCH_DONE', currentIndex: nextIndex, isComplete, progress: `Index: ${nextIndex}/${TOTAL_GROUPS}` };
+    return { 
+      status: isComplete ? 'FINISHED' : 'BATCH_DONE', 
+      currentIndex: nextIndex, 
+      isComplete, 
+      progress: `Index: ${nextIndex}/${TOTAL_GROUPS}` 
+    };
+  });
 }
