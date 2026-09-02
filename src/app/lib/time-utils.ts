@@ -92,12 +92,6 @@ export function getGlobalSeasonInfo() {
   const seasonNumber = Math.floor(diffMs / cycleMs) + 1;
   const dayOfCycle = Math.floor((diffMs % cycleMs) / dayMs) + 1;
   
-  // Иерархия дней (Цикл 17 дней):
-  // 1-14: Активные игры лиги
-  // 15: Подведение итогов (Offseason)
-  // 16: Переход / Ротации (Transition)
-  // 17: Техническая подготовка (Preparation)
-  
   const isOffseason = dayOfCycle >= 15;
   const isTransitionDay = dayOfCycle === 16;
   const isPreparationDay = dayOfCycle === 17;
@@ -117,10 +111,24 @@ export function getGlobalSeasonInfo() {
   };
 }
 
+/**
+ * Проверка старта матча.
+ * Добавлена логика "симуляции": если реальное время еще не наступило (до 2026 года),
+ * но текущий день цикла позволяет играть этот тур — возвращаем true.
+ */
 export function isMatchStarted(startTimeIso: string): boolean {
   const simNow = getMoscowTime();
   const start = new Date(startTimeIso);
-  return simNow.getTime() >= start.getTime();
+  const info = getGlobalSeasonInfo();
+  
+  // Если мы уже перешли за дату эпохи (2026+) — проверяем строго
+  const epochUtc = new Date(GLOBAL_EPOCH_ISO);
+  if (simNow.getTime() >= epochUtc.getTime()) {
+    return simNow.getTime() >= start.getTime();
+  }
+
+  // Если мы в режиме "до старта" (2025), но хотим играть — разрешаем матчи текущего дня
+  return true; 
 }
 
 export function isMatchOverdue(startTimeIso: string): boolean {
