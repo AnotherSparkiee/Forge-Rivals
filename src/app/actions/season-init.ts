@@ -73,10 +73,10 @@ export async function initializeClubV13(userId: string, data: any) {
   const { clubName, tier: validatedTier } = validateProfileData(data);
   
   // 1. ПРИНУДИТЕЛЬНАЯ СИСТЕМНАЯ АВТОРИЗАЦИЯ
-  const isSystemAuth = await authenticateAsSystem();
-  if (!isSystemAuth) {
-    console.error("[SYSTEM AUTH] Failed to authorize as admin for initializeClubV13");
-    return { success: false, error: "SYSTEM_AUTH_FAILED" };
+  const authRes = await authenticateAsSystem();
+  if (!authRes.success) {
+    console.error(`[SYSTEM AUTH] Failed for initializeClubV13: ${authRes.error}`);
+    return { success: false, error: `SYSTEM_AUTH_FAILED_${authRes.error}` };
   }
 
   const { firestore: db } = initializeFirebase();
@@ -211,7 +211,11 @@ export async function initializeClubV13(userId: string, data: any) {
 export async function releasePlayerSlot(userId: string) {
   if (!userId) return { success: false };
 
-  await authenticateAsSystem();
+  const authRes = await authenticateAsSystem();
+  if (!authRes.success) {
+    return { success: false, error: `SYSTEM_AUTH_FAILED_${authRes.error}` };
+  }
+
   const { firestore: db } = initializeFirebase();
   const playerRef = doc(db, 'players_v14', userId);
   
