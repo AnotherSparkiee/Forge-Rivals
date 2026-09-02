@@ -80,10 +80,29 @@ export function getGlobalSeasonInfo() {
   };
 }
 
+/**
+ * Рассчитывает текущий возраст игрока на основе базового возраста при найме.
+ * 17 реальных дней = 1 игровой год (цикл сезона).
+ */
+export function calculateLiveAge(baseAge: number, hiredAtIso: string) {
+  const now = getMoscowTime();
+  const hiredAt = new Date(hiredAtIso);
+  const diffMs = now.getTime() - hiredAt.getTime();
+  const dayMs = 24 * 60 * 60 * 1000;
+  const daysPassed = Math.max(0, diffMs / dayMs);
+  
+  const yearsPassed = daysPassed / SEASON_CYCLE_DAYS;
+  const currentAge = baseAge + yearsPassed;
+  
+  return {
+    numeric: currentAge,
+    display: Math.floor(currentAge)
+  };
+}
+
 export function isMatchStarted(startTimeIso: string): boolean {
   const simNow = getMoscowTime();
   const start = new Date(startTimeIso);
-  // Всегда проверяем строго по времени
   return simNow.getTime() >= start.getTime();
 }
 
