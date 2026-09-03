@@ -6,11 +6,11 @@ runConfig:
   # more instances in response to increased traffic.
   maxInstances: 1
 
-# Регистрация секретов для доступа в Server Actions
+# Регистрация переменных окружения и секретов
 environmentVariables:
   - variable: SYSTEM_ACCOUNT_PASSWORD
     secret: SYSTEM_ACCOUNT_PASSWORD
   - variable: CRON_SECRET
     value: lote_secure_cron_token_2026
   - variable: NEXT_PUBLIC_FIREBASE_API_KEY
-    value: AIzaSyD-5_fN9x_Z6G2z7R9Y9B1m2L3k4j5h6
+    value: AIzaSyDk-5jCdodI_Any76Jq2jiS3F_0DJBMnuo
