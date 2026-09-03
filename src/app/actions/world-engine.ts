@@ -1,7 +1,7 @@
 'use server';
 
 /**
- * Глобальный двигатель мира v152 (Reduced Levels Fix).
+ * Глобальный двигатель мира v152 (Audit Fix).
  */
 
 import { 
