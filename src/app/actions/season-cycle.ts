@@ -1,19 +1,21 @@
 'use server';
 
 /**
- * @fileOverview Ядро управления сезонными циклами v1.0.
- * Отвечает за плавный переход между сезонами и подготовку данных.
+ * @fileOverview Ядро управления сезонными циклами v1.1 (Migration Fix).
  */
 
-import { doc, getDoc, setDoc, serverTimestamp, collection, query, where, getDocs, writeBatch, limit } from 'firebase/firestore';
+import { 
+  doc, getDoc, setDoc, serverTimestamp, collection, 
+  query, where, getDocs, writeBatch, limit 
+} from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import { authenticateAsSystem } from '@/firebase/system-auth';
-import { getGlobalSeasonInfo, getMoscowTime } from '@/app/lib/time-utils';
+import { getGlobalSeasonInfo, getMoscowHours } from '@/app/lib/time-utils';
 import { initializeLeagueWorld } from './world-engine';
+import { getTableId } from '../lib/leagues-data';
 
 /**
  * Читает номер активного сезона из конфига БД.
- * Fallback на статический расчет времени.
  */
 export async function getActiveSeasonNumber(db: any) {
   const configRef = doc(db, 'system_v1', 'season_config');
@@ -30,43 +32,39 @@ export async function getActiveSeasonNumber(db: any) {
 
 /**
  * Генерирует мир для СЛЕДУЮЩЕГО сезона.
- * Вызывается в 15-й день цикла (начало межсезонья).
  */
 export async function generateNextSeasonWorld() {
   await authenticateAsSystem();
   const { firestore: db } = initializeFirebase();
   const info = getGlobalSeasonInfo();
-  const now = getMoscowTime();
+  const mskHour = getMoscowHours();
 
-  // Должен быть 15-й день цикла и время после 16:00 MSK
-  if (info.dayOfCycle !== 15 || now.getHours() < 16) {
-    return { success: false, msg: "NOT_TIME_FOR_GENERATION", info };
+  if (info.dayOfCycle !== 15 || mskHour < 16) {
+    return { success: false, msg: "NOT_TIME_FOR_GENERATION", info, mskHour };
   }
 
   const currentSeason = await getActiveSeasonNumber(db);
   const nextSeason = currentSeason + 1;
 
-  // Инициализируем мир для следующего сезона
   const result = await initializeLeagueWorld('ALPHA', nextSeason);
   return { success: true, result };
 }
 
 /**
- * Официально активирует следующий сезон.
- * Вызывается в 16-й день цикла (день перехода).
+ * Официально активирует следующий сезон и мигрирует игроков.
  */
 export async function activateNextSeason() {
   await authenticateAsSystem();
   const { firestore: db } = initializeFirebase();
   const info = getGlobalSeasonInfo();
-  const now = getMoscowTime();
+  const mskHour = getMoscowHours();
 
-  // Должен быть 16-й день цикла и время после 18:00 MSK
-  if (info.dayOfCycle !== 16 || now.getHours() < 18) {
-    return { success: false, msg: "NOT_TIME_FOR_ACTIVATION", info };
+  if (info.dayOfCycle !== 16 || mskHour < 18) {
+    return { success: false, msg: "NOT_TIME_FOR_ACTIVATION", info, mskHour };
   }
 
   const currentSeason = await getActiveSeasonNumber(db);
+  const nextSeason = currentSeason + 1;
   
   // 1. Отменяем незавершенные матчи текущего сезона
   const q = query(
@@ -90,9 +88,49 @@ export async function activateNextSeason() {
   // 2. Переключаем сезон в конфиге
   const configRef = doc(db, 'system_v1', 'season_config');
   await setDoc(configRef, { 
-    activeSeasonNumber: currentSeason + 1,
+    activeSeasonNumber: nextSeason,
     updatedAt: serverTimestamp()
   }, { merge: true });
 
-  return { success: true, newSeason: currentSeason + 1 };
+  // 3. Миграция живых игроков в новые таблицы сезона
+  const playersSnap = await getDocs(collection(db, 'players_v14'));
+  let migrateBatch = writeBatch(db);
+  let migrateCount = 0;
+
+  for (const pDoc of playersSnap.docs) {
+    const p = pDoc.data();
+    if (p.lastProcessedSeason === currentSeason) {
+      const tableId = getTableId(nextSeason, p.selectedLeagueId, p.leagueLevel, p.groupId);
+      const tableRef = doc(db, 'league_tables_v2', tableId);
+      const tableSnap = await getDoc(tableRef);
+      
+      if (tableSnap.exists()) {
+        const stats = { ...tableSnap.data().stats };
+        // Ищем бота на том же ранге
+        const botId = Object.keys(stats).find(id => Number(stats[id].rank) === Number(p.rank) && stats[id].isBot);
+        
+        if (botId) {
+          delete stats[botId];
+          stats[pDoc.id] = { 
+            id: pDoc.id, name: p.clubName || p.displayName, rank: p.rank,
+            matchesPlayed: 0, wins: 0, draws: 0, losses: 0, points: 0, diff: 0,
+            isBot: false, clubLogo: p.clubLogo || null
+          };
+          
+          migrateBatch.update(tableRef, { stats, updatedAt: serverTimestamp() });
+          migrateBatch.update(pDoc.ref, { lastProcessedSeason: nextSeason });
+          migrateCount++;
+          
+          if (migrateCount >= 400) {
+            await migrateBatch.commit();
+            migrateBatch = writeBatch(db);
+            migrateCount = 0;
+          }
+        }
+      }
+    }
+  }
+  if (migrateCount > 0) await migrateBatch.commit();
+
+  return { success: true, newSeason: nextSeason, migrated: migrateCount };
 }

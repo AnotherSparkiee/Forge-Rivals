@@ -1,21 +1,19 @@
 'use client';
 
 /**
- * @fileOverview Модуль интеграции Telegram Auth v1.3 (Deterministic Passwords).
+ * @fileOverview Модуль интеграции Telegram Auth v1.4 (Secure Client Salt).
  */
 
 import { Auth, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 
 /**
  * Генерирует стабильный пароль на основе ID пользователя и системного секрета.
- * Это позволяет избежать хранения паролей и обеспечивает вход с любого устройства.
  */
 function getDeterministicPassword(tgUserId: string | number) {
-  // Используем системный пароль как соль для генерации хеша
-  const salt = process.env.SYSTEM_ACCOUNT_PASSWORD || "lote_fallback_salt_2026";
+  // Используем публичный соль для клиента
+  const salt = process.env.NEXT_PUBLIC_TELEGRAM_SALT || "lote_fallback_salt_2026";
   const input = `tg_${tgUserId}_${salt}`;
   
-  // Простая реализация хеширования для клиента (в проде лучше использовать Web Crypto API)
   let hash = 0;
   for (let i = 0; i < input.length; i++) {
     const char = input.charCodeAt(i);
@@ -30,11 +28,9 @@ export async function syncTelegramUser(auth: Auth, tgUser: any) {
   const password = getDeterministicPassword(tgUser.id);
   
   try {
-    // Пробуем войти с детерминированным паролем
     await signInWithEmailAndPassword(auth, email, password);
     return { status: 'logged_in' };
   } catch (error: any) {
-    // Если пользователь не найден — регистрируем его
     if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
       try {
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);

@@ -1,7 +1,7 @@
 'use server';
 
 /**
- * @fileOverview ГЛОБАЛЬНЫЙ АВТОНОМНЫЙ ДВИГАТЕЛЬ v148 (Season Config Sync).
+ * @fileOverview ГЛОБАЛЬНЫЙ АВТОНОМНЫЙ ДВИГАТЕЛЬ v149 (Unlock Fix).
  */
 
 import { 
@@ -48,7 +48,6 @@ export async function resolveDailyMatches() {
   await authenticateAsSystem();
   const { firestore: db } = initializeFirebase();
   
-  // Получаем реальный активный сезон из конфига
   const currentSeason = await getActiveSeasonNumber(db);
   const nowIso = new Date().toISOString();
 
@@ -72,7 +71,7 @@ export async function resolveDailyMatches() {
   for (const matchDoc of snap.docs) {
     const m = matchDoc.data();
     
-    // Атомарно блокируем матч перед расчетом (на уровне батча)
+    // Атомарно блокируем матч
     await batcher.update(matchDoc.ref, { isProcessing: true });
 
     try {
@@ -108,8 +107,10 @@ export async function resolveDailyMatches() {
       count++;
     } catch (err) {
       console.error(`[AUTONOMOUS CYCLE] Failed match ${matchDoc.id}:`, err);
-      // Снимаем блокировку при ошибке (пакетно)
-      await batcher.update(matchDoc.ref, { isProcessing: false });
+      // Снимаем блокировку отдельным батчем для гарантии
+      const unlockBatch = writeBatch(db);
+      unlockBatch.update(matchDoc.ref, { isProcessing: false });
+      await unlockBatch.commit();
     }
   }
 

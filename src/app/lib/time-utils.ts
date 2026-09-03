@@ -1,5 +1,5 @@
 /**
- * @fileOverview Ядро времени v125 (Always Check StartTime). 
+ * @fileOverview Ядро времени v126 (Moscow Hours Helper). 
  */
 
 let syncPoint = {
@@ -31,6 +31,12 @@ export function getMoscowTime(): Date {
     currentUtcMs = Date.now(); 
   }
   return new Date(currentUtcMs + SIMULATION_OFFSET_MS);
+}
+
+export function getMoscowHours(): number {
+  const now = getMoscowTime();
+  // Используем UTC + 3 часа для МСК
+  return (now.getUTCHours() + 3) % 24;
 }
 
 export function toMskDate(date: Date): Date {
@@ -82,7 +88,6 @@ export function getGlobalSeasonInfo() {
 
 /**
  * Рассчитывает текущий возраст игрока на основе базового возраста при найме.
- * 17 реальных дней = 1 игровой год (цикл сезона).
  */
 export function calculateLiveAge(baseAge: number, hiredAtIso: string) {
   const now = getMoscowTime();

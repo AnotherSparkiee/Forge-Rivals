@@ -3,25 +3,20 @@ import { initializeFirebase } from './index';
 
 /**
  * @fileOverview Централизованный модуль системной авторизации.
- * Использует учетную запись system@internal.mobamanageronline.app.
- * ПАРОЛЬ ЧИТАЕТСЯ ИЗ ПЕРЕМЕННЫХ ОКРУЖЕНИЯ (Файл .env или Секреты App Hosting).
  */
 
 const SYSTEM_EMAIL = "system@internal.mobamanageronline.app";
 
 /**
  * Аутентификация как системный аккаунт.
- * Сначала пытается войти, если пользователя нет — создает его (авто-бутстрап).
  */
 export async function authenticateAsSystem(): Promise<{ success: boolean; error?: string }> {
   const { auth } = initializeFirebase();
   
-  // 1. Если сессия уже активна и это системный аккаунт - пропускаем вход
   if (auth.currentUser?.email === SYSTEM_EMAIL) {
     return { success: true };
   }
 
-  // 2. Получение пароля из окружения
   const password = process.env.SYSTEM_ACCOUNT_PASSWORD;
   
   if (!password) {
@@ -29,19 +24,20 @@ export async function authenticateAsSystem(): Promise<{ success: boolean; error?
     return { success: false, error: "PASSWORD_MISSING_IN_ENV" };
   }
 
-  // 3. Выполняем вход
   try {
-    const userCredential = await signInWithEmailAndPassword(auth, SYSTEM_EMAIL, password.trim());
+    await signInWithEmailAndPassword(auth, SYSTEM_EMAIL, password.trim());
     console.log(`[SYSTEM AUTH SUCCESS] Authorized as admin.`);
     return { success: true };
   } catch (e: any) {
-    // 4. Авто-бутстрап: если пользователя нет, создаем его
     if (e.code === 'auth/user-not-found' || e.code === 'auth/invalid-credential') {
       try {
         console.log(`[SYSTEM AUTH] Bootstrapping system account...`);
         await createUserWithEmailAndPassword(auth, SYSTEM_EMAIL, password.trim());
         return { success: true };
       } catch (regError: any) {
+        if (regError.code === 'auth/email-already-in-use') {
+          return { success: false, error: "SYSTEM_EMAIL_EXISTS_BUT_PASSWORD_MISMATCH" };
+        }
         console.error(`[SYSTEM AUTH FAILURE] Bootstrap failed:`, regError.code);
         return { success: false, error: regError.code };
       }

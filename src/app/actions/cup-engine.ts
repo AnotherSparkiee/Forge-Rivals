@@ -1,12 +1,12 @@
 'use server';
 
 /**
- * @fileOverview Двигатель Кубка v16 (Existence Check).
+ * @fileOverview Двигатель Кубка v16.1 (Build Fix).
  */
 
 import { 
   collection, doc, getDocs, writeBatch, query, 
-  Firestore, serverTimestamp, getDoc
+  Firestore, serverTimestamp, getDoc, setDoc
 } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import { authenticateAsSystem } from '@/firebase/system-auth';

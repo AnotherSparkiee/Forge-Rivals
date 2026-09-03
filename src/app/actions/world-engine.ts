@@ -1,14 +1,14 @@
 'use server';
 
 /**
- * Глобальный двигатель мира v150 (Season Param Fix).
+ * Глобальный двигатель мира v151 (Season Param & Multi-Season Fix).
  */
 
 import { 
   doc, Transaction, getDoc,
   Firestore, serverTimestamp, runTransaction 
 } from 'firebase/firestore';
-import { authenticateAsSystem } from '@/firebase-system-auth';
+import { authenticateAsSystem } from '@/firebase/system-auth';
 import { initializeFirebase } from '@/firebase';
 import { 
   getBotId, 
@@ -19,7 +19,7 @@ import {
 } from '@/app/lib/leagues-data';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 
-const GROUPS_PER_CALL = 8; 
+const GROUPS_PER_CALL = 100; 
 
 function getGroupCoordinates(index: number) {
   if (index < 1) return { tier: 1, group: 1 };
@@ -48,8 +48,7 @@ async function injectGroupData(
   const tableRef = doc(db, 'league_tables_v2', tableId);
   
   const tableSnap = await transaction.get(tableRef);
-  if (tableSnap.exists()) return;
-
+  
   const initialStats: any = {};
   const teamsForCalendar = [];
 
@@ -64,13 +63,17 @@ async function injectGroupData(
     teamsForCalendar.push({ id: bId, name: bName, rank: r });
   }
 
-  transaction.set(tableRef, {
-    id: tableId, leagueId, level: tier, group, season: seasonNum,
-    stats: initialStats,
-    createdAt: serverTimestamp(),
-    version: 140
-  });
+  // Создаем таблицу только если её нет
+  if (!tableSnap.exists()) {
+    transaction.set(tableRef, {
+      id: tableId, leagueId, level: tier, group, season: seasonNum,
+      stats: initialStats,
+      createdAt: serverTimestamp(),
+      version: 140
+    });
+  }
 
+  // Матчи создаем всегда (они уникальны для каждого сезона)
   const calendar = generateSeasonCalendar(teamsForCalendar, seasonNum, leagueId);
   for (const m of calendar) {
     const mId = `match_v140_S${seasonNum}_L${leagueId}_V${tier}_G${group}_T${m.tour}_R${m.homeRank}_vs_R${m.awayRank}`;

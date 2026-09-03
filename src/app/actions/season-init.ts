@@ -1,7 +1,7 @@
 'use server';
 
 /**
- * @fileOverview Модуль инициализации клуба v153 (Sync Match Updates).
+ * @fileOverview Модуль инициализации клуба v154 (Effective Season Fix).
  */
 
 import { 
@@ -115,10 +115,14 @@ export async function initializeClubV13(userId: string, data: any) {
 
   const { firestore: db } = initializeFirebase();
   const seasonNum = await getActiveSeasonNumber(db);
+  const info = getGlobalSeasonInfo();
+  // Если регистрация в межсезонье (дни 15-16), зачисляем в будущий сезон
+  const effectiveSeason = info.dayOfCycle >= 15 ? seasonNum + 1 : seasonNum;
+
   const { clubName, tier, group, rank, selectedLeagueId: leagueId } = validation.data;
 
   const playerRef = doc(db, 'players_v14', userId);
-  const tableId = getTableId(seasonNum, leagueId, tier, group);
+  const tableId = getTableId(effectiveSeason, leagueId, tier, group);
   const tableRef = doc(db, 'league_tables_v2', tableId);
   const counterRef = doc(db, 'system_v1', 'global_stats');
 
@@ -137,7 +141,7 @@ export async function initializeClubV13(userId: string, data: any) {
 
       let stats;
       if (!tableSnap.exists()) {
-        stats = await provisionGroupInTransaction(transaction, db, leagueId, tier, group, seasonNum, tableRef);
+        stats = await provisionGroupInTransaction(transaction, db, leagueId, tier, group, effectiveSeason, tableRef);
       } else {
         stats = tableSnap.data().stats;
       }
@@ -162,7 +166,7 @@ export async function initializeClubV13(userId: string, data: any) {
         displayName: clubName, clubName, country: data.country || 'International',
         selectedLeagueId: leagueId, leagueLevel: tier, groupId: group, rank: actualRank,
         credits: 1000000, crystals: 50, experiencePoints: 0, managerLevel: 1,
-        lastProcessedSeason: seasonNum, lastLoginDate: new Date().toISOString(),
+        lastProcessedSeason: effectiveSeason, lastLoginDate: new Date().toISOString(),
         createdAt: serverTimestamp(), version: 140
       };
 
@@ -178,7 +182,7 @@ export async function initializeClubV13(userId: string, data: any) {
         where('level', '==', tier), 
         where('groupId', '==', group), 
         where('version', '==', 140),
-        where('season', '==', seasonNum)
+        where('season', '==', effectiveSeason)
       );
       
       const snap = await getDocs(matchesQ);
@@ -197,5 +201,48 @@ export async function initializeClubV13(userId: string, data: any) {
   } catch (error: any) {
     logger.error("Transaction failed in initializeClubV13", error, { userId });
     return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Возвращает слот боту при сбросе профиля.
+ */
+export async function releasePlayerSlot(userId: string) {
+  await authenticateAsSystem();
+  const { firestore: db } = initializeFirebase();
+  
+  try {
+    const playerRef = doc(db, 'players_v14', userId);
+    const pSnap = await getDoc(playerRef);
+    if (!pSnap.exists()) return { success: false };
+    
+    const p = pSnap.data();
+    const seasonNum = await getActiveSeasonNumber(db);
+    const tableId = getTableId(seasonNum, p.selectedLeagueId, p.leagueLevel, p.groupId);
+    const tableRef = doc(db, 'league_tables_v2', tableId);
+    
+    await runTransaction(db, async (transaction) => {
+      const tSnap = await transaction.get(tableRef);
+      if (!tSnap.exists()) return;
+      
+      const stats = { ...tSnap.data().stats };
+      const botId = getBotId(p.selectedLeagueId, p.leagueLevel, p.groupId, p.rank);
+      const botName = getBotName(p.leagueLevel, p.groupId, p.rank);
+      
+      delete stats[userId];
+      stats[botId] = {
+        id: botId, name: botName, rank: p.rank,
+        matchesPlayed: 0, wins: 0, draws: 0, losses: 0, points: 0, diff: 0,
+        isBot: true, clubLogo: null
+      };
+      
+      transaction.update(tableRef, { stats, updatedAt: serverTimestamp() });
+      transaction.delete(playerRef);
+    });
+    
+    return { success: true };
+  } catch (e) {
+    console.error("Release slot failed:", e);
+    return { success: false };
   }
 }
