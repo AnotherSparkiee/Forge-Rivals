@@ -2,7 +2,7 @@ import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } f
 import { initializeFirebase } from './index';
 
 /**
- * @fileOverview Централизованный модуль системной авторизации v1.8 (Verification Bypass Fix).
+ * @fileOverview Централизованный модуль системной авторизации v2.0 (Caching & Sync Fix).
  */
 
 const SYSTEM_EMAIL = "system@internal.mobamanageronline.app";
@@ -17,9 +17,9 @@ let systemUserCredential: any = null;
 export async function authenticateAsSystem(): Promise<{ success: boolean; error?: string; uid?: string }> {
   const { auth } = initializeFirebase();
   
-  // 1. Возвращаем кэшированный результат, если пользователь всё еще в системе
-  if (systemUserCredential && auth.currentUser?.email === SYSTEM_EMAIL) {
-    return { success: true, uid: auth.currentUser.uid };
+  // 1. Возвращаем кэшированный результат, если он есть
+  if (systemUserCredential) {
+    return { success: true, uid: systemUserCredential.user.uid };
   }
 
   const password = process.env.SYSTEM_ACCOUNT_PASSWORD;
@@ -39,12 +39,6 @@ export async function authenticateAsSystem(): Promise<{ success: boolean; error?
     console.log(`[SYSTEM AUTH SUCCESS] Authorized as ${SYSTEM_EMAIL} (${auth.currentUser?.uid})`);
     return { success: true, uid: auth.currentUser?.uid };
   } catch (e: any) {
-    // Если пароль не совпал, сбрасываем кэш
-    if (e.code === 'auth/wrong-password' || e.code === 'auth/invalid-credential') {
-      console.warn(`[SYSTEM AUTH] Password mismatch for ${SYSTEM_EMAIL}. Attempting to clean session...`);
-      await signOut(auth);
-    }
-
     // 3. Если пользователя нет - пытаемся создать
     if (e.code === 'auth/user-not-found' || e.code === 'auth/invalid-credential') {
       try {
@@ -54,7 +48,6 @@ export async function authenticateAsSystem(): Promise<{ success: boolean; error?
         return { success: true, uid: auth.currentUser?.uid };
       } catch (regError: any) {
         if (regError.code === 'auth/email-already-in-use') {
-          console.error(`[SYSTEM AUTH FAILURE] Password mismatch for ${SYSTEM_EMAIL}. Delete user in console to reset.`);
           return { success: false, error: "SYSTEM_EMAIL_EXISTS_BUT_PASSWORD_MISMATCH" };
         }
         return { success: false, error: regError.code };

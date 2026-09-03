@@ -1,35 +1,20 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { COUNTRIES } from '@/app/lib/countries-data';
 import { 
-  Loader2, ChevronLeft, Edit3, Flag, Shield, 
-  ChevronRight, ArrowRight
+  Loader2, ChevronLeft, Shield, 
+  ArrowRight, Sparkles, Rocket
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useGameState, LineupSlot } from '@/app/lib/store';
 import { getRandomStartingSquad } from '@/app/lib/moba-data';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
 import { findStrategicPlacement, initializeClubV13 } from '@/app/actions/season-init';
-import { useUser, useFirestore } from '@/firebase';
+import { useUser } from '@/firebase';
 import { cn } from '@/lib/utils';
-
-const CLUBS = [
-  { id: 'parivision', name: 'Parivision', logo: 'https://iili.io/CYIAgVa.webp' },
-  { id: 'falcons', name: 'Falcons', logo: 'https://iili.io/CYTjsIe.webp' },
-  { id: 'spirit', name: 'Team Spirit', logo: 'https://iili.io/CYTefEb.webp' },
-  { id: 'aurora', name: 'Aurora Gaming', logo: 'https://iili.io/CYuhmu9.webp' },
-  { id: 'betboom', name: 'BetBoom Team', logo: 'https://iili.io/CYuNrj1.webp' },
-  { id: 'yandex', name: 'Team Yandex', logo: 'https://iili.io/CYukyZP.webp' },
-  { id: 'liquid', name: 'Team Liquid', logo: 'https://iili.io/CYuS3pR.webp' },
-  { id: 'navi', name: 'NAVI', logo: 'https://iili.io/CYupwe2.webp' },
-];
-
-type SetupStep = 'name' | 'country' | 'club';
 
 export default function SetupPage() {
   const router = useRouter();
@@ -37,38 +22,20 @@ export default function SetupPage() {
   const { toast } = useToast();
   const { language, isLoaded, saveToLocal } = useGameState();
   
-  const [step, setStep] = useState<SetupStep>('name');
-  const [teamName, setTeamName] = useState('');
-  const [selectedCountryCode, setSelectedCountryCode] = useState<string | null>(null);
-  const [selectedClubId, setSelectedClubId] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
-  
-  const loginName = useMemo(() => {
-    if (!user?.email) return "";
-    return user.email.split('@')[0];
-  }, [user?.email]);
 
   useEffect(() => {
     if (!isUserLoading && !user) router.push('/auth/login');
-    
-    // Пытаемся восстановить название команды из регистрации
-    const pendingName = localStorage.getItem('pending_club_name');
-    if (pendingName && !teamName) {
-      setTeamName(pendingName);
-    } else if (user && !teamName) {
-      setTeamName(loginName);
-    }
-  }, [user, isUserLoading, router, loginName, teamName]);
+  }, [user, isUserLoading, router]);
 
   const handleCompleteSetup = async () => {
-    if (!selectedCountryCode || !selectedClubId || !teamName.trim() || isUpdating || !user) return;
+    if (isUpdating || !user) return;
     setIsUpdating(true);
     
     try {
       const targetLeagueId = "ALPHA";
+      // 1. Поиск свободного места
       const placement = await findStrategicPlacement(targetLeagueId);
-      const selectedCountry = COUNTRIES.find(c => c.code === selectedCountryCode);
-      const selectedClub = CLUBS.find(c => c.id === selectedClubId);
       
       const startingSquad = getRandomStartingSquad();
       const initialLineup: Record<LineupSlot, string | null> = {
@@ -85,26 +52,20 @@ export default function SetupPage() {
         res1: null, res2: null, res3: null, res4: null, res5: null, res6: null, res7: null, res8: null
       };
 
-      const finalClubName = teamName.trim();
-
-      // 2. Серверная инициализация (v14)
+      // 2. Серверная инициализация (v14) с авто-дефолтами
       const result = await initializeClubV13(user.uid, {
         tier: placement.tier,
         group: placement.group,
         rank: placement.rank,
-        clubName: finalClubName,
-        clubLogo: selectedClub?.logo,
-        country: selectedCountry?.name,
         email: user.email,
         selectedLeagueId: targetLeagueId
       });
 
       if (!result.success) {
-        // ROLLBACK: Удаляем аккаунт, если не удалось разместить в лиге
-        await user.delete();
         throw new Error(result.error || "INITIALIZATION_FAILED");
       }
 
+      // 3. Сохранение в локальный стор для мгновенного доступа
       saveToLocal({
         id: user.uid,
         numericId: Number(result.numericId),
@@ -112,10 +73,10 @@ export default function SetupPage() {
         leagueLevel: Number(result.tier),
         groupId: Number(result.group),
         rank: Number(result.rank),
-        country: selectedCountry?.name || 'International',
-        clubName: finalClubName,
-        displayName: finalClubName,
-        clubLogo: selectedClub?.logo || null,
+        country: result.country || 'International',
+        clubName: result.clubName,
+        displayName: result.clubName,
+        clubLogo: result.clubLogo || null,
         ownedPlayers: startingSquad,
         lineup: initialLineup,
         isDataReady: true,
@@ -123,7 +84,6 @@ export default function SetupPage() {
         version: 140
       });
 
-      localStorage.removeItem('pending_club_name');
       toast({ title: language === 'ru' ? "Клуб инициализирован!" : "Club Initialized!" });
       router.replace('/');
     } catch (e: any) {
@@ -139,28 +99,16 @@ export default function SetupPage() {
 
   const t = {
     ru: {
-      name: 'НАЗВАНИЕ КОМАНДЫ',
-      country: 'ВЫБОР ФЛАГА',
-      club: 'ВЫБОР ЛОГОТИПА',
+      title: 'ПОДГОТОВКА КВАРТИРЫ',
+      subtitle: 'Система настраивает вашу базу и находит место в лиге',
       finalize: 'СОЗДАТЬ КЛУБ',
-      continue: 'ПРОДОЛЖИТЬ',
-      subtitles: {
-        name: 'Введите публичный позывной вашей организации',
-        country: 'Выберите страну которую будете представлять',
-        club: 'Выберите логотип вашей организации',
-      }
+      desc: 'Ваш тактический позывной, флаг и логотип будут сгенерированы автоматически. Вы сможете изменить их в любое время в настройках профиля.'
     },
     en: {
-      name: 'TEAM CALLSIGN',
-      country: 'SELECT FLAG',
-      club: 'SELECT LOGO',
-      finalize: 'CREATE CLUB',
-      continue: 'CONTINUE',
-      subtitles: {
-        name: 'Enter the public callsign for your organization',
-        country: 'Select the country you will represent',
-        club: 'Choose your organization logo',
-      }
+      title: 'BASE PREPARATION',
+      subtitle: 'System is configuring your HQ and finding a league slot',
+      finalize: 'INITIALIZE CLUB',
+      desc: 'Your tactical callsign, flag, and logo will be generated automatically. You can update them at any time in your profile settings.'
     }
   }[language === 'ru' ? 'ru' : 'en'];
 
@@ -169,94 +117,42 @@ export default function SetupPage() {
   return (
     <div className="min-h-screen bg-background flex flex-col relative overflow-hidden">
       <div className="absolute inset-0 pointer-events-none opacity-20 bg-[radial-gradient(circle_at_50%_50%,_hsl(var(--primary)/0.15),_transparent_70%)]" />
-      <div className="relative z-10 w-full max-w-md mx-auto px-4 flex flex-col min-h-screen pt-12 pb-32">
-        <header className="text-center mb-8 relative shrink-0">
-          {(step !== 'name') && (
-            <Button variant="ghost" size="icon" className="absolute left-0 top-0 rounded-full" onClick={() => setStep(step === 'country' ? 'name' : 'country')}>
-              <ChevronLeft className="w-6 h-6" />
-            </Button>
-          )}
-          <h1 className="text-2xl font-headline font-bold text-white uppercase tracking-tighter">
-            {t[step]}
-          </h1>
-          <p className="text-muted-foreground text-[10px] uppercase tracking-widest mt-1 opacity-60 px-4 leading-tight">
-            {t.subtitles[step]}
-          </p>
-        </header>
+      <div className="relative z-10 w-full max-w-md mx-auto px-4 flex flex-col min-h-screen justify-center pb-20">
         
-        <div className="flex-1 flex flex-col animate-in fade-in duration-700">
-          {step === 'name' && (
-            <Card className="glass-card border-white/10 bg-secondary/20">
-              <CardContent className="p-6">
-                <div className="relative">
-                  <Edit3 className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-primary/50" />
-                  <Input 
-                    value={teamName}
-                    onChange={(e) => setTeamName(e.target.value)}
-                    placeholder="Team name..."
-                    className="h-14 pl-12 bg-background/50 border-white/5 text-lg font-bold uppercase tracking-tight"
-                    maxLength={20}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {step === 'country' && (
-            <div className="grid grid-cols-4 gap-2">
-              {COUNTRIES.map((c) => (
-                <Card 
-                  key={c.code} 
-                  className={cn(
-                    "glass-card border-white/5 cursor-pointer transition-all aspect-square flex items-center justify-center", 
-                    selectedCountryCode === c.code ? "ring-2 ring-accent bg-accent/10 shadow-[0_0_15px_rgba(var(--accent),0.3)]" : "hover:bg-white/5"
-                  )} 
-                  onClick={() => setSelectedCountryCode(c.code)}
-                >
-                  <CardContent className="p-0 text-center flex flex-col items-center justify-center">
-                    <span className="text-2xl">{c.flag}</span>
-                    <p className="text-[6px] text-muted-foreground uppercase mt-1 font-black truncate max-w-full px-1">{c.name}</p>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-
-          {step === 'club' && (
-            <div className="grid grid-cols-4 gap-2">
-              {CLUBS.map((c) => (
-                <Card 
-                  key={c.id} 
-                  className={cn(
-                    "glass-card border-white/5 cursor-pointer transition-all overflow-hidden aspect-square flex items-center justify-center", 
-                    selectedClubId === c.id ? "ring-2 ring-primary bg-primary/10 shadow-[0_0_15px_rgba(var(--primary),0.3)]" : "hover:bg-white/5"
-                  )} 
-                  onClick={() => setSelectedClubId(c.id)}
-                >
-                  <CardContent className="p-0 flex items-center justify-center w-full h-full">
-                    <img src={c.logo} alt={c.name} className="w-full h-full object-contain p-2" />
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-        </div>
-        
-        <footer className="fixed bottom-0 left-0 right-0 p-4 bg-background/80 backdrop-blur-xl border-t border-white/10 z-50 shadow-[0_-10px_30px_rgba(0,0,0,0.5)]">
-          <div className="max-w-md mx-auto">
-            <Button 
-              disabled={isUpdating || (step === 'name' && teamName.trim().length < 3) || (step === 'country' && !selectedCountryCode) || (step === 'club' && !selectedClubId)} 
-              onClick={() => {
-                if (step === 'name') setStep('country');
-                else if (step === 'country') setStep('club');
-                else handleCompleteSetup();
-              }} 
-              className="w-full h-16 hero-gradient font-black text-xs tracking-[0.2em] uppercase shadow-2xl active:scale-95 transition-all"
-            >
-              {isUpdating ? <Loader2 className="animate-spin" /> : (step === 'club' ? t.finalize : t.continue)}
-            </Button>
+        <div className="text-center space-y-6 animate-in fade-in zoom-in duration-700">
+          <div className="relative mx-auto w-32 h-32">
+             <div className="absolute inset-0 bg-primary/20 blur-3xl rounded-full animate-pulse" />
+             <div className="relative w-full h-full bg-secondary/30 rounded-3xl border-2 border-primary/50 flex items-center justify-center shadow-[0_0_50px_rgba(var(--primary),0.2)]">
+                <Rocket className="w-16 h-16 text-primary" />
+             </div>
           </div>
-        </footer>
+
+          <div className="space-y-2">
+            <h1 className="text-3xl font-headline font-bold text-white uppercase tracking-tighter">
+              {t.title}
+            </h1>
+            <p className="text-muted-foreground text-xs uppercase tracking-widest font-black opacity-80 px-8">
+              {t.subtitle}
+            </p>
+          </div>
+
+          <Card className="glass-card border-white/5 bg-secondary/10 mx-4">
+            <CardContent className="p-6">
+               <p className="text-[10px] text-muted-foreground leading-relaxed italic uppercase font-bold">
+                 "{t.desc}"
+               </p>
+            </CardContent>
+          </Card>
+
+          <Button 
+            disabled={isUpdating} 
+            onClick={handleCompleteSetup}
+            className="w-full max-w-[280px] h-16 hero-gradient font-black text-sm tracking-[0.2em] uppercase shadow-2xl active:scale-95 transition-all mx-auto"
+          >
+            {isUpdating ? <Loader2 className="animate-spin" /> : <>{t.finalize} <ArrowRight className="ml-2 w-5 h-5" /></>}
+          </Button>
+        </div>
+
       </div>
     </div>
   );
