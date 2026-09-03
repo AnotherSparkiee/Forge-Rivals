@@ -1,11 +1,12 @@
 'use server';
 
 /**
- * @fileOverview Серверный модуль для работы с Email v1.6 (Optimized Transport).
+ * @fileOverview Серверный модуль для работы с Email v1.7 (Auth Protected).
  */
 
 import { doc, setDoc, getDoc, deleteDoc, Timestamp } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
+import { authenticateAsSystem } from '@/firebase/system-auth';
 import nodemailer from 'nodemailer';
 import { EmailInputSchema, VerifyCodeSchema } from '@/app/lib/validation-schemas';
 import { logger } from '@/app/lib/logger';
@@ -23,6 +24,13 @@ const transporter = process.env.SMTP_HOST ? nodemailer.createTransport({
 export async function sendVerificationEmail(email: string) {
   const validation = EmailInputSchema.safeParse({ email });
   if (!validation.success) return { success: false, error: "INVALID_EMAIL" };
+
+  // Авторизуемся как система, чтобы иметь доступ к защищенной коллекции кодов
+  const authRes = await authenticateAsSystem();
+  if (!authRes.success) {
+    logger.error("System Auth failed in sendVerificationEmail", authRes.error);
+    return { success: false, error: "SYSTEM_AUTH_FAILED" };
+  }
 
   const { firestore: db } = initializeFirebase();
   const normalizedEmail = email.toLowerCase();
@@ -74,6 +82,10 @@ export async function sendVerificationEmail(email: string) {
 export async function verifyEmailCode(email: string, inputCode: string) {
   const validation = VerifyCodeSchema.safeParse({ email, code: inputCode });
   if (!validation.success) return { success: false, error: "INVALID_INPUT" };
+
+  // Авторизуемся как система для чтения кода
+  const authRes = await authenticateAsSystem();
+  if (!authRes.success) return { success: false, error: "SYSTEM_AUTH_FAILED" };
 
   const { firestore: db } = initializeFirebase();
   try {
