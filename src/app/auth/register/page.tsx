@@ -54,8 +54,7 @@ export default function RegisterPage() {
       errorEmail: "Invalid email format",
       errorCode: "Invalid or expired code",
       successCode: "Verification process initialized!",
-      success: "Command link established",
-      debugHint: "Dev Hint: If email fails, check server logs or use @test.com email."
+      success: "Command link established"
     },
     ru: {
       titleInit: "Инициация профиля",
@@ -79,8 +78,7 @@ export default function RegisterPage() {
       errorEmail: "Неверный формат почты",
       errorCode: "Неверный или просроченный код",
       successCode: "Процесс верификации запущен!",
-      success: "Связь со штабом установлена",
-      debugHint: "Для тестов: используйте почту @test.com и код 123456."
+      success: "Связь со штабом установлена"
     }
   }[language as 'en' | 'ru'] || { titleInit: "Register", subtitleInit: "Join" };
 
@@ -109,7 +107,7 @@ export default function RegisterPage() {
       if (res.success) {
         toast({ 
           title: t.successCode, 
-          description: res.warning ? "Mail server busy. Checking logs recommended." : "Check your inbox for code." 
+          description: res.warning ? "Mail server busy. Retrying recommended." : "Check your inbox for code." 
         });
         setIsCodeSent(true);
       } else {
@@ -234,10 +232,6 @@ export default function RegisterPage() {
                 >
                   {isProcessing ? <Loader2 className="animate-spin" /> : <>{t.sendCodeBtn} <ArrowRight className="ml-2 w-4 h-4" /></>}
                 </Button>
-                <div className="p-3 bg-primary/5 border border-primary/20 rounded-xl flex gap-3 items-center">
-                  <Info className="w-4 h-4 text-primary shrink-0" />
-                  <p className="text-[9px] text-muted-foreground italic leading-tight">{t.debugHint}</p>
-                </div>
                 <Button 
                   variant="ghost" 
                   className="w-full text-[9px] uppercase font-black text-muted-foreground hover:text-white" 

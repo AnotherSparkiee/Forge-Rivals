@@ -1,7 +1,7 @@
 'use server';
 
 /**
- * @fileOverview Серверный модуль для работы с Email v1.8 (Better Auth Handling).
+ * @fileOverview Серверный модуль для работы с Email v1.9 (Production Only).
  */
 
 import { doc, setDoc, getDoc, deleteDoc, Timestamp } from 'firebase/firestore';
@@ -24,7 +24,7 @@ export async function sendVerificationEmail(email: string) {
   const validation = EmailInputSchema.safeParse({ email });
   if (!validation.success) return { success: false, error: "INVALID_EMAIL" };
 
-  // Авторизуемся как система
+  // Авторизуемся как система для работы с закрытой коллекцией
   const authRes = await authenticateAsSystem();
   if (!authRes.success) {
     logger.error("System Auth failed in sendVerificationEmail", authRes.error);
@@ -44,6 +44,7 @@ export async function sendVerificationEmail(email: string) {
       }
     }
 
+    // Генерация исключительно случайного кода
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     const expiresAt = new Date(Date.now() + 15 * 60000);
 
@@ -60,9 +61,13 @@ export async function sendVerificationEmail(email: string) {
           to: normalizedEmail,
           subject: "Verification Code",
           text: `Your verification code: ${code}`,
-          html: `<div style="background:#0a0d14;color:white;padding:40px;text-align:center;">
-                  <h1 style="color:#0ea5e9;">SECURITY</h1>
-                  <p>Code: <strong>${code}</strong></p>
+          html: `<div style="background:#0a0d14;color:white;padding:40px;text-align:center;font-family:sans-serif;">
+                  <h1 style="color:#0ea5e9;letter-spacing:2px;">SECURITY LINK</h1>
+                  <p style="opacity:0.7;">Use the following code to establish command frequency:</p>
+                  <div style="background:#1a1f2e;padding:20px;display:inline-block;border-radius:10px;margin:20px 0;">
+                    <span style="font-size:32px;font-weight:bold;color:white;letter-spacing:8px;">${code}</span>
+                  </div>
+                  <p style="font-size:10px;opacity:0.5;margin-top:20px;">Expire time: 15 minutes</p>
                 </div>`,
         });
       } catch (e: any) {
