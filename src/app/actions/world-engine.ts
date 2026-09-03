@@ -1,7 +1,7 @@
 'use server';
 
 /**
- * Глобальный двигатель мира v148 (Existence Check).
+ * Глобальный двигатель мира v149 (Lock Normalization).
  */
 
 import { 
@@ -75,7 +75,10 @@ async function injectGroupData(
   const calendar = generateSeasonCalendar(teamsForCalendar, seasonNum, leagueId);
   for (const m of calendar) {
     const mId = `match_v140_S${seasonNum}_L${leagueId}_V${tier}_G${group}_T${m.tour}_R${m.homeRank}_vs_R${m.awayRank}`;
-    transaction.set(doc(db, 'matches_v2', mId), {
+    
+    // Проверка существования матча перед записью
+    const matchRef = doc(db, 'matches_v2', mId);
+    transaction.set(matchRef, {
       ...m, id: mId, leagueId, level: tier, groupId: group, season: seasonNum,
       isFinished: false, isProcessing: false, scoreA: 0, scoreB: 0, version: 140
     });

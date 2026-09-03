@@ -1,13 +1,13 @@
 'use server';
 
 /**
- * @fileOverview Модуль инициализации клуба v151 (Stability Fixes).
+ * @fileOverview Модуль инициализации клуба v152 (Async Improvements).
  */
 
 import { 
   collection, getDocs, query, where, doc, getDoc, 
   serverTimestamp, runTransaction, increment,
-  Timestamp, limit
+  Timestamp, limit, writeBatch
 } from 'firebase/firestore';
 import { authenticateAsSystem } from '@/firebase/system-auth';
 import { initializeFirebase } from '@/firebase';
@@ -59,7 +59,7 @@ async function provisionGroupInTransaction(
     transaction.set(doc(db, 'matches_v2', mId), {
       ...m, id: mId,
       leagueId, level: tier, groupId: group, season: seasonNum,
-      isFinished: false, scoreA: 0, scoreB: 0, version: 140
+      isFinished: false, isProcessing: false, scoreA: 0, scoreB: 0, version: 140
     });
   }
 
@@ -171,18 +171,25 @@ export async function initializeClubV13(userId: string, data: any) {
 
     if (result.success && result.botToReplaceId) {
       logger.info("New club initialized", { userId, clubName, tier, group, rank });
-      const matchesQ = query(collection(db, 'matches_v2'), where('leagueId', '==', leagueId), where('level', '==', tier), where('groupId', '==', group), where('version', '==', 140));
-      getDocs(matchesQ).then(snap => {
-        const b = writeBatch(db);
-        snap.forEach(d => {
-          const m = d.data();
-          const up: any = {};
-          if (m.homeId === result.botToReplaceId) { up.homeId = userId; up.homeName = clubName; }
-          if (m.awayId === result.botToReplaceId) { up.awayId = userId; up.awayName = clubName; }
-          if (Object.keys(up).length > 0) b.update(d.ref, up);
-        });
-        b.commit();
+      const matchesQ = query(
+        collection(db, 'matches_v2'), 
+        where('leagueId', '==', leagueId), 
+        where('level', '==', tier), 
+        where('groupId', '==', group), 
+        where('version', '==', 140)
+      );
+      
+      // ИСПОЛЬЗУЕМ await вместо .then() для гарантии консистентности
+      const snap = await getDocs(matchesQ);
+      const b = writeBatch(db);
+      snap.forEach(d => {
+        const m = d.data();
+        const up: any = {};
+        if (m.homeId === result.botToReplaceId) { up.homeId = userId; up.homeName = clubName; }
+        if (m.awayId === result.botToReplaceId) { up.awayId = userId; up.awayName = clubName; }
+        if (Object.keys(up).length > 0) b.update(d.ref, up);
       });
+      await b.commit();
     }
 
     return result;

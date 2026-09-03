@@ -1,7 +1,7 @@
 'use server';
 
 /**
- * @fileOverview ГЛОБАЛЬНЫЙ АВТОНОМНЫЙ ДВИГАТЕЛЬ v146 (Concurrency Protection).
+ * @fileOverview ГЛОБАЛЬНЫЙ АВТОНОМНЫЙ ДВИГАТЕЛЬ v147 (Error Resilience).
  */
 
 import { 
@@ -14,6 +14,7 @@ import { authenticateAsSystem } from '@/firebase/system-auth';
 import { getMatchResult, getTableId } from '@/app/lib/leagues-data';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 import { logger } from '@/app/lib/logger';
+import { initializeLeagueWorld } from './world-engine';
 
 class FirestoreBatcher {
   private count = 0;
@@ -72,36 +73,42 @@ export async function resolveDailyMatches() {
     // Атомарно блокируем матч перед расчетом (на уровне батча)
     await batcher.update(matchDoc.ref, { isProcessing: true });
 
-    const [sA, sB] = getMatchResult(
-      m.homeRank, m.awayRank, m.level, m.groupId, m.season, m.tour, m.resultSeed || 0
-    );
-    
-    const winnerId = sA > sB ? (m.homeId || null) : (sB > sA ? (m.awayId || null) : null);
+    try {
+      const [sA, sB] = getMatchResult(
+        m.homeRank, m.awayRank, m.level, m.groupId, m.season, m.tour, m.resultSeed || 0
+      );
+      
+      const winnerId = sA > sB ? (m.homeId || null) : (sB > sA ? (m.awayId || null) : null);
 
-    await batcher.update(matchDoc.ref, {
-      scoreA: sA, scoreB: sB, winnerId,
-      status: 'finished', isFinished: true, isProcessing: false,
-      resolvedAt: serverTimestamp()
-    });
+      await batcher.update(matchDoc.ref, {
+        scoreA: sA, scoreB: sB, winnerId,
+        status: 'finished', isFinished: true, isProcessing: false,
+        resolvedAt: serverTimestamp()
+      });
 
-    const tableId = getTableId(currentSeason, m.leagueId, m.level, m.groupId);
-    if (!tableStatsAggr.has(tableId)) tableStatsAggr.set(tableId, {});
-    const aggr = tableStatsAggr.get(tableId)!;
+      const tableId = getTableId(currentSeason, m.leagueId, m.level, m.groupId);
+      if (!tableStatsAggr.has(tableId)) tableStatsAggr.set(tableId, {});
+      const aggr = tableStatsAggr.get(tableId)!;
 
-    const updateStats = (id: string, sa: number, sb: number) => {
-      if (!id) return;
-      const prefix = `stats.${id}`;
-      aggr[`${prefix}.matchesPlayed`] = (aggr[`${prefix}.matchesPlayed`] || 0) + 1;
-      aggr[`${prefix}.wins`] = (aggr[`${prefix}.wins`] || 0) + (sa > sb ? 1 : 0);
-      aggr[`${prefix}.draws`] = (aggr[`${prefix}.draws`] || 0) + (sa === sb ? 1 : 0);
-      aggr[`${prefix}.losses`] = (aggr[`${prefix}.losses`] || 0) + (sb > sa ? 1 : 0);
-      aggr[`${prefix}.points`] = (aggr[`${prefix}.points`] || 0) + (sa > sb ? 3 : (sa === sb ? 1 : 0));
-      aggr[`${prefix}.diff`] = (aggr[`${prefix}.diff`] || 0) + (sa - sb);
-    };
+      const updateStats = (id: string, sa: number, sb: number) => {
+        if (!id) return;
+        const prefix = `stats.${id}`;
+        aggr[`${prefix}.matchesPlayed`] = (aggr[`${prefix}.matchesPlayed`] || 0) + 1;
+        aggr[`${prefix}.wins`] = (aggr[`${prefix}.wins`] || 0) + (sa > sb ? 1 : 0);
+        aggr[`${prefix}.draws`] = (aggr[`${prefix}.draws`] || 0) + (sa === sb ? 1 : 0);
+        aggr[`${prefix}.losses`] = (aggr[`${prefix}.losses`] || 0) + (sb > sa ? 1 : 0);
+        aggr[`${prefix}.points`] = (aggr[`${prefix}.points`] || 0) + (sa > sb ? 3 : (sa === sb ? 1 : 0));
+        aggr[`${prefix}.diff`] = (aggr[`${prefix}.diff`] || 0) + (sa - sb);
+      };
 
-    updateStats(m.homeId, sA, sB);
-    updateStats(m.awayId, sB, sA);
-    count++;
+      updateStats(m.homeId, sA, sB);
+      updateStats(m.awayId, sB, sA);
+      count++;
+    } catch (err) {
+      console.error(`[AUTONOMOUS CYCLE] Failed match ${matchDoc.id}:`, err);
+      // Снимаем блокировку при ошибке
+      await batcher.update(matchDoc.ref, { isProcessing: false });
+    }
   }
 
   for (const [tableId, stats] of tableStatsAggr.entries()) {
@@ -144,5 +151,8 @@ export async function performSeasonTransition() {
     await batch.commit();
   }
 
-  return { success: true, status: "COMPLETED", msg: "Season transition finalized." };
+  // 2. Инициализируем мир для следующего сезона
+  await initializeLeagueWorld('ALPHA', info.activeSeasonNumber + 1);
+
+  return { success: true, status: "COMPLETED", msg: "Season transition finalized. World for S" + (info.activeSeasonNumber + 1) + " is being built." };
 }

@@ -1,12 +1,12 @@
 'use server';
 
 /**
- * @fileOverview Двигатель Кубка v15 (Security Patch).
+ * @fileOverview Двигатель Кубка v16 (Existence Check).
  */
 
 import { 
   collection, doc, getDocs, writeBatch, query, 
-  Firestore, serverTimestamp, Timestamp
+  Firestore, serverTimestamp, getDoc
 } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import { authenticateAsSystem } from '@/firebase/system-auth';
@@ -43,14 +43,19 @@ export async function generatePyramidCup(targetSeasonNumber?: number) {
   
   const SEASON_NUM = Number(targetSeasonNumber || 1);
   const SEASON_ID = String(SEASON_NUM);
-  const TIMESTAMP_NOW = Timestamp.now();
+
+  // 1. Проверка существования турнира для предотвращения дублей
+  const checkId = `cup_status_S${SEASON_ID}_LALPHA`;
+  const checkSnap = await getDoc(doc(db, 'system_v1', checkId));
+  if (checkSnap.exists() && checkSnap.data().status === 'generated') {
+    return { success: true, alreadyExists: true };
+  }
 
   const playersSnap = await getDocs(collection(db, 'players_v14'));
   const allGlobalPlayers = playersSnap.docs.map(d => ({ id: d.id, ...d.data() } as any));
 
   for (let i = 0; i < LEAGUES.length; i++) {
     const league = LEAGUES[i];
-    const leagueNum = i + 1;
     const batcher = new FirestoreBatcher(db);
     
     const leagueTeams = allGlobalPlayers.filter((p: any) => p.selectedLeagueId === league.id).map((p: any) => ({
@@ -82,6 +87,7 @@ export async function generatePyramidCup(targetSeasonNumber?: number) {
       const home = slots[left];
       const away = slots[right];
 
+      // Защита от пустых матчей TBD vs TBD
       if (!home && !away) break;
 
       const cupMatchId = `season_${SEASON_ID}_league_${league.id}_round_1_match_${matchNum}`;
@@ -108,5 +114,8 @@ export async function generatePyramidCup(targetSeasonNumber?: number) {
     await batcher.commit();
   }
   
+  // Помечаем турнир как созданный
+  await setDoc(doc(db, 'system_v1', checkId), { status: 'generated', generatedAt: serverTimestamp() });
+
   return { success: true };
 }

@@ -1,5 +1,5 @@
 /**
- * @fileOverview Ядро лиг v75: Иммутабельность и детерминизм.
+ * @fileOverview Ядро лиг v76: Immutable Schedule.
  */
 
 import { GLOBAL_EPOCH_ISO } from './time-utils';
@@ -76,6 +76,7 @@ export function generateSeasonCalendar(teams: any[], seasonNumber: number, leagu
         return {
           day,
           tour,
+          season: seasonNumber,
           homeId: h.id,
           homeName: h.name,
           homeRank: Number(h.rank),

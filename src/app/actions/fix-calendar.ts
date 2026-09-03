@@ -1,7 +1,7 @@
 'use server';
 
 /**
- * Скрипт Абсолютного Сброса v135 (Smart Deletion).
+ * Скрипт Абсолютного Сброса v140 (Target V140 Fix).
  */
 
 import { 
@@ -24,7 +24,7 @@ export async function runGlobalEmergencyRepair() {
   const seasonNum = info.activeSeasonNumber;
   const leagueId = "ALPHA";
 
-  const repairStatusRef = doc(db, 'system_v1', `repair_v131_S${seasonNum}_L${leagueId}`);
+  const repairStatusRef = doc(db, 'system_v1', `repair_v140_S${seasonNum}_L${leagueId}`);
   const repairSnap = await getDoc(repairStatusRef);
   const repairData = repairSnap.exists() ? repairSnap.data() : { phase: 'TOTAL_PURGE_V2' };
 
@@ -36,7 +36,7 @@ export async function runGlobalEmergencyRepair() {
     { phase: 'TOTAL_PURGE_V2', colls: ['league_tables_v2', 'matches_v2'], next: 'TOTAL_PURGE_V1' },
     { phase: 'TOTAL_PURGE_V1', colls: ['league_tables_v1', 'matches_v1'], next: 'TOTAL_PURGE_PLAYERS' },
     { phase: 'TOTAL_PURGE_PLAYERS', colls: ['players_v13', 'players_v12', 'players_v11'], next: 'WIPE_SOCIAL' },
-    { phase: 'WIPE_SOCIAL', colls: ['global_chat_v2', 'friend_requests_v4', 'market_v7'], next: 'INIT_WORLD_V131' }
+    { phase: 'WIPE_SOCIAL', colls: ['global_chat_v2', 'friend_requests_v4', 'market_v7'], next: 'INIT_WORLD_V140' }
   ];
 
   const currentWipe = WIPE_PHASES.find(p => p.phase === repairData.phase);
@@ -75,7 +75,7 @@ export async function runGlobalEmergencyRepair() {
     return { status: `${repairData.phase}_CLEARED`, next: currentWipe.next };
   }
 
-  if (repairData.phase === 'INIT_WORLD_V131') {
+  if (repairData.phase === 'INIT_WORLD_V140') {
     const worldRes = await initializeLeagueWorld(leagueId, seasonNum);
     if (worldRes.isComplete) {
       await setDoc(repairStatusRef, { phase: 'COMPLETED', status: 'completed', finishedAt: serverTimestamp() }, { merge: true });

@@ -1,7 +1,7 @@
 'use server';
 
 /**
- * @fileOverview Серверный модуль для работы с Email v1.5 (No Test Backdoors).
+ * @fileOverview Серверный модуль для работы с Email v1.6 (Optimized Transport).
  */
 
 import { doc, setDoc, getDoc, deleteDoc, Timestamp } from 'firebase/firestore';
@@ -11,6 +11,14 @@ import { EmailInputSchema, VerifyCodeSchema } from '@/app/lib/validation-schemas
 import { logger } from '@/app/lib/logger';
 
 const RATE_LIMIT_MS = 60000; 
+
+// Инициализируем транспорт один раз на уровне модуля
+const transporter = process.env.SMTP_HOST ? nodemailer.createTransport({
+  host: process.env.SMTP_HOST,
+  port: Number(process.env.SMTP_PORT) || 465,
+  secure: true,
+  auth: { user: process.env.SMTP_USER!, pass: process.env.SMTP_PASS! },
+}) : null;
 
 export async function sendVerificationEmail(email: string) {
   const validation = EmailInputSchema.safeParse({ email });
@@ -38,15 +46,8 @@ export async function sendVerificationEmail(email: string) {
       createdAt: Timestamp.now()
     }, { merge: true });
 
-    if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
+    if (transporter) {
       try {
-        const transporter = nodemailer.createTransport({
-          host: process.env.SMTP_HOST,
-          port: Number(process.env.SMTP_PORT) || 465,
-          secure: true,
-          auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-        });
-
         await transporter.sendMail({
           from: '"Lines of Enmity" <noreply@mobamanageronline.app>',
           to: normalizedEmail,

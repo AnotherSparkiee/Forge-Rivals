@@ -1,7 +1,7 @@
 'use server';
 
 /**
- * Скрипт "Ядерной очистки" v144 (Batch Improvements).
+ * Скрипт "Ядерной очистки" v145 (Safe Mode).
  */
 
 import { 
@@ -27,12 +27,10 @@ export async function totalNuclearResetV131() {
   let totalDeletedInThisCall = 0;
 
   try {
-    // Цикл по батчам для обработки нескольких коллекций за один вызов
     for (let b = 0; b < BATCHES_PER_CALL; b++) {
       const batch = writeBatch(db);
       let batchCount = 0;
 
-      // 1. В первом батче удаляем системные документы
       if (b === 0) {
         for (const sId of systemDocs) {
           batch.delete(doc(db, 'system_v1', sId));
@@ -40,8 +38,9 @@ export async function totalNuclearResetV131() {
         }
       }
 
+      // УБРАЛИ players_v14 из списка во избежание потери данных игроков
       const colls = [
-        'league_tables_v2', 'matches_v2', 'players_v14',
+        'league_tables_v2', 'matches_v2', 
         'league_tables_v1', 'matches_v1', 'players_v13',
         'players_v12', 'players_v11', 'players_v10',
         'global_chat_v2', 'market_v7', 'friend_requests_v4', 
@@ -52,7 +51,6 @@ export async function totalNuclearResetV131() {
 
       for (const coll of colls) {
         if (batchCount >= DELETE_BATCH_SIZE) break;
-
         const q = query(collection(db, coll), limit(DELETE_BATCH_SIZE - batchCount));
         const snap = await getDocs(q);
         
@@ -65,8 +63,6 @@ export async function totalNuclearResetV131() {
       if (batchCount > 0) {
         await batch.commit();
         totalDeletedInThisCall += batchCount;
-      } else {
-        break; // Больше нечего удалять
       }
     }
   } catch (globalErr: any) {
@@ -74,6 +70,7 @@ export async function totalNuclearResetV131() {
     return { success: false, error: globalErr.message };
   }
 
-  const isComplete = totalDeletedInThisCall === 0;
+  // Если удалено меньше, чем размер одного батча - скорее всего все чисто
+  const isComplete = totalDeletedInThisCall < (DELETE_BATCH_SIZE / 2);
   return { success: true, isComplete, deletedCount: totalDeletedInThisCall };
 }

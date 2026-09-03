@@ -1,35 +1,46 @@
 'use client';
 
 /**
- * @fileOverview Модуль интеграции Telegram Auth v1.2 (Safe Passwords).
+ * @fileOverview Модуль интеграции Telegram Auth v1.3 (Deterministic Passwords).
  */
 
 import { Auth, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 
-function generateSecurePassword() {
-  const array = new Uint32Array(8);
-  window.crypto.getRandomValues(array);
-  return Array.from(array, dec => dec.toString(16).padStart(8, '0')).join('');
+/**
+ * Генерирует стабильный пароль на основе ID пользователя и системного секрета.
+ * Это позволяет избежать хранения паролей и обеспечивает вход с любого устройства.
+ */
+function getDeterministicPassword(tgUserId: string | number) {
+  // Используем системный пароль как соль для генерации хеша
+  const salt = process.env.SYSTEM_ACCOUNT_PASSWORD || "lote_fallback_salt_2026";
+  const input = `tg_${tgUserId}_${salt}`;
+  
+  // Простая реализация хеширования для клиента (в проде лучше использовать Web Crypto API)
+  let hash = 0;
+  for (let i = 0; i < input.length; i++) {
+    const char = input.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  return `pass_${Math.abs(hash).toString(16)}_${tgUserId}`;
 }
 
 export async function syncTelegramUser(auth: Auth, tgUser: any) {
   const email = `tg_${tgUser.id}@telegram.lote`;
+  const password = getDeterministicPassword(tgUser.id);
   
   try {
-    // Для существующих пользователей пробуем войти
-    // Примечание: в реальной системе пароль должен храниться в защищенном месте
-    // или использоваться Telegram Auth Token. Здесь упрощенная версия.
-    const mockPass = `pass_tg_${tgUser.id}_secure_2026`;
-    await signInWithEmailAndPassword(auth, email, mockPass);
+    // Пробуем войти с детерминированным паролем
+    await signInWithEmailAndPassword(auth, email, password);
     return { status: 'logged_in' };
   } catch (error: any) {
+    // Если пользователь не найден — регистрируем его
     if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
       try {
-        const securePass = generateSecurePassword();
-        const userCredential = await createUserWithEmailAndPassword(auth, email, securePass);
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         return { status: 'registered', userId: userCredential.user.uid };
       } catch (regError) {
-        console.error("TG Registration failed", regError);
+        console.error("TG Deterministic Registration failed", regError);
         throw regError;
       }
     }

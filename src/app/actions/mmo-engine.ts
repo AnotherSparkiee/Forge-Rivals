@@ -1,7 +1,7 @@
 'use server';
 
 /**
- * @fileOverview MMO-Двигатель v38 (Security Patch).
+ * @fileOverview MMO-Двигатель v39 (Concurrency Protection).
  */
 
 import { 
@@ -28,7 +28,8 @@ export async function forceResolveGroupMatches(leagueId: string, divisionId: num
     collection(db, 'matches_v2'),
     where('groupId', '==', String(groupId)),
     where('season', '==', seasonNum),
-    where('isFinished', '==', false)
+    where('isFinished', '==', false),
+    where('isProcessing', '==', false) // Защита от параллельной обработки
   );
 
   const snap = await getDocs(q);
@@ -42,6 +43,9 @@ export async function forceResolveGroupMatches(leagueId: string, divisionId: num
     const m = docSnap.data();
     
     if (isMatchOverdue(m.startTime)) {
+      // Атомарная блокировка на уровне батча (имитация)
+      batch.update(docSnap.ref, { isProcessing: true });
+      
       try {
         const tableId = getTableId(seasonNum, leagueId, divisionId, Number(groupId));
 
@@ -54,7 +58,9 @@ export async function forceResolveGroupMatches(leagueId: string, divisionId: num
           if (!clubSnap.exists()) return { heroes: [], strategy: 'Balanced Play', staffBonus: 0, infraBonus: 0 };
           const data = clubSnap.data();
           const lineupIds = Object.values(data.lineup || {});
+          
           let squad = (data.ownedPlayers || []).filter((p: any) => lineupIds.includes(p.id));
+          // Fallback если состав не выбран
           if (squad.length < 5) squad = (data.ownedPlayers || []).slice(0, 5);
 
           return {
@@ -72,7 +78,6 @@ export async function forceResolveGroupMatches(leagueId: string, divisionId: num
           teamA: { name: m.homeName, ...teamA },
           teamB: { name: m.awayName, ...teamB },
           isBo2: true,
-          // Передаем детерминированный сид
           scoreA: undefined, 
           scoreB: undefined
         });
@@ -84,7 +89,7 @@ export async function forceResolveGroupMatches(leagueId: string, divisionId: num
 
         batch.update(docSnap.ref, {
           scoreA: sA, scoreB: sB, winnerId,
-          status: 'finished', isFinished: true,
+          status: 'finished', isFinished: true, isProcessing: false,
           simulation, finishedAt: serverTimestamp()
         });
 
@@ -106,7 +111,9 @@ export async function forceResolveGroupMatches(leagueId: string, divisionId: num
         updateStats(m.awayId, sB, sA);
         resolvedCount++;
       } catch (e) {
-        console.error(`[MMO ENGINE] Error:`, e);
+        console.error(`[MMO ENGINE] Error processing match ${docSnap.id}:`, e);
+        // Снимаем блокировку при ошибке
+        batch.update(docSnap.ref, { isProcessing: false });
       }
     }
   }
