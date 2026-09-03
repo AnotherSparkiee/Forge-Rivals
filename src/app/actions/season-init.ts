@@ -1,11 +1,11 @@
 'use server';
 
 /**
- * @fileOverview Модуль инициализации клуба v163 (Admin SDK + Safe Errors).
+ * @fileOverview Модуль инициализации клуба v164 (Atomic Admin SDK).
  */
 
 import { FieldValue } from 'firebase-admin/firestore';
-import { adminDb } from '@/lib/firebase-admin';
+import { getAdminDb } from '@/lib/firebase-admin';
 import { 
   getGroupsCountInLevel, 
   getBotId, 
@@ -28,6 +28,7 @@ async function provisionGroupInTransaction(
   seasonNum: number,
   tableRef: any
 ) {
+  const db = getAdminDb();
   const initialStats: any = {};
   const teamsForCalendar = [];
 
@@ -52,7 +53,7 @@ async function provisionGroupInTransaction(
   const calendar = generateSeasonCalendar(teamsForCalendar, seasonNum, leagueId);
   for (const m of calendar) {
     const mId = `match_v140_S${seasonNum}_L${leagueId}_V${tier}_G${group}_T${m.tour}_R${m.homeRank}_vs_R${m.awayRank}`;
-    transaction.set(adminDb.collection('matches_v2').doc(mId), {
+    transaction.set(db.collection('matches_v2').doc(mId), {
       ...m, id: mId,
       leagueId, level: tier, groupId: group, season: seasonNum,
       isFinished: false, isProcessing: false, scoreA: 0, scoreB: 0, version: 140
@@ -63,7 +64,7 @@ async function provisionGroupInTransaction(
 }
 
 export async function findStrategicPlacement(leagueId: string) {
-  const db = adminDb;
+  const db = getAdminDb();
   try {
     const snap = await db.collection('players_v14')
       .where('selectedLeagueId', '==', leagueId)
@@ -96,44 +97,37 @@ export async function findStrategicPlacement(leagueId: string) {
 
 /**
  * Атомарная точка входа для регистрации.
- * Обернута в try-catch для предотвращения ошибок "unexpected response".
+ * Гарантирует возврат объекта и отсутствие необработанных исключений.
  */
 export async function initializeClubComplete(userId: string, email: string) {
   try {
+    const db = getAdminDb();
+    if (!db.collection) {
+      throw new Error("ADMIN_SDK_NOT_INITIALIZED");
+    }
+
     const placement = await findStrategicPlacement("ALPHA");
     if (!placement) return { success: false, error: "NO_PLACEMENT_FOUND" };
 
-    return await initializeClubV13(userId, {
-      tier: placement.tier,
-      group: placement.group,
-      rank: placement.rank,
-      email: email,
+    const clubName = `Manager_${Math.floor(1000 + Math.random() * 9000)}`;
+    const country = "International";
+    const clubLogo = "https://iili.io/CYIAgVa.webp";
+
+    const payload = { 
+      userId, email, clubName, country, clubLogo,
+      tier: placement.tier, group: placement.group, rank: placement.rank,
       selectedLeagueId: "ALPHA"
-    });
-  } catch (e: any) {
-    console.error("[ACTION ERROR]:", e.message);
-    return { success: false, error: e.message || "INTERNAL_SERVER_ERROR" };
-  }
-}
+    };
 
-export async function initializeClubV13(userId: string, data: any) {
-  try {
-    const clubName = data.clubName || `Manager_${Math.floor(1000 + Math.random() * 9000)}`;
-    const country = data.country || "International";
-    const clubLogo = data.clubLogo || "https://iili.io/CYIAgVa.webp";
-
-    const payload = { ...data, clubName, country, clubLogo };
     const validation = InitializeClubSchema.safeParse(payload);
     if (!validation.success) return { success: false, error: "INVALID_PARAMS" };
 
-    const db = adminDb;
     const seasonNum = await getActiveSeasonNumber(db);
     const info = getGlobalSeasonInfo();
     const effectiveSeason = info.dayOfCycle >= 15 ? seasonNum + 1 : seasonNum;
 
-    const { tier, group, rank, selectedLeagueId: leagueId } = validation.data;
     const playerRef = db.collection('players_v14').doc(userId);
-    const tableId = getTableId(effectiveSeason, leagueId, tier, group);
+    const tableId = getTableId(effectiveSeason, "ALPHA", placement.tier, placement.group);
     const tableRef = db.collection('league_tables_v2').doc(tableId);
     const counterRef = db.collection('system_v1').doc('global_stats');
 
@@ -144,16 +138,16 @@ export async function initializeClubV13(userId: string, data: any) {
         transaction.get(counterRef)
       ]);
 
-      if (playerSnap.exists) return { success: true };
+      if (playerSnap.exists) return { success: true, ...playerSnap.data() };
 
       let stats;
       if (!tableSnap.exists) {
-        stats = await provisionGroupInTransaction(transaction, leagueId, tier, group, effectiveSeason, tableRef);
+        stats = await provisionGroupInTransaction(transaction, "ALPHA", placement.tier, placement.group, effectiveSeason, tableRef);
       } else {
         stats = tableSnap.data()!.stats;
       }
 
-      const botId = Object.keys(stats).find(id => Number(stats[id].rank) === rank && stats[id].isBot);
+      const botId = Object.keys(stats).find(id => Number(stats[id].rank) === placement.rank && stats[id].isBot);
       if (!botId) throw new Error("SECTOR_NOT_READY");
 
       const baseStats = stats[botId];
@@ -166,23 +160,35 @@ export async function initializeClubV13(userId: string, data: any) {
       const nextNumericId = (counterSnap.exists ? (counterSnap.data()!.totalPlayers || 1000) : 1000) + 1;
       transaction.set(counterRef, { totalPlayers: nextNumericId, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
 
-      transaction.set(playerRef, {
-        id: userId, email: data.email, numericId: nextNumericId,
+      const playerData = {
+        id: userId, email: email, numericId: nextNumericId,
         displayName: clubName, clubName, country,
-        selectedLeagueId: leagueId, leagueLevel: tier, groupId: group, rank: Number(baseStats.rank),
+        selectedLeagueId: "ALPHA", leagueLevel: placement.tier, groupId: placement.group, rank: Number(baseStats.rank),
         credits: 1000000, crystals: 50, experiencePoints: 0, managerLevel: 1,
         lastProcessedSeason: effectiveSeason, lastLoginDate: new Date().toISOString(),
         createdAt: FieldValue.serverTimestamp(), version: 140
-      });
+      };
 
-      return { success: true, botToReplaceId: botId, clubName, tier, group, rank: baseStats.rank, numericId: nextNumericId, clubLogo, country };
+      transaction.set(playerRef, playerData);
+
+      return { 
+        success: true, 
+        botToReplaceId: botId, 
+        clubName, 
+        tier: placement.tier, 
+        group: placement.group, 
+        rank: baseStats.rank, 
+        numericId: nextNumericId, 
+        clubLogo, 
+        country 
+      };
     });
 
     if (result.success && result.botToReplaceId) {
       const snap = await db.collection('matches_v2')
-        .where('leagueId', '==', leagueId)
-        .where('level', '==', tier)
-        .where('groupId', '==', group)
+        .where('leagueId', '==', "ALPHA")
+        .where('level', '==', placement.tier)
+        .where('groupId', '==', placement.group)
         .where('season', '==', effectiveSeason)
         .get();
       
@@ -196,15 +202,16 @@ export async function initializeClubV13(userId: string, data: any) {
       });
       await b.commit();
     }
+    
     return result;
-  } catch (error: any) {
-    logger.error(`[INIT CLUB] Admin SDK Error: ${error.message}`);
-    return { success: false, error: error.message };
+  } catch (e: any) {
+    logger.error(`[INIT CLUB COMPLETE] Error: ${e.message}`);
+    return { success: false, error: e.message || "INTERNAL_SERVER_ERROR" };
   }
 }
 
 export async function releasePlayerSlot(userId: string) {
-  const db = adminDb;
+  const db = getAdminDb();
   try {
     const playerRef = db.collection('players_v14').doc(userId);
     const pSnap = await playerRef.get();
@@ -238,4 +245,11 @@ export async function releasePlayerSlot(userId: string) {
     logger.error("Release slot failed:", e);
     return { success: false };
   }
+}
+
+/**
+ * @deprecated Используйте initializeClubComplete
+ */
+export async function initializeClubV13(userId: string, data: any) {
+  return { success: false, error: "DEPRECATED_USE_COMPLETE_ACTION" };
 }
