@@ -35,10 +35,12 @@ export default function SetupPage() {
     try {
       const targetLeagueId = "ALPHA";
       
-      // 1. Атомарная серверная инициализация (v14)
+      // 1. Атомарная серверная инициализация (v14) через Admin SDK
       const result = await initializeClubComplete(user.uid, user.email || '');
 
       if (!result.success) {
+        // Не удаляем аккаунт пользователя при ошибке инициализации клуба, 
+        // чтобы он мог попробовать еще раз или обратиться в поддержку.
         throw new Error(result.error || "INITIALIZATION_FAILED");
       }
 

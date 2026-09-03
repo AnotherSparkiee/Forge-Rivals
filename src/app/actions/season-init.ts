@@ -1,7 +1,7 @@
 'use server';
 
 /**
- * @fileOverview Модуль инициализации клуба v161 (Pure Admin SDK).
+ * @fileOverview Модуль инициализации клуба v162 (Admin SDK Transition).
  */
 
 import { FieldValue } from 'firebase-admin/firestore';
@@ -96,6 +96,8 @@ export async function findStrategicPlacement(leagueId: string) {
 
 export async function initializeClubComplete(userId: string, email: string) {
   const placement = await findStrategicPlacement("ALPHA");
+  if (!placement) return { success: false, error: "NO_PLACEMENT_FOUND" };
+
   return await initializeClubV13(userId, {
     tier: placement.tier,
     group: placement.group,
