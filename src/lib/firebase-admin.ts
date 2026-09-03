@@ -5,13 +5,15 @@ let adminApp: App;
 
 if (getApps().length === 0) {
   const serviceAccountJson = process.env.FIREBASE_ADMIN_SDK;
-  if (!serviceAccountJson) {
-    throw new Error('FIREBASE_ADMIN_SDK environment variable is missing');
-  }
   
-  adminApp = initializeApp({
-    credential: cert(JSON.parse(serviceAccountJson)),
-  });
+  if (serviceAccountJson) {
+    adminApp = initializeApp({
+      credential: cert(JSON.parse(serviceAccountJson)),
+    });
+  } else {
+    // Attempt to initialize with Application Default Credentials (works in App Hosting/GCP)
+    adminApp = initializeApp();
+  }
 } else {
   adminApp = getApps()[0];
 }

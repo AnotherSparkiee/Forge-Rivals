@@ -1,40 +1,39 @@
 'use server';
 
 /**
- * @fileOverview Серверный модуль финансов с поддержкой идемпотентности и TTL.
+ * @fileOverview Серверный модуль финансов на базе Admin SDK.
  */
 
-import { doc, getDoc, setDoc, serverTimestamp, runTransaction, Timestamp } from 'firebase/firestore';
-import { initializeFirebase } from '@/firebase';
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
+import { adminDb } from '@/lib/firebase-admin';
 import { FinancialOpSchema } from '@/app/lib/validation-schemas';
 import { logger } from '@/app/lib/logger';
 
 /**
- * Выполняет финансовую операцию с проверкой ключа идемпотентности.
- * Включает expiresAt для автоматической очистки (TTL).
+ * Выполняет финансовую операцию с проверкой ключа идемпотентности через Admin SDK.
  */
 export async function processFinancialOperation(userId: string, data: any) {
   const validation = FinancialOpSchema.safeParse(data);
   if (!validation.success) return { success: false, error: "INVALID_INPUT" };
 
   const { idempotencyKey, amount, type, description } = validation.data;
-  const { firestore: db } = initializeFirebase();
+  const db = adminDb;
 
   try {
-    const result = await runTransaction(db, async (transaction) => {
-      const logRef = doc(db, 'system_v1', `idempotency_${idempotencyKey}`);
+    const result = await db.runTransaction(async (transaction) => {
+      const logRef = db.collection('system_v1').doc(`idempotency_${idempotencyKey}`);
       const logSnap = await transaction.get(logRef);
 
-      if (logSnap.exists()) {
+      if (logSnap.exists) {
         logger.warn("Idempotency match detected. Skipping operation.", { idempotencyKey });
         return { success: true, alreadyProcessed: true };
       }
 
-      const playerRef = doc(db, 'players_v14', userId);
+      const playerRef = db.collection('players_v14').doc(userId);
       const playerSnap = await transaction.get(playerRef);
-      if (!playerSnap.exists()) throw new Error("PLAYER_NOT_FOUND");
+      if (!playerSnap.exists) throw new Error("PLAYER_NOT_FOUND");
 
-      const pData = playerSnap.data();
+      const pData = playerSnap.data()!;
       const currentBalance = Number(pData[type] || 0);
 
       if (amount < 0 && currentBalance < Math.abs(amount)) {
@@ -43,7 +42,7 @@ export async function processFinancialOperation(userId: string, data: any) {
 
       transaction.update(playerRef, { 
         [type]: currentBalance + amount,
-        updatedAt: serverTimestamp() 
+        updatedAt: FieldValue.serverTimestamp() 
       });
 
       // TTL: 7 дней для очистки ключей
@@ -55,7 +54,7 @@ export async function processFinancialOperation(userId: string, data: any) {
         amount,
         type,
         description,
-        processedAt: serverTimestamp(),
+        processedAt: FieldValue.serverTimestamp(),
         expiresAt: Timestamp.fromDate(expiresAt)
       });
 
