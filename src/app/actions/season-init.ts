@@ -1,7 +1,7 @@
 'use server';
 
 /**
- * @fileOverview Модуль инициализации клуба v162 (Admin SDK Transition).
+ * @fileOverview Модуль инициализации клуба v163 (Admin SDK + Safe Errors).
  */
 
 import { FieldValue } from 'firebase-admin/firestore';
@@ -94,40 +94,49 @@ export async function findStrategicPlacement(leagueId: string) {
   }
 }
 
+/**
+ * Атомарная точка входа для регистрации.
+ * Обернута в try-catch для предотвращения ошибок "unexpected response".
+ */
 export async function initializeClubComplete(userId: string, email: string) {
-  const placement = await findStrategicPlacement("ALPHA");
-  if (!placement) return { success: false, error: "NO_PLACEMENT_FOUND" };
+  try {
+    const placement = await findStrategicPlacement("ALPHA");
+    if (!placement) return { success: false, error: "NO_PLACEMENT_FOUND" };
 
-  return await initializeClubV13(userId, {
-    tier: placement.tier,
-    group: placement.group,
-    rank: placement.rank,
-    email: email,
-    selectedLeagueId: "ALPHA"
-  });
+    return await initializeClubV13(userId, {
+      tier: placement.tier,
+      group: placement.group,
+      rank: placement.rank,
+      email: email,
+      selectedLeagueId: "ALPHA"
+    });
+  } catch (e: any) {
+    console.error("[ACTION ERROR]:", e.message);
+    return { success: false, error: e.message || "INTERNAL_SERVER_ERROR" };
+  }
 }
 
 export async function initializeClubV13(userId: string, data: any) {
-  const clubName = data.clubName || `Manager_${Math.floor(1000 + Math.random() * 9000)}`;
-  const country = data.country || "International";
-  const clubLogo = data.clubLogo || "https://iili.io/CYIAgVa.webp";
-
-  const payload = { ...data, clubName, country, clubLogo };
-  const validation = InitializeClubSchema.safeParse(payload);
-  if (!validation.success) return { success: false, error: "INVALID_PARAMS" };
-
-  const db = adminDb;
-  const seasonNum = await getActiveSeasonNumber(db);
-  const info = getGlobalSeasonInfo();
-  const effectiveSeason = info.dayOfCycle >= 15 ? seasonNum + 1 : seasonNum;
-
-  const { tier, group, rank, selectedLeagueId: leagueId } = validation.data;
-  const playerRef = db.collection('players_v14').doc(userId);
-  const tableId = getTableId(effectiveSeason, leagueId, tier, group);
-  const tableRef = db.collection('league_tables_v2').doc(tableId);
-  const counterRef = db.collection('system_v1').doc('global_stats');
-
   try {
+    const clubName = data.clubName || `Manager_${Math.floor(1000 + Math.random() * 9000)}`;
+    const country = data.country || "International";
+    const clubLogo = data.clubLogo || "https://iili.io/CYIAgVa.webp";
+
+    const payload = { ...data, clubName, country, clubLogo };
+    const validation = InitializeClubSchema.safeParse(payload);
+    if (!validation.success) return { success: false, error: "INVALID_PARAMS" };
+
+    const db = adminDb;
+    const seasonNum = await getActiveSeasonNumber(db);
+    const info = getGlobalSeasonInfo();
+    const effectiveSeason = info.dayOfCycle >= 15 ? seasonNum + 1 : seasonNum;
+
+    const { tier, group, rank, selectedLeagueId: leagueId } = validation.data;
+    const playerRef = db.collection('players_v14').doc(userId);
+    const tableId = getTableId(effectiveSeason, leagueId, tier, group);
+    const tableRef = db.collection('league_tables_v2').doc(tableId);
+    const counterRef = db.collection('system_v1').doc('global_stats');
+
     const result = await db.runTransaction(async (transaction) => {
       const [playerSnap, tableSnap, counterSnap] = await Promise.all([
         transaction.get(playerRef),

@@ -1,48 +1,45 @@
-import { initializeApp, getApps, cert, App } from 'firebase-admin/app';
+import { initializeApp, getApps, cert, getApp } from 'firebase-admin/app';
 import { getFirestore, Firestore } from 'firebase-admin/firestore';
 
 /**
- * @fileOverview Инициализация Firebase Admin SDK v1.5 (Safe Mode).
- * Предотвращает крах сервера при отсутствии учетных данных.
+ * @fileOverview Инициализация Firebase Admin SDK v1.6 (Ultra Safe).
+ * Гарантирует, что сервер не упадет даже при полном отсутствии конфига.
  */
 
 let db: Firestore;
 
 try {
-  let adminApp: App;
-  
   if (getApps().length === 0) {
     const serviceAccountJson = process.env.FIREBASE_ADMIN_SDK;
     
-    if (serviceAccountJson && serviceAccountJson.trim() !== "") {
+    if (serviceAccountJson && serviceAccountJson.trim().startsWith('{')) {
       try {
-        adminApp = initializeApp({
+        initializeApp({
           credential: cert(JSON.parse(serviceAccountJson)),
         });
       } catch (parseError) {
-        console.error("[FIREBASE ADMIN] Invalid FIREBASE_ADMIN_SDK JSON format.");
-        throw parseError;
+        console.error("[FIREBASE ADMIN] JSON Parse Error. Falling back to default.");
+        initializeApp();
       }
     } else {
-      // Пытаемся инициализировать стандартными средствами GCP (работает в App Hosting)
-      // Если и это не сработает, выбросит ошибку.
-      adminApp = initializeApp();
+      // Пытаемся инициализироваться без ключа (работает в GCP/Firebase Hosting)
+      initializeApp();
     }
-  } else {
-    adminApp = getApps()[0];
   }
-  
-  db = getFirestore(adminApp);
+  db = getFirestore();
 } catch (initError: any) {
   console.error("[FIREBASE ADMIN] Critical Initialization Failure:", initError.message);
   
-  // Создаем прокси, который выбросит ошибку только при попытке доступа к свойствам db.
-  // Это предотвращает падение модуля при импорте в Server Actions.
+  // Создаем прокси, который выбросит ошибку только при обращении к базе.
+  // Это предотвращает крах модуля при импорте.
   db = new Proxy({} as Firestore, {
     get: (_, prop) => {
-      throw new Error(
-        `Firebase Admin SDK is not properly configured. Check your FIREBASE_ADMIN_SDK environment variable. Details: ${initError.message}`
-      );
+      if (prop === 'collection' || prop === 'runTransaction' || prop === 'batch') {
+        return () => {
+          throw new Error(`Firebase Admin SDK is not initialized. Please check FIREBASE_ADMIN_SDK env variable.`);
+        };
+      }
+      return undefined;
     }
   });
 }

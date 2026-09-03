@@ -39,9 +39,13 @@ export default function SetupPage() {
       const result = await initializeClubComplete(user.uid, user.email || '');
 
       if (!result.success) {
-        // Не удаляем аккаунт пользователя при ошибке инициализации клуба, 
-        // чтобы он мог попробовать еще раз или обратиться в поддержку.
-        throw new Error(result.error || "INITIALIZATION_FAILED");
+        toast({ 
+          variant: "destructive", 
+          title: language === 'ru' ? "Ошибка инициализации" : "Init Error",
+          description: result.error || "SERVER_REJECTED_TRANSACTION"
+        });
+        setIsUpdating(false);
+        return;
       }
 
       const startingSquad = getRandomStartingSquad();
@@ -87,6 +91,7 @@ export default function SetupPage() {
         title: language === 'ru' ? "Ошибка развертывания" : "Deployment Error",
         description: e.message 
       });
+    } finally {
       setIsUpdating(false);
     }
   };
