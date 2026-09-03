@@ -1,7 +1,7 @@
 'use server';
 
 /**
- * @fileOverview Модуль инициализации клуба v159 (Auto-Defaults & Robustness).
+ * @fileOverview Модуль инициализации клуба v160 (Combined Action Fix).
  */
 
 import { 
@@ -104,6 +104,25 @@ export async function findStrategicPlacement(leagueId: string) {
   }
 }
 
+/**
+ * Объединенная функция инициализации.
+ * Гарантирует выполнение всех операций в рамках одной auth-сессии.
+ */
+export async function initializeClubComplete(userId: string, email: string) {
+  const placement = await findStrategicPlacement("ALPHA");
+  if (!placement) {
+    return { success: false, error: "NO_FREE_SLOTS" };
+  }
+
+  return await initializeClubV13(userId, {
+    tier: placement.tier,
+    group: placement.group,
+    rank: placement.rank,
+    email: email,
+    selectedLeagueId: "ALPHA"
+  });
+}
+
 export async function initializeClubV13(userId: string, data: any) {
   // Авто-генерация данных, если они не переданы
   const clubName = data.clubName || `Manager_${Math.floor(1000 + Math.random() * 9000)}`;
@@ -135,6 +154,8 @@ export async function initializeClubV13(userId: string, data: any) {
   const effectiveSeason = info.dayOfCycle >= 15 ? seasonNum + 1 : seasonNum;
 
   const { tier, group, rank, selectedLeagueId: leagueId } = validation.data;
+
+  console.log(`[INIT CLUB] TRANSACTION ATTEMPT: UID=${authRes.uid} for Player=${userId}`);
 
   const playerRef = doc(db, 'players_v14', userId);
   const tableId = getTableId(effectiveSeason, leagueId, tier, group);

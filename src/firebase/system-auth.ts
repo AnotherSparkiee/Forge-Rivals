@@ -1,25 +1,23 @@
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import { initializeFirebase } from './index';
 
 /**
- * @fileOverview Централизованный модуль системной авторизации v2.0 (Caching & Sync Fix).
+ * @fileOverview Централизованный модуль системной авторизации v2.1 (No Cache Fix).
  */
 
 const SYSTEM_EMAIL = "system@internal.mobamanageronline.app";
 
-// Кэшируем credential в рамках жизненного цикла процесса Node.js
-let systemUserCredential: any = null;
-
 /**
  * Аутентификация как системный аккаунт.
- * Оптимизировано для Server Actions: гарантированное ожидание токена.
+ * Оптимизировано для Server Actions: убрано кэширование во избежание потери контекста авторизации между процессами.
  */
 export async function authenticateAsSystem(): Promise<{ success: boolean; error?: string; uid?: string }> {
   const { auth } = initializeFirebase();
   
-  // 1. Возвращаем кэшированный результат, если он есть
-  if (systemUserCredential) {
-    return { success: true, uid: systemUserCredential.user.uid };
+  // 1. Проверяем живой auth state
+  if (auth.currentUser?.email === SYSTEM_EMAIL) {
+    await auth.currentUser.getIdToken(true);
+    return { success: true, uid: auth.currentUser.uid };
   }
 
   const password = process.env.SYSTEM_ACCOUNT_PASSWORD;
@@ -31,19 +29,17 @@ export async function authenticateAsSystem(): Promise<{ success: boolean; error?
 
   try {
     // 2. Попытка входа
-    systemUserCredential = await signInWithEmailAndPassword(auth, SYSTEM_EMAIL, password.trim());
+    await signInWithEmailAndPassword(auth, SYSTEM_EMAIL, password.trim());
     
-    // Принудительно обновляем токен для получения свежих Claims
+    // Принудительно обновляем токен для передачи в Firestore
     await auth.currentUser?.getIdToken(true);
     
-    console.log(`[SYSTEM AUTH SUCCESS] Authorized as ${SYSTEM_EMAIL} (${auth.currentUser?.uid})`);
     return { success: true, uid: auth.currentUser?.uid };
   } catch (e: any) {
     // 3. Если пользователя нет - пытаемся создать
-    if (e.code === 'auth/user-not-found' || e.code === 'auth/invalid-credential') {
+    if (e.code === 'auth/user-not-found' || e.code === 'auth/invalid-credential' || e.code === 'auth/invalid-email') {
       try {
-        console.log(`[SYSTEM AUTH] Bootstrapping system account...`);
-        systemUserCredential = await createUserWithEmailAndPassword(auth, SYSTEM_EMAIL, password.trim());
+        await createUserWithEmailAndPassword(auth, SYSTEM_EMAIL, password.trim());
         await auth.currentUser?.getIdToken(true);
         return { success: true, uid: auth.currentUser?.uid };
       } catch (regError: any) {

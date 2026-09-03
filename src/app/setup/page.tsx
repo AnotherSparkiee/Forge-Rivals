@@ -12,7 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useGameState, LineupSlot } from '@/app/lib/store';
 import { getRandomStartingSquad } from '@/app/lib/moba-data';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
-import { findStrategicPlacement, initializeClubV13 } from '@/app/actions/season-init';
+import { initializeClubComplete } from '@/app/actions/season-init';
 import { useUser } from '@/firebase';
 import { cn } from '@/lib/utils';
 
@@ -34,9 +34,14 @@ export default function SetupPage() {
     
     try {
       const targetLeagueId = "ALPHA";
-      // 1. Поиск свободного места
-      const placement = await findStrategicPlacement(targetLeagueId);
       
+      // 1. Атомарная серверная инициализация (v14)
+      const result = await initializeClubComplete(user.uid, user.email || '');
+
+      if (!result.success) {
+        throw new Error(result.error || "INITIALIZATION_FAILED");
+      }
+
       const startingSquad = getRandomStartingSquad();
       const initialLineup: Record<LineupSlot, string | null> = {
         carry: startingSquad.filter(p => p.role === 'Carry')[0]?.id || null,
@@ -52,20 +57,7 @@ export default function SetupPage() {
         res1: null, res2: null, res3: null, res4: null, res5: null, res6: null, res7: null, res8: null
       };
 
-      // 2. Серверная инициализация (v14) с авто-дефолтами
-      const result = await initializeClubV13(user.uid, {
-        tier: placement.tier,
-        group: placement.group,
-        rank: placement.rank,
-        email: user.email,
-        selectedLeagueId: targetLeagueId
-      });
-
-      if (!result.success) {
-        throw new Error(result.error || "INITIALIZATION_FAILED");
-      }
-
-      // 3. Сохранение в локальный стор для мгновенного доступа
+      // 2. Сохранение в локальный стор для мгновенного доступа
       saveToLocal({
         id: user.uid,
         numericId: Number(result.numericId),
@@ -99,8 +91,8 @@ export default function SetupPage() {
 
   const t = {
     ru: {
-      title: 'ПОДГОТОВКА КВАРТИРЫ',
-      subtitle: 'Система настраивает вашу базу и находит место в лиге',
+      title: 'ПОДГОТОВКА БАЗЫ',
+      subtitle: 'Система настраивает ваш штаб и резервирует место в лиге',
       finalize: 'СОЗДАТЬ КЛУБ',
       desc: 'Ваш тактический позывной, флаг и логотип будут сгенерированы автоматически. Вы сможете изменить их в любое время в настройках профиля.'
     },
