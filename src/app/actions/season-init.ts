@@ -1,7 +1,7 @@
 'use server';
 
 /**
- * @fileOverview Модуль инициализации клуба v154 (Effective Season Fix).
+ * @fileOverview Модуль инициализации клуба v155 (Effective Season & Levels Fix).
  */
 
 import { 
@@ -17,7 +17,8 @@ import {
   getBotName,
   TEAMS_PER_GROUP,
   generateSeasonCalendar,
-  getTableId
+  getTableId,
+  MAX_LEVELS
 } from '@/app/lib/leagues-data';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 import { InitializeClubSchema } from '@/app/lib/validation-schemas';
@@ -87,7 +88,7 @@ export async function findStrategicPlacement(leagueId: string) {
       }
     });
 
-    for (let tier = 9; tier >= 1; tier--) {
+    for (let tier = MAX_LEVELS; tier >= 1; tier--) {
       const groupsInTier = getGroupsCountInLevel(tier);
       for (let group = 1; group <= groupsInTier; group++) {
         for (let rank = 1; rank <= 8; rank++) {
@@ -96,10 +97,10 @@ export async function findStrategicPlacement(leagueId: string) {
         }
       }
     }
-    return { tier: 9, group: 1, rank: 1 };
+    return { tier: MAX_LEVELS, group: 1, rank: 1 };
   } catch (error) {
     logger.error("Error in findStrategicPlacement", error);
-    return { tier: 9, group: 1, rank: 1 };
+    return { tier: MAX_LEVELS, group: 1, rank: 1 };
   }
 }
 

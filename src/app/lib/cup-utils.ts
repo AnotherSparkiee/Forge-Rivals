@@ -1,4 +1,4 @@
-import { getMatchResult } from './leagues-data';
+import { getMatchResult, MAX_LEVELS } from './leagues-data';
 
 export interface CupParticipant {
   id: string;
@@ -9,11 +9,11 @@ export interface CupParticipant {
 
 /**
  * Рассчитывает, в каком раунде дивизион вступает в борьбу.
- * Див 9 начинает с Раунда 0 (День 1).
- * Див 1 начинает с Раунда 8 (День 9).
+ * Див 4 начинает с Раунда 0.
+ * Див 1 начинает с Раунда 3.
  */
 export function getEntryRound(level: number): number {
-  return Math.max(0, 9 - level);
+  return Math.max(0, MAX_LEVELS - level);
 }
 
 /**
@@ -34,7 +34,7 @@ export function getLeagueCupParticipants(leagueId: string, realPlayersInLeague: 
   const leagueIdx = "01";
 
   let currentGlobalIndex = 0;
-  for (let lvl = 1; lvl <= 9; lvl++) {
+  for (let lvl = 1; lvl <= MAX_LEVELS; lvl++) {
     const groupsInDiv = Math.pow(2, lvl - 1);
     for (let g = 1; g <= groupsInDiv; g++) {
       for (let slot = 1; slot <= 8; slot++) {

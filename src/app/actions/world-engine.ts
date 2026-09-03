@@ -1,7 +1,7 @@
 'use server';
 
 /**
- * Глобальный двигатель мира v151 (Season Param & Multi-Season Fix).
+ * Глобальный двигатель мира v152 (Reduced Levels Fix).
  */
 
 import { 
@@ -15,7 +15,8 @@ import {
   getBotName,
   TEAMS_PER_GROUP, 
   generateSeasonCalendar,
-  TOTAL_GROUPS
+  TOTAL_GROUPS,
+  MAX_LEVELS
 } from '@/app/lib/leagues-data';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 
@@ -25,7 +26,7 @@ function getGroupCoordinates(index: number) {
   if (index < 1) return { tier: 1, group: 1 };
   let tier = 1;
   let runningTotal = 0;
-  while (tier <= 9) {
+  while (tier <= MAX_LEVELS) {
     const groupsInTier = Math.pow(2, tier - 1);
     if (index <= runningTotal + groupsInTier) {
       return { tier, group: index - runningTotal };
@@ -33,7 +34,7 @@ function getGroupCoordinates(index: number) {
     runningTotal += groupsInTier;
     tier++;
   }
-  return { tier: 9, group: 256 };
+  return { tier: MAX_LEVELS, group: Math.pow(2, MAX_LEVELS - 1) };
 }
 
 async function injectGroupData(

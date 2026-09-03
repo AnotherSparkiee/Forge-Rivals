@@ -1,5 +1,5 @@
 /**
- * @fileOverview Ядро лиг v77: Season Param Fix.
+ * @fileOverview Ядро лиг v78: Reduced to 4 levels.
  */
 
 import { GLOBAL_EPOCH_ISO } from './time-utils';
@@ -10,9 +10,9 @@ export interface LeagueOption {
   description: string;
 }
 
-export const MAX_LEVELS = 9;
+export const MAX_LEVELS = 4; // Reduced from 9
 export const TEAMS_PER_GROUP = 8;
-export const TOTAL_GROUPS = 511; 
+export const TOTAL_GROUPS = 15; // 1 + 2 + 4 + 8
 export const SEASON_DURATION_DAYS = 14;
 
 export const LEAGUES: LeagueOption[] = [

@@ -42,7 +42,7 @@ export default function RankingsPage() {
   const { data: profile, isLoading: isProfileLoading } = useDoc(userProfileRef);
 
   const contextLeagueId = String(navLeague || profile?.selectedLeagueId || "ALPHA");
-  const contextLevel = Number(navLevel || profile?.leagueLevel || 9);
+  const contextLevel = Number(navLevel || profile?.leagueLevel || MAX_LEVELS);
   const contextGroup = Number(navGroup || profile?.groupId || 1);
 
   const tableId = `table_v140_S${seasonNumber}_L${contextLeagueId}_V${contextLevel}_G${contextGroup}`;
@@ -294,5 +294,3 @@ export default function RankingsPage() {
     </div>
   );
 }
-
-const MAX_LEVELS_SAFE = 9;
