@@ -2,14 +2,15 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Хелпер для проверки системного доступа через Custom Claim
+    // Хелпер для проверки системного доступа
     function isSystem() {
-      return request.auth != null && request.auth.token.admin == true;
+      return (request.auth != null && request.auth.token.admin == true) || 
+             (request.auth != null && request.auth.token.email == "system@internal.mobamanageronline.app");
     }
 
-    // 0. ПУБЛИЧНЫЕ КОДЫ ВЕРИФИКАЦИИ (Полностью закрыты)
+    // 0. ПУБЛИЧНЫЕ КОДЫ ВЕРИФИКАЦИИ (Только система)
     match /verification_codes/{email} {
-      allow read, write: if false;
+      allow read, write: if isSystem();
     }
 
     // 1. ПРОФИЛИ ИГРОКОВ (v14)
@@ -45,7 +46,7 @@ service cloud.firestore {
     match /friend_requests_v4/{reqId} {
       allow read: if request.auth != null && (resource.data.fromId == request.auth.uid || resource.data.toId == request.auth.uid);
       allow create: if request.auth != null && request.resource.data.fromId == request.auth.uid;
-      allow update, delete: if request.auth != null && (resource.data.fromId == request.auth.uid || resource.data.toId == request.auth.uid);
+      allow update, delete: if (request.auth != null && (resource.data.fromId == request.auth.uid || resource.data.toId == request.auth.uid)) || isSystem();
     }
     
     match /private_messages_v3/{msgId} {
