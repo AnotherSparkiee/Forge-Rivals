@@ -13,4 +13,4 @@ environmentVariables:
   - variable: CRON_SECRET
     value: lote_secure_cron_token_2026
   - variable: NEXT_PUBLIC_FIREBASE_API_KEY
-    value: AIzaSyA88_XNq_Z6G2z7R9Y9B1m2L3k4j5h6
+    value: AIzaSyD-5_fN9x_Z6G2z7R9Y9B1m2L3k4j5h6
