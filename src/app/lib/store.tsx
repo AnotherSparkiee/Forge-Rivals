@@ -1,16 +1,15 @@
-
 'use client';
 
 /**
- * Глобальное локальное хранилище v242 (ULTRA STABLE).
- * Синхронизировано с Этапом 2: Фаза 3 (Перевод на реальные данные из Firestore).
+ * Глобальное локальное хранилище v243 (ULTRA STABLE).
+ * Добавлен флаг isInitialSyncDone для предотвращения ложных редиректов.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useMemo } from 'react';
 import { Player, StaffMember, StaffRole, generateScoutedPlayer, getRandomStartingSquad } from './moba-data';
 import { getMoscowTime, getGlobalSeasonInfo, getMoscowDateString, getLevelThreshold } from './time-utils';
 import { useUser, initializeFirebase } from '@/firebase';
-import { doc, onSnapshot, updateDoc } from 'firebase/firestore';
+import { doc, onSnapshot, updateDoc, arrayUnion } from 'firebase/firestore';
 
 export { getLevelThreshold };
 
@@ -62,7 +61,7 @@ interface GameState {
   activeSeasonNumber: number; activeLicenseTier: number | null;
   rank: number; seasonDay: number; seasonNumber: number;
   isSyncing: boolean; language: string;
-  isDataReady: boolean; isTeamLoaded: boolean; allSeasonMatches: any[]; nextMatch: any | null; isMatchesLoading: boolean;
+  isDataReady: boolean; isTeamLoaded: boolean; isInitialSyncDone: boolean; allSeasonMatches: any[]; nextMatch: any | null; isMatchesLoading: boolean;
   lastProcessedSeason: number;
   trophies: TrophyRecord[];
   version: number;
@@ -130,7 +129,7 @@ const STORAGE_KEY = 'lote_game_state_v242';
 const DEFAULT_STATE: GameState = {
   credits: 1000000, crystals: 50, experiencePoints: 0, managerLevel: 1,
   leagueLevel: 9, groupId: 1, selectedLeagueId: null,
-  displayName: 'Local Manager', id: '', numericId: null, isLoaded: false, isTeamLoaded: false,
+  displayName: 'Local Manager', id: '', numericId: null, isLoaded: false, isTeamLoaded: false, isInitialSyncDone: false,
   clubName: null, clubLogo: null,
   lineup: { 
     carry: null, mid: null, offlane: null, support: null, full_support: null, 
@@ -224,11 +223,18 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     } else { setState(prev => ({ ...prev, id: user?.uid || '', isLoaded: true })); }
   }, [isUserLoading, user, staticSeasonInfo]);
 
-  // PHASE 3 (Step 2): REAL-TIME FIREBASE SYNC
+  // PHASE 3: REAL-TIME FIREBASE SYNC
   useEffect(() => {
-    if (!user?.uid || !state.isLoaded) return;
+    if (!user?.uid || !state.isLoaded) {
+      if (state.isLoaded && !user) {
+        setState(prev => ({ ...prev, isInitialSyncDone: true }));
+      }
+      return;
+    }
+    
     const { firestore: db } = initializeFirebase();
     const playerRef = doc(db, 'players_v14', user.uid);
+    
     const unsubscribe = onSnapshot(playerRef, (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.data();
@@ -242,15 +248,20 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
           groupId: Number(data.groupId),
           rank: Number(data.rank),
           isTeamLoaded: true,
+          isInitialSyncDone: true,
           managerLevel: data.managerLevel || state.managerLevel,
           experiencePoints: data.experiencePoints || state.experiencePoints,
           credits: data.credits !== undefined ? Number(data.credits) : state.credits,
           crystals: data.crystals !== undefined ? Number(data.crystals) : state.crystals
         });
       } else {
-        setState(prev => ({ ...prev, isTeamLoaded: false }));
+        setState(prev => ({ ...prev, isTeamLoaded: false, isInitialSyncDone: true }));
       }
+    }, (error) => {
+      console.warn("Firestore sync error:", error);
+      setState(prev => ({ ...prev, isInitialSyncDone: true }));
     });
+
     return () => unsubscribe();
   }, [user?.uid, state.isLoaded, saveToLocal]);
 
