@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { TEAMS_PER_GROUP } from './leagues-data';
+import { TEAMS_PER_GROUP, MAX_LEVELS } from './leagues-data';
 
 /**
  * @fileOverview Схемы валидации для Server Actions.
@@ -17,7 +17,7 @@ export const VerifyCodeSchema = z.object({
 
 export const InitializeClubSchema = z.object({
   clubName: z.string().min(3).max(20),
-  tier: z.number().int().min(1).max(9),
+  tier: z.number().int().min(1).max(MAX_LEVELS),
   group: z.number().int().positive(),
   rank: z.number().int().min(1).max(TEAMS_PER_GROUP),
   selectedLeagueId: z.string(),

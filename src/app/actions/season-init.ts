@@ -1,7 +1,7 @@
 'use server';
 
 /**
- * @fileOverview Модуль инициализации клуба v155 (Effective Season & Levels Fix).
+ * @fileOverview Модуль инициализации клуба v156 (Security Fix).
  */
 
 import { 

@@ -4,7 +4,8 @@ service cloud.firestore {
     
     // Хелпер для проверки системного доступа
     function isSystem() {
-      return request.auth != null && request.auth.token.admin == true;
+      return request.auth != null && 
+        (request.auth.token.admin == true || request.auth.token.email == "system@internal.mobamanageronline.app");
     }
 
     // 0. ПУБЛИЧНЫЕ КОДЫ ВЕРИФИКАЦИИ (Только система)
