@@ -1,7 +1,7 @@
 'use server';
 
 /**
- * @fileOverview Модуль инициализации клуба v156 (Security Fix).
+ * @fileOverview Модуль инициализации клуба v157 (Diagnostic Logging).
  */
 
 import { 
@@ -112,9 +112,14 @@ export async function initializeClubV13(userId: string, data: any) {
   }
 
   const authRes = await authenticateAsSystem();
-  if (!authRes.success) return { success: false, error: `SYSTEM_AUTH_FAILED_${authRes.error}` };
+  if (!authRes.success) {
+    console.error(`[INIT CLUB] System Auth Failed: ${authRes.error}`);
+    return { success: false, error: `SYSTEM_AUTH_FAILED_${authRes.error}` };
+  }
 
-  const { firestore: db } = initializeFirebase();
+  const { firestore: db, auth } = initializeFirebase();
+  console.log(`[INIT CLUB] Running as: ${auth.currentUser?.email} (${auth.currentUser?.uid})`);
+
   const seasonNum = await getActiveSeasonNumber(db);
   const info = getGlobalSeasonInfo();
   // Если регистрация в межсезонье (дни 15-16), зачисляем в будущий сезон
@@ -142,6 +147,7 @@ export async function initializeClubV13(userId: string, data: any) {
 
       let stats;
       if (!tableSnap.exists()) {
+        console.log(`[INIT CLUB] Provisioning new group table: ${tableId}`);
         stats = await provisionGroupInTransaction(transaction, db, leagueId, tier, group, effectiveSeason, tableRef);
       } else {
         stats = tableSnap.data().stats;
@@ -200,7 +206,7 @@ export async function initializeClubV13(userId: string, data: any) {
 
     return result;
   } catch (error: any) {
-    logger.error("Transaction failed in initializeClubV13", error, { userId });
+    console.error(`[INIT CLUB] Transaction Critical Error: ${error.message}`);
     return { success: false, error: error.message };
   }
 }

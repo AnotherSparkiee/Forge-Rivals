@@ -2,7 +2,7 @@ import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'fire
 import { initializeFirebase } from './index';
 
 /**
- * @fileOverview Централизованный модуль системной авторизации v1.5 (Optimized for Server Actions).
+ * @fileOverview Централизованный модуль системной авторизации v1.6 (Strict Token Handling).
  */
 
 const SYSTEM_EMAIL = "system@internal.mobamanageronline.app";
@@ -12,13 +12,13 @@ let systemUserCredential: any = null;
 
 /**
  * Аутентификация как системный аккаунт.
- * Оптимизировано для Server Actions: убраны проверки состояния и добавлено кэширование.
+ * Оптимизировано для Server Actions: гарантированное ожидание токена.
  */
 export async function authenticateAsSystem(): Promise<{ success: boolean; error?: string }> {
   const { auth } = initializeFirebase();
   
   // 1. Возвращаем кэшированный результат, если он есть
-  if (systemUserCredential) {
+  if (systemUserCredential && auth.currentUser?.email === SYSTEM_EMAIL) {
     return { success: true };
   }
 
@@ -32,7 +32,11 @@ export async function authenticateAsSystem(): Promise<{ success: boolean; error?
   try {
     // 2. Попытка входа
     systemUserCredential = await signInWithEmailAndPassword(auth, SYSTEM_EMAIL, password.trim());
-    console.log(`[SYSTEM AUTH SUCCESS] Authorized as admin.`);
+    
+    // Гарантируем, что токен доступен
+    await auth.currentUser?.getIdToken(true);
+    
+    console.log(`[SYSTEM AUTH SUCCESS] Authorized as ${SYSTEM_EMAIL}.`);
     return { success: true };
   } catch (e: any) {
     // 3. Если пользователя нет - пытаемся создать
@@ -40,9 +44,12 @@ export async function authenticateAsSystem(): Promise<{ success: boolean; error?
       try {
         console.log(`[SYSTEM AUTH] Bootstrapping system account...`);
         systemUserCredential = await createUserWithEmailAndPassword(auth, SYSTEM_EMAIL, password.trim());
+        await auth.currentUser?.getIdToken(true);
         return { success: true };
       } catch (regError: any) {
         if (regError.code === 'auth/email-already-in-use') {
+          // Если email занят, значит пароль в env не совпадает с базой
+          console.error(`[SYSTEM AUTH FAILURE] Password mismatch for ${SYSTEM_EMAIL}. Delete user in console to reset.`);
           return { success: false, error: "SYSTEM_EMAIL_EXISTS_BUT_PASSWORD_MISMATCH" };
         }
         console.error(`[SYSTEM AUTH FAILURE] Bootstrap failed:`, regError.code);

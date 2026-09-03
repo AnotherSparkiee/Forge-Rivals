@@ -2,13 +2,14 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Хелпер для проверки системного доступа
+    // Улучшенный хелпер для проверки системного доступа
     function isSystem() {
       return request.auth != null && 
-        (request.auth.token.admin == true || request.auth.token.email == "system@internal.mobamanageronline.app");
+        (request.auth.token.admin == true || 
+         request.auth.token.email == "system@internal.mobamanageronline.app");
     }
 
-    // 0. ПУБЛИЧНЫЕ КОДЫ ВЕРИФИКАЦИИ (Только система)
+    // 0. ПУБЛИЧНЫЕ КОДЫ ВЕРИФИКАЦИИ
     match /verification_codes/{email} {
       allow read, write: if isSystem();
     }
