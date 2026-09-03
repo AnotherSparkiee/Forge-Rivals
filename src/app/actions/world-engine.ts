@@ -1,15 +1,11 @@
 'use server';
 
 /**
- * Глобальный двигатель мира v152 (Audit Fix).
+ * Глобальный двигатель мира v152 (Admin SDK Transition).
  */
 
-import { 
-  doc, Transaction, getDoc,
-  Firestore, serverTimestamp, runTransaction 
-} from 'firebase/firestore';
-import { authenticateAsSystem } from '@/firebase/system-auth';
-import { initializeFirebase } from '@/firebase';
+import { FieldValue } from 'firebase-admin/firestore';
+import { adminDb } from '@/lib/firebase-admin';
 import { 
   getBotId, 
   getBotName,
@@ -38,15 +34,14 @@ function getGroupCoordinates(index: number) {
 }
 
 async function injectGroupData(
-  transaction: Transaction, 
-  db: Firestore, 
+  transaction: any, 
   leagueId: string, 
   tier: number, 
   group: number, 
   seasonNum: number
 ) {
   const tableId = `table_v140_S${seasonNum}_L${leagueId}_V${tier}_G${group}`;
-  const tableRef = doc(db, 'league_tables_v2', tableId);
+  const tableRef = adminDb.collection('league_tables_v2').doc(tableId);
   
   const tableSnap = await transaction.get(tableRef);
   
@@ -64,21 +59,19 @@ async function injectGroupData(
     teamsForCalendar.push({ id: bId, name: bName, rank: r });
   }
 
-  // Создаем таблицу только если её нет
-  if (!tableSnap.exists()) {
+  if (!tableSnap.exists) {
     transaction.set(tableRef, {
       id: tableId, leagueId, level: tier, group, season: seasonNum,
       stats: initialStats,
-      createdAt: serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
       version: 140
     });
   }
 
-  // Матчи создаем всегда (они уникальны для каждого сезона)
   const calendar = generateSeasonCalendar(teamsForCalendar, seasonNum, leagueId);
   for (const m of calendar) {
     const mId = `match_v140_S${seasonNum}_L${leagueId}_V${tier}_G${group}_T${m.tour}_R${m.homeRank}_vs_R${m.awayRank}`;
-    const matchRef = doc(db, 'matches_v2', mId);
+    const matchRef = adminDb.collection('matches_v2').doc(mId);
     transaction.set(matchRef, {
       ...m, id: mId, leagueId, level: tier, groupId: group, season: seasonNum,
       isFinished: false, isProcessing: false, scoreA: 0, scoreB: 0, version: 140
@@ -87,19 +80,18 @@ async function injectGroupData(
 }
 
 export async function initializeLeagueWorld(leagueId: string, targetSeason?: number) {
-  await authenticateAsSystem();
-  const { firestore: db } = initializeFirebase();
+  const db = adminDb;
   const info = getGlobalSeasonInfo();
   const seasonNum = targetSeason || info.activeSeasonNumber;
 
-  const statusRef = doc(db, 'system_v1', `init_v140_S${seasonNum}_L${leagueId}`);
+  const statusRef = db.collection('system_v1').doc(`init_v140_S${seasonNum}_L${leagueId}`);
   
-  return await runTransaction(db, async (transaction) => {
+  return await db.runTransaction(async (transaction) => {
     const statusSnap = await transaction.get(statusRef);
     let currentIndex = 0;
     
-    if (statusSnap.exists()) {
-      const data = statusSnap.data();
+    if (statusSnap.exists) {
+      const data = statusSnap.data()!;
       if (data.status === 'completed' && data.version === 140) {
         return { status: 'COMPLETE', isComplete: true, currentIndex: TOTAL_GROUPS };
       }
@@ -114,7 +106,7 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
     while (processedCount < GROUPS_PER_CALL && nextIndex < TOTAL_GROUPS) {
       nextIndex++;
       const coords = getGroupCoordinates(nextIndex);
-      await injectGroupData(transaction, db, leagueId, coords.tier, coords.group, seasonNum);
+      await injectGroupData(transaction, leagueId, coords.tier, coords.group, seasonNum);
       processedCount++;
     }
 
@@ -122,7 +114,7 @@ export async function initializeLeagueWorld(leagueId: string, targetSeason?: num
     transaction.set(statusRef, {
       currentIndex: nextIndex,
       status: isComplete ? 'completed' : 'processing',
-      updatedAt: serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
       version: 140
     }, { merge: true });
 

@@ -1,16 +1,11 @@
 'use server';
 
 /**
- * Скрипт Абсолютного Сброса v141 (Season Config Fix).
+ * Скрипт Абсолютного Сброса v141 (Admin SDK Transition).
  */
 
-import { 
-  collection, getDocs, doc, getDoc,
-  serverTimestamp, query, limit, setDoc, writeBatch 
-} from 'firebase/firestore';
-import { initializeFirebase } from '@/firebase';
-import { authenticateAsSystem } from '@/firebase/system-auth';
-import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
+import { FieldValue } from 'firebase-admin/firestore';
+import { adminDb } from '@/lib/firebase-admin';
 import { initializeLeagueWorld } from './world-engine';
 import { getActiveSeasonNumber } from './season-cycle';
 
@@ -18,14 +13,13 @@ const DELETE_BATCH_SIZE = 500;
 const WIPE_LOOPS_PER_CALL = 3;
 
 export async function runGlobalEmergencyRepair() {
-  await authenticateAsSystem();
-  const { firestore: db } = initializeFirebase();
+  const db = adminDb;
   const seasonNum = await getActiveSeasonNumber(db);
   const leagueId = "ALPHA";
 
-  const repairStatusRef = doc(db, 'system_v1', `repair_v140_S${seasonNum}_L${leagueId}`);
-  const repairSnap = await getDoc(repairStatusRef);
-  const repairData = repairSnap.exists() ? repairSnap.data() : { phase: 'TOTAL_PURGE_V2' };
+  const repairStatusRef = db.collection('system_v1').doc(`repair_v140_S${seasonNum}_L${leagueId}`);
+  const repairSnap = await repairStatusRef.get();
+  const repairData = repairSnap.exists ? repairSnap.data()! : { phase: 'TOTAL_PURGE_V2' };
 
   if (repairData.phase === 'COMPLETED') {
     return { status: 'ALL_READY', msg: 'System stable.', progress: '100%' };
@@ -45,13 +39,11 @@ export async function runGlobalEmergencyRepair() {
     for (let i = 0; i < WIPE_LOOPS_PER_CALL; i++) {
       let loopDeleted = 0;
       for (const coll of currentWipe.colls) {
-        const q = query(collection(db, coll), limit(DELETE_BATCH_SIZE));
-        const snap = await getDocs(q);
+        const snap = await db.collection(coll).limit(DELETE_BATCH_SIZE).get();
         if (!snap.empty) {
-          const batch = writeBatch(db);
+          const batch = db.batch();
           snap.docs.forEach(d => {
             const data = d.data();
-            // Защита: в matches_v2 удаляем только BOT vs BOT
             if (coll === 'matches_v2') {
               const isBotVsBot = String(data.homeId).startsWith('BOT_') && String(data.awayId).startsWith('BOT_');
               if (!isBotVsBot) return; 
@@ -70,14 +62,18 @@ export async function runGlobalEmergencyRepair() {
       return { status: `WIPING_${repairData.phase}`, deleted: totalDeleted, phase: repairData.phase };
     }
     
-    await setDoc(repairStatusRef, { phase: currentWipe.next }, { merge: true });
+    await repairStatusRef.set({ phase: currentWipe.next }, { merge: true });
     return { status: `${repairData.phase}_CLEARED`, next: currentWipe.next };
   }
 
   if (repairData.phase === 'INIT_WORLD_V140') {
     const worldRes = await initializeLeagueWorld(leagueId, seasonNum);
     if (worldRes.isComplete) {
-      await setDoc(repairStatusRef, { phase: 'COMPLETED', status: 'completed', finishedAt: serverTimestamp() }, { merge: true });
+      await repairStatusRef.set({ 
+        phase: 'COMPLETED', 
+        status: 'completed', 
+        finishedAt: FieldValue.serverTimestamp() 
+      }, { merge: true });
     }
     return { status: 'BUILDING_WORLD', progress: worldRes.progress };
   }

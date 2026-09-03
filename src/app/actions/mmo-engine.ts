@@ -1,62 +1,52 @@
 'use server';
 
 /**
- * @fileOverview MMO-Двигатель v40 (Season Config Integration).
+ * @fileOverview MMO-Двигатель v40 (Admin SDK Transition).
  */
 
-import { 
-  collection, doc, getDocs, 
-  query, where, serverTimestamp, 
-  writeBatch, getDoc, increment
-} from 'firebase/firestore';
-import { initializeFirebase } from '@/firebase';
-import { authenticateAsSystem } from '@/firebase/system-auth';
-import { isMatchOverdue, getGlobalSeasonInfo } from '@/app/lib/time-utils';
+import { FieldValue } from 'firebase-admin/firestore';
+import { adminDb } from '@/lib/firebase-admin';
+import { isMatchOverdue } from '@/app/lib/time-utils';
 import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
 import { getTableId } from '@/app/lib/leagues-data';
 import { getActiveSeasonNumber } from './season-cycle';
 
 export async function forceResolveGroupMatches(leagueId: string, divisionId: number, groupId: string) {
-  await authenticateAsSystem();
-  const { firestore: db } = initializeFirebase();
+  const db = adminDb;
   
   if (!leagueId || !groupId) return { success: false, error: "Invalid parameters" };
 
-  // Получаем реальный активный сезон
   const seasonNum = await getActiveSeasonNumber(db);
 
-  const q = query(
-    collection(db, 'matches_v2'),
-    where('groupId', '==', String(groupId)),
-    where('season', '==', seasonNum),
-    where('isFinished', '==', false),
-    where('isProcessing', '==', false) // Защита от параллельной обработки
-  );
+  const snap = await db.collection('matches_v2')
+    .where('groupId', '==', String(groupId))
+    .where('season', '==', seasonNum)
+    .where('isFinished', '==', false)
+    .where('isProcessing', '==', false)
+    .get();
 
-  const snap = await getDocs(q);
   if (snap.empty) return { success: true, count: 0 };
 
   let resolvedCount = 0;
-  const batch = writeBatch(db);
+  const batch = db.batch();
   const tableStatsAggr = new Map<string, Record<string, number>>();
 
   for (const docSnap of snap.docs) {
     const m = docSnap.data();
     
     if (isMatchOverdue(m.startTime)) {
-      // Атомарная блокировка на уровне батча
       batch.update(docSnap.ref, { isProcessing: true });
       
       try {
         const tableId = getTableId(seasonNum, leagueId, divisionId, Number(groupId));
 
         const [homeSnap, awaySnap] = await Promise.all([
-          getDoc(doc(db, 'players_v14', m.homeId)),
-          getDoc(doc(db, 'players_v14', m.awayId))
+          db.collection('players_v14').doc(m.homeId).get(),
+          db.collection('players_v14').doc(m.awayId).get()
         ]);
 
         const getTeamData = (clubSnap: any) => {
-          if (!clubSnap.exists()) return { heroes: [], strategy: 'Balanced Play', staffBonus: 0, infraBonus: 0 };
+          if (!clubSnap.exists) return { heroes: [], strategy: 'Balanced Play', staffBonus: 0, infraBonus: 0 };
           const data = clubSnap.data();
           const lineupIds = Object.values(data.lineup || {});
           
@@ -90,7 +80,7 @@ export async function forceResolveGroupMatches(leagueId: string, divisionId: num
         batch.update(docSnap.ref, {
           scoreA: sA, scoreB: sB, winnerId,
           status: 'finished', isFinished: true, isProcessing: false,
-          simulation, finishedAt: serverTimestamp()
+          simulation, finishedAt: FieldValue.serverTimestamp()
         });
 
         if (!tableStatsAggr.has(tableId)) tableStatsAggr.set(tableId, {});
@@ -118,10 +108,10 @@ export async function forceResolveGroupMatches(leagueId: string, divisionId: num
   }
 
   for (const [tableId, stats] of tableStatsAggr.entries()) {
-    const tableRef = doc(db, 'league_tables_v2', tableId);
-    const firestoreStats: any = { updatedAt: serverTimestamp() };
+    const tableRef = db.collection('league_tables_v2').doc(tableId);
+    const firestoreStats: any = { updatedAt: FieldValue.serverTimestamp() };
     for (const [key, val] of Object.entries(stats)) {
-      firestoreStats[key] = increment(val);
+      firestoreStats[key] = FieldValue.increment(val);
     }
     batch.set(tableRef, firestoreStats, { merge: true });
   }

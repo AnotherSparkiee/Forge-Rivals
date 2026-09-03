@@ -1,15 +1,11 @@
 'use server';
 
 /**
- * @fileOverview Ядро управления сезонными циклами v1.1 (Migration Fix).
+ * @fileOverview Ядро управления сезонными циклами v1.1 (Admin SDK Transition).
  */
 
-import { 
-  doc, getDoc, setDoc, serverTimestamp, collection, 
-  query, where, getDocs, writeBatch, limit 
-} from 'firebase/firestore';
-import { initializeFirebase } from '@/firebase';
-import { authenticateAsSystem } from '@/firebase/system-auth';
+import { FieldValue } from 'firebase-admin/firestore';
+import { adminDb } from '@/lib/firebase-admin';
 import { getGlobalSeasonInfo, getMoscowHours } from '@/app/lib/time-utils';
 import { initializeLeagueWorld } from './world-engine';
 import { getTableId } from '../lib/leagues-data';
@@ -17,11 +13,12 @@ import { getTableId } from '../lib/leagues-data';
 /**
  * Читает номер активного сезона из конфига БД.
  */
-export async function getActiveSeasonNumber(db: any) {
-  const configRef = doc(db, 'system_v1', 'season_config');
+export async function getActiveSeasonNumber(db?: any) {
+  const database = db || adminDb;
+  const configRef = database.collection('system_v1').doc('season_config');
   try {
-    const snap = await getDoc(configRef);
-    if (snap.exists()) {
+    const snap = await configRef.get();
+    if (snap.exists) {
       return Number(snap.data().activeSeasonNumber);
     }
   } catch (e) {
@@ -34,8 +31,7 @@ export async function getActiveSeasonNumber(db: any) {
  * Генерирует мир для СЛЕДУЮЩЕГО сезона.
  */
 export async function generateNextSeasonWorld() {
-  await authenticateAsSystem();
-  const { firestore: db } = initializeFirebase();
+  const db = adminDb;
   const info = getGlobalSeasonInfo();
   const mskHour = getMoscowHours();
 
@@ -54,8 +50,7 @@ export async function generateNextSeasonWorld() {
  * Официально активирует следующий сезон и мигрирует игроков.
  */
 export async function activateNextSeason() {
-  await authenticateAsSystem();
-  const { firestore: db } = initializeFirebase();
+  const db = adminDb;
   const info = getGlobalSeasonInfo();
   const mskHour = getMoscowHours();
 
@@ -67,45 +62,43 @@ export async function activateNextSeason() {
   const nextSeason = currentSeason + 1;
   
   // 1. Отменяем незавершенные матчи текущего сезона
-  const q = query(
-    collection(db, 'matches_v2'),
-    where('season', '==', currentSeason),
-    where('isFinished', '==', false),
-    limit(500)
-  );
+  const snap = await db.collection('matches_v2')
+    .where('season', '==', currentSeason)
+    .where('isFinished', '==', false)
+    .limit(500)
+    .get();
   
-  const snap = await getDocs(q);
   if (!snap.empty) {
-    const batch = writeBatch(db);
+    const batch = db.batch();
     snap.docs.forEach(d => batch.update(d.ref, { 
       status: 'cancelled', 
       isFinished: true, 
-      resolvedAt: serverTimestamp() 
+      resolvedAt: FieldValue.serverTimestamp() 
     }));
     await batch.commit();
   }
 
   // 2. Переключаем сезон в конфиге
-  const configRef = doc(db, 'system_v1', 'season_config');
-  await setDoc(configRef, { 
+  const configRef = db.collection('system_v1').doc('season_config');
+  await configRef.set({ 
     activeSeasonNumber: nextSeason,
-    updatedAt: serverTimestamp()
+    updatedAt: FieldValue.serverTimestamp()
   }, { merge: true });
 
   // 3. Миграция живых игроков в новые таблицы сезона
-  const playersSnap = await getDocs(collection(db, 'players_v14'));
-  let migrateBatch = writeBatch(db);
+  const playersSnap = await db.collection('players_v14').get();
+  let migrateBatch = db.batch();
   let migrateCount = 0;
 
   for (const pDoc of playersSnap.docs) {
     const p = pDoc.data();
     if (p.lastProcessedSeason === currentSeason) {
       const tableId = getTableId(nextSeason, p.selectedLeagueId, p.leagueLevel, p.groupId);
-      const tableRef = doc(db, 'league_tables_v2', tableId);
-      const tableSnap = await getDoc(tableRef);
+      const tableRef = db.collection('league_tables_v2').doc(tableId);
+      const tableSnap = await tableRef.get();
       
-      if (tableSnap.exists()) {
-        const stats = { ...tableSnap.data().stats };
+      if (tableSnap.exists) {
+        const stats = { ...tableSnap.data()!.stats };
         // Ищем бота на том же ранге
         const botId = Object.keys(stats).find(id => Number(stats[id].rank) === Number(p.rank) && stats[id].isBot);
         
@@ -117,13 +110,13 @@ export async function activateNextSeason() {
             isBot: false, clubLogo: p.clubLogo || null
           };
           
-          migrateBatch.update(tableRef, { stats, updatedAt: serverTimestamp() });
+          migrateBatch.update(tableRef, { stats, updatedAt: FieldValue.serverTimestamp() });
           migrateBatch.update(pDoc.ref, { lastProcessedSeason: nextSeason });
           migrateCount++;
           
           if (migrateCount >= 400) {
             await migrateBatch.commit();
-            migrateBatch = writeBatch(db);
+            migrateBatch = db.batch();
             migrateCount = 0;
           }
         }

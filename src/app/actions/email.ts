@@ -1,12 +1,11 @@
 'use server';
 
 /**
- * @fileOverview Серверный модуль для работы с Email v2.0 (Security Refined).
+ * @fileOverview Серверный модуль для работы с Email v2.0 (Admin SDK Transition).
  */
 
-import { doc, setDoc, getDoc, deleteDoc, Timestamp } from 'firebase/firestore';
-import { initializeFirebase } from '@/firebase';
-import { authenticateAsSystem } from '@/firebase/system-auth';
+import { FieldValue } from 'firebase-admin/firestore';
+import { adminDb } from '@/lib/firebase-admin';
 import nodemailer from 'nodemailer';
 import { EmailInputSchema, VerifyCodeSchema } from '@/app/lib/validation-schemas';
 import { logger } from '@/app/lib/logger';
@@ -24,35 +23,26 @@ export async function sendVerificationEmail(email: string) {
   const validation = EmailInputSchema.safeParse({ email });
   if (!validation.success) return { success: false, error: "INVALID_EMAIL" };
 
-  // Авторизуемся как система для работы с закрытой коллекцией
-  const authRes = await authenticateAsSystem();
-  if (!authRes.success) {
-    logger.error("System Auth failed in sendVerificationEmail", { error: authRes.error });
-    // Не возвращаем пользователю детали системной ошибки
-    return { success: false, error: "SERVICE_UNAVAILABLE" };
-  }
-
-  const { firestore: db } = initializeFirebase();
+  const db = adminDb;
   const normalizedEmail = email.toLowerCase();
-  const codeRef = doc(db, 'verification_codes', normalizedEmail);
+  const codeRef = db.collection('verification_codes').doc(normalizedEmail);
 
   try {
-    const existingSnap = await getDoc(codeRef);
-    if (existingSnap.exists()) {
-      const data = existingSnap.data();
+    const existingSnap = await codeRef.get();
+    if (existingSnap.exists) {
+      const data = existingSnap.data()!;
       if (Date.now() - (data.createdAt?.toMillis() || 0) < RATE_LIMIT_MS) {
         return { success: false, error: "RATE_LIMIT_EXCEEDED" };
       }
     }
 
-    // Генерация случайного кода
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     const expiresAt = new Date(Date.now() + 15 * 60000);
 
-    await setDoc(codeRef, {
+    await codeRef.set({
       code,
-      expiresAt: Timestamp.fromDate(expiresAt),
-      createdAt: Timestamp.now()
+      expiresAt: expiresAt,
+      createdAt: FieldValue.serverTimestamp()
     }, { merge: true });
 
     if (transporter) {
@@ -88,28 +78,22 @@ export async function verifyEmailCode(email: string, inputCode: string) {
   const validation = VerifyCodeSchema.safeParse({ email, code: inputCode });
   if (!validation.success) return { success: false, error: "INVALID_INPUT" };
 
-  const authRes = await authenticateAsSystem();
-  if (!authRes.success) {
-    logger.error("System Auth failed in verifyEmailCode", { error: authRes.error });
-    return { success: false, error: "SERVICE_UNAVAILABLE" };
-  }
-
-  const { firestore: db } = initializeFirebase();
+  const db = adminDb;
   try {
-    const codeRef = doc(db, 'verification_codes', email.toLowerCase());
-    const codeSnap = await getDoc(codeRef);
+    const codeRef = db.collection('verification_codes').doc(email.toLowerCase());
+    const codeSnap = await codeRef.get();
 
-    if (!codeSnap.exists()) return { success: false, error: "CODE_NOT_FOUND" };
-    const data = codeSnap.data();
+    if (!codeSnap.exists) return { success: false, error: "CODE_NOT_FOUND" };
+    const data = codeSnap.data()!;
     
-    if (Timestamp.now().toMillis() > data.expiresAt.toMillis()) {
-      await deleteDoc(codeRef);
+    if (Date.now() > data.expiresAt.toMillis()) {
+      await codeRef.delete();
       return { success: false, error: "CODE_EXPIRED" };
     }
 
     if (data.code !== inputCode) return { success: false, error: "INVALID_CODE" };
 
-    await deleteDoc(codeRef);
+    await codeRef.delete();
     return { success: true };
   } catch (e: any) {
     logger.error("verifyEmailCode Error", e);

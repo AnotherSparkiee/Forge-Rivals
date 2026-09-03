@@ -1,22 +1,16 @@
 'use server';
 
 /**
- * Скрипт "Ядерной очистки" v145 (Safe Mode).
+ * Скрипт "Ядерной очистки" v145 (Admin SDK Transition).
  */
 
-import { 
-  collection, getDocs, query, limit, 
-  writeBatch, doc 
-} from 'firebase/firestore';
-import { authenticateAsSystem } from '@/firebase/system-auth';
-import { initializeFirebase } from '@/firebase';
+import { adminDb } from '@/lib/firebase-admin';
 
 const DELETE_BATCH_SIZE = 500;
 const BATCHES_PER_CALL = 3; 
 
 export async function totalNuclearResetV131() {
-  await authenticateAsSystem();
-  const { firestore: db } = initializeFirebase();
+  const db = adminDb;
 
   const systemDocs = [
     'repair_v131_S1_LALPHA', 'init_v131_S1_LALPHA',
@@ -28,17 +22,16 @@ export async function totalNuclearResetV131() {
 
   try {
     for (let b = 0; b < BATCHES_PER_CALL; b++) {
-      const batch = writeBatch(db);
+      const batch = db.batch();
       let batchCount = 0;
 
       if (b === 0) {
         for (const sId of systemDocs) {
-          batch.delete(doc(db, 'system_v1', sId));
+          batch.delete(db.collection('system_v1').doc(sId));
           batchCount++;
         }
       }
 
-      // УБРАЛИ players_v14 из списка во избежание потери данных игроков
       const colls = [
         'league_tables_v2', 'matches_v2', 
         'league_tables_v1', 'matches_v1', 'players_v13',
@@ -51,8 +44,7 @@ export async function totalNuclearResetV131() {
 
       for (const coll of colls) {
         if (batchCount >= DELETE_BATCH_SIZE) break;
-        const q = query(collection(db, coll), limit(DELETE_BATCH_SIZE - batchCount));
-        const snap = await getDocs(q);
+        const snap = await db.collection(coll).limit(DELETE_BATCH_SIZE - batchCount).get();
         
         snap.docs.forEach(d => {
           batch.delete(d.ref);
@@ -70,7 +62,6 @@ export async function totalNuclearResetV131() {
     return { success: false, error: globalErr.message };
   }
 
-  // Если удалено меньше, чем размер одного батча - скорее всего все чисто
   const isComplete = totalDeletedInThisCall < (DELETE_BATCH_SIZE / 2);
   return { success: true, isComplete, deletedCount: totalDeletedInThisCall };
 }

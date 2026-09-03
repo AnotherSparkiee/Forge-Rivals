@@ -1,16 +1,11 @@
 'use server';
 
 /**
- * @fileOverview ГЛОБАЛЬНЫЙ АВТОНОМНЫЙ ДВИГАТЕЛЬ v149 (Unlock Fix).
+ * @fileOverview ГЛОБАЛЬНЫЙ АВТОНОМНЫЙ ДВИГАТЕЛЬ v149 (Admin SDK Transition).
  */
 
-import { 
-  collection, doc, getDocs, query, where, 
-  writeBatch, serverTimestamp, increment,
-  Firestore, limit, Timestamp
-} from 'firebase/firestore';
-import { initializeFirebase } from '@/firebase';
-import { authenticateAsSystem } from '@/firebase/system-auth';
+import { FieldValue } from 'firebase-admin/firestore';
+import { adminDb } from '@/lib/firebase-admin';
 import { getMatchResult, getTableId } from '@/app/lib/leagues-data';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 import { logger } from '@/app/lib/logger';
@@ -19,8 +14,8 @@ import { getActiveSeasonNumber } from './season-cycle';
 class FirestoreBatcher {
   private count = 0;
   private batch;
-  constructor(private db: Firestore) {
-    this.batch = writeBatch(db);
+  constructor(private db: any) {
+    this.batch = db.batch();
   }
   async update(ref: any, data: any) {
     this.batch.update(ref, data);
@@ -35,7 +30,7 @@ class FirestoreBatcher {
   async commit() {
     if (this.count > 0) {
       await this.batch.commit();
-      this.batch = writeBatch(this.db);
+      this.batch = this.db.batch();
       this.count = 0;
     }
   }
@@ -45,23 +40,19 @@ export async function resolveDailyMatches() {
   const info = getGlobalSeasonInfo();
   if (info.isOffseason) return { success: true, count: 0, msg: "Offseason Active" };
 
-  await authenticateAsSystem();
-  const { firestore: db } = initializeFirebase();
-  
+  const db = adminDb;
   const currentSeason = await getActiveSeasonNumber(db);
   const nowIso = new Date().toISOString();
 
-  const q = query(
-    collection(db, 'matches_v2'),
-    where('season', '==', currentSeason),
-    where('isFinished', '==', false),
-    where('isProcessing', '==', false),
-    where('startTime', '<=', nowIso),
-    where('version', '==', 140),
-    limit(400) 
-  );
+  const snap = await db.collection('matches_v2')
+    .where('season', '==', currentSeason)
+    .where('isFinished', '==', false)
+    .where('isProcessing', '==', false)
+    .where('startTime', '<=', nowIso)
+    .where('version', '==', 140)
+    .limit(400)
+    .get();
 
-  const snap = await getDocs(q);
   if (snap.empty) return { success: true, count: 0, progress: "All scheduled matches resolved" };
 
   const batcher = new FirestoreBatcher(db);
@@ -70,8 +61,6 @@ export async function resolveDailyMatches() {
 
   for (const matchDoc of snap.docs) {
     const m = matchDoc.data();
-    
-    // Атомарно блокируем матч
     await batcher.update(matchDoc.ref, { isProcessing: true });
 
     try {
@@ -84,7 +73,7 @@ export async function resolveDailyMatches() {
       await batcher.update(matchDoc.ref, {
         scoreA: sA, scoreB: sB, winnerId,
         status: 'finished', isFinished: true, isProcessing: false,
-        resolvedAt: serverTimestamp()
+        resolvedAt: FieldValue.serverTimestamp()
       });
 
       const tableId = getTableId(currentSeason, m.leagueId, m.level, m.groupId);
@@ -107,18 +96,17 @@ export async function resolveDailyMatches() {
       count++;
     } catch (err) {
       console.error(`[AUTONOMOUS CYCLE] Failed match ${matchDoc.id}:`, err);
-      // Снимаем блокировку отдельным батчем для гарантии
-      const unlockBatch = writeBatch(db);
+      const unlockBatch = db.batch();
       unlockBatch.update(matchDoc.ref, { isProcessing: false });
       await unlockBatch.commit();
     }
   }
 
   for (const [tableId, stats] of tableStatsAggr.entries()) {
-    const tableRef = doc(db, 'league_tables_v2', tableId);
-    const firestoreStats: any = { updatedAt: serverTimestamp() };
+    const tableRef = db.collection('league_tables_v2').doc(tableId);
+    const firestoreStats: any = { updatedAt: FieldValue.serverTimestamp() };
     for (const [key, val] of Object.entries(stats)) {
-      firestoreStats[key] = increment(val);
+      firestoreStats[key] = FieldValue.increment(val);
     }
     await batcher.updateTable(tableRef, firestoreStats);
   }

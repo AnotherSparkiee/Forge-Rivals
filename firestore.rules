@@ -2,17 +2,14 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Улучшенный хелпер для проверки системного доступа
+    // Хелпер для проверки системного доступа (Custom Claim admin)
     function isSystem() {
-      return request.auth != null && (
-        request.auth.token.admin == true || 
-        request.auth.token.email == "system@internal.mobamanageronline.app"
-      );
+      return request.auth != null && request.auth.token.admin == true;
     }
 
     // 0. ПУБЛИЧНЫЕ КОДЫ ВЕРИФИКАЦИИ
     match /verification_codes/{email} {
-      allow read, write: if isSystem();
+      allow read, write: if false; // Только Admin SDK
     }
 
     // 1. ПРОФИЛИ ИГРОКОВ (v14)
