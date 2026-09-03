@@ -3,10 +3,14 @@ service cloud.firestore {
   match /databases/{database}/documents {
     
     // Улучшенный хелпер для проверки системного доступа
+    // Проверяет email даже если он не помечен как verified в токене
     function isSystem() {
-      return request.auth != null && 
-        (request.auth.token.admin == true || 
-         request.auth.token.email == "system@internal.mobamanageronline.app");
+      return request.auth != null && (
+        request.auth.token.admin == true || 
+        request.auth.token.email == "system@internal.mobamanageronline.app" ||
+        (exists(request.auth.token.firebase.identities) && 
+         request.auth.token.firebase.identities["email"][0] == "system@internal.mobamanageronline.app")
+      );
     }
 
     // 0. ПУБЛИЧНЫЕ КОДЫ ВЕРИФИКАЦИИ
@@ -64,6 +68,11 @@ service cloud.firestore {
     match /cw_basket_v2/{userId} {
       allow read: if true;
       allow write: if request.auth != null && (request.auth.uid == userId || isSystem());
+    }
+
+    match /associations_v4/{assocId} {
+      allow read: if true;
+      allow write: if request.auth != null || isSystem();
     }
 
     // БЕЗОПАСНЫЙ CATCH-ALL

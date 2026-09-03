@@ -1,7 +1,7 @@
 'use server';
 
 /**
- * @fileOverview Модуль инициализации клуба v157 (Diagnostic Logging).
+ * @fileOverview Модуль инициализации клуба v158 (Security Audit Logging).
  */
 
 import { 
@@ -118,7 +118,10 @@ export async function initializeClubV13(userId: string, data: any) {
   }
 
   const { firestore: db, auth } = initializeFirebase();
-  console.log(`[INIT CLUB] Running as: ${auth.currentUser?.email} (${auth.currentUser?.uid})`);
+  const currentAuthUser = auth.currentUser;
+  
+  // КРИТИЧЕСКИЙ ЛОГ ДЛЯ ДИАГНОСТИКИ PERMISSION_DENIED
+  console.log(`[INIT CLUB] TRANSACTION ATTEMPT. Actor: ${currentAuthUser?.email || 'ANONYMOUS'} (UID: ${currentAuthUser?.uid || 'NONE'}). Target Player: ${userId}`);
 
   const seasonNum = await getActiveSeasonNumber(db);
   const info = getGlobalSeasonInfo();
