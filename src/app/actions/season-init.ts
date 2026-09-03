@@ -1,7 +1,7 @@
 'use server';
 
 /**
- * @fileOverview Модуль инициализации клуба v152 (Async Improvements).
+ * @fileOverview Модуль инициализации клуба v153 (Sync Match Updates).
  */
 
 import { 
@@ -22,6 +22,7 @@ import {
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 import { InitializeClubSchema } from '@/app/lib/validation-schemas';
 import { logger } from '@/app/lib/logger';
+import { getActiveSeasonNumber } from './season-cycle';
 
 async function provisionGroupInTransaction(
   transaction: any, 
@@ -113,7 +114,7 @@ export async function initializeClubV13(userId: string, data: any) {
   if (!authRes.success) return { success: false, error: `SYSTEM_AUTH_FAILED_${authRes.error}` };
 
   const { firestore: db } = initializeFirebase();
-  const seasonNum = getGlobalSeasonInfo().activeSeasonNumber;
+  const seasonNum = await getActiveSeasonNumber(db);
   const { clubName, tier, group, rank, selectedLeagueId: leagueId } = validation.data;
 
   const playerRef = doc(db, 'players_v14', userId);
@@ -176,10 +177,10 @@ export async function initializeClubV13(userId: string, data: any) {
         where('leagueId', '==', leagueId), 
         where('level', '==', tier), 
         where('groupId', '==', group), 
-        where('version', '==', 140)
+        where('version', '==', 140),
+        where('season', '==', seasonNum)
       );
       
-      // ИСПОЛЬЗУЕМ await вместо .then() для гарантии консистентности
       const snap = await getDocs(matchesQ);
       const b = writeBatch(db);
       snap.forEach(d => {
@@ -196,43 +197,5 @@ export async function initializeClubV13(userId: string, data: any) {
   } catch (error: any) {
     logger.error("Transaction failed in initializeClubV13", error, { userId });
     return { success: false, error: error.message };
-  }
-}
-
-export async function releasePlayerSlot(userId: string) {
-  if (!userId) return { success: false };
-  await authenticateAsSystem();
-  const { firestore: db } = initializeFirebase();
-  const playerRef = doc(db, 'players_v14', userId);
-  
-  try {
-    await runTransaction(db, async (transaction) => {
-      const playerSnap = await transaction.get(playerRef);
-      if (!playerSnap.exists()) return;
-      const p = playerSnap.data();
-      const { leagueLevel: tier, groupId: group, rank, selectedLeagueId: leagueId } = p;
-      const seasonNum = p.lastProcessedSeason ?? 1;
-
-      const tableId = getTableId(seasonNum, leagueId, tier, group);
-      const tableRef = doc(db, 'league_tables_v2', tableId);
-      const tableSnap = await transaction.get(tableRef);
-
-      if (tableSnap.exists()) {
-        const stats = { ...tableSnap.data().stats };
-        const bId = getBotId(leagueId, tier, group, rank);
-        if (stats[userId]) {
-          const cur = stats[userId];
-          delete stats[userId];
-          stats[bId] = { ...cur, id: bId, name: getBotName(tier, group, rank), isBot: true, clubLogo: null, rank: Number(rank) };
-          transaction.update(tableRef, { stats, updatedAt: serverTimestamp() });
-        }
-      }
-      transaction.delete(playerRef);
-    });
-    logger.info("Player slot released", { userId });
-    return { success: true };
-  } catch (e: any) {
-    logger.error("Error in releasePlayerSlot", e, { userId });
-    return { success: false, error: e.message };
   }
 }

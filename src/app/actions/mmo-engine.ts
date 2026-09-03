@@ -1,7 +1,7 @@
 'use server';
 
 /**
- * @fileOverview MMO-Двигатель v39 (Concurrency Protection).
+ * @fileOverview MMO-Двигатель v40 (Season Config Integration).
  */
 
 import { 
@@ -14,15 +14,16 @@ import { authenticateAsSystem } from '@/firebase/system-auth';
 import { isMatchOverdue, getGlobalSeasonInfo } from '@/app/lib/time-utils';
 import { simulateMobaMatch } from '@/ai/flows/simulate-moba-match';
 import { getTableId } from '@/app/lib/leagues-data';
+import { getActiveSeasonNumber } from './season-cycle';
 
 export async function forceResolveGroupMatches(leagueId: string, divisionId: number, groupId: string) {
   await authenticateAsSystem();
   const { firestore: db } = initializeFirebase();
-  const seasonInfo = getGlobalSeasonInfo();
   
   if (!leagueId || !groupId) return { success: false, error: "Invalid parameters" };
 
-  const seasonNum = Number(seasonInfo.activeSeasonNumber);
+  // Получаем реальный активный сезон
+  const seasonNum = await getActiveSeasonNumber(db);
 
   const q = query(
     collection(db, 'matches_v2'),
@@ -43,7 +44,7 @@ export async function forceResolveGroupMatches(leagueId: string, divisionId: num
     const m = docSnap.data();
     
     if (isMatchOverdue(m.startTime)) {
-      // Атомарная блокировка на уровне батча (имитация)
+      // Атомарная блокировка на уровне батча
       batch.update(docSnap.ref, { isProcessing: true });
       
       try {
@@ -60,7 +61,6 @@ export async function forceResolveGroupMatches(leagueId: string, divisionId: num
           const lineupIds = Object.values(data.lineup || {});
           
           let squad = (data.ownedPlayers || []).filter((p: any) => lineupIds.includes(p.id));
-          // Fallback если состав не выбран
           if (squad.length < 5) squad = (data.ownedPlayers || []).slice(0, 5);
 
           return {
@@ -112,7 +112,6 @@ export async function forceResolveGroupMatches(leagueId: string, divisionId: num
         resolvedCount++;
       } catch (e) {
         console.error(`[MMO ENGINE] Error processing match ${docSnap.id}:`, e);
-        // Снимаем блокировку при ошибке
         batch.update(docSnap.ref, { isProcessing: false });
       }
     }

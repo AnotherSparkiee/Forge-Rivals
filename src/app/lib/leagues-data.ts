@@ -1,5 +1,5 @@
 /**
- * @fileOverview Ядро лиг v76: Immutable Schedule.
+ * @fileOverview Ядро лиг v77: Season Param Fix.
  */
 
 import { GLOBAL_EPOCH_ISO } from './time-utils';
@@ -115,7 +115,7 @@ export function getMatchResult(
     hash |= 0;
   }
   
-  // Используем переданный resultSeed вместо случайности
+  // Используем переданный resultSeed + hash
   const absHash = Math.abs(hash + resultSeed);
   
   const rankDiff = rankB - rankA;

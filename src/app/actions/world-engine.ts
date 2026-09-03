@@ -1,14 +1,14 @@
 'use server';
 
 /**
- * Глобальный двигатель мира v149 (Lock Normalization).
+ * Глобальный двигатель мира v150 (Season Param Fix).
  */
 
 import { 
   doc, Transaction, getDoc,
   Firestore, serverTimestamp, runTransaction 
 } from 'firebase/firestore';
-import { authenticateAsSystem } from '@/firebase/system-auth';
+import { authenticateAsSystem } from '@/firebase-system-auth';
 import { initializeFirebase } from '@/firebase';
 import { 
   getBotId, 
@@ -47,7 +47,6 @@ async function injectGroupData(
   const tableId = `table_v140_S${seasonNum}_L${leagueId}_V${tier}_G${group}`;
   const tableRef = doc(db, 'league_tables_v2', tableId);
   
-  // Проверка существования таблицы
   const tableSnap = await transaction.get(tableRef);
   if (tableSnap.exists()) return;
 
@@ -75,8 +74,6 @@ async function injectGroupData(
   const calendar = generateSeasonCalendar(teamsForCalendar, seasonNum, leagueId);
   for (const m of calendar) {
     const mId = `match_v140_S${seasonNum}_L${leagueId}_V${tier}_G${group}_T${m.tour}_R${m.homeRank}_vs_R${m.awayRank}`;
-    
-    // Проверка существования матча перед записью
     const matchRef = doc(db, 'matches_v2', mId);
     transaction.set(matchRef, {
       ...m, id: mId, leagueId, level: tier, groupId: group, season: seasonNum,

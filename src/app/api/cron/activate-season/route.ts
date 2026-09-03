@@ -2,10 +2,11 @@ import { NextResponse } from 'next/server';
 import { activateNextSeason } from '@/app/actions/season-cycle';
 
 /**
- * @fileOverview Серверная точка входа для смены сезона.
- * Защищена секретным токеном CRON_SECRET.
- * Использует новую логику активации из season-cycle.ts.
+ * @fileOverview Cron-эндпоинт для официального переключения сезона.
+ * Рекомендуемый запуск: 18:05 MSK в 16-й день цикла.
  */
+
+export const maxDuration = 300; 
 
 export async function GET(request: Request) {
   const authHeader = request.headers.get('authorization');
@@ -21,7 +22,7 @@ export async function GET(request: Request) {
       ...result 
     });
   } catch (error: any) {
-    console.error('[CRON SEASON TRANSITION ERROR]:', error.message);
+    console.error('[CRON SEASON ACTIVATION ERROR]:', error.message);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }

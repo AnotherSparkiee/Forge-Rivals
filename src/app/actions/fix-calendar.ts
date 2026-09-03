@@ -1,7 +1,7 @@
 'use server';
 
 /**
- * Скрипт Абсолютного Сброса v140 (Target V140 Fix).
+ * Скрипт Абсолютного Сброса v141 (Season Config Fix).
  */
 
 import { 
@@ -12,7 +12,7 @@ import { initializeFirebase } from '@/firebase';
 import { authenticateAsSystem } from '@/firebase/system-auth';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 import { initializeLeagueWorld } from './world-engine';
-import { TOTAL_GROUPS } from '@/app/lib/leagues-data';
+import { getActiveSeasonNumber } from './season-cycle';
 
 const DELETE_BATCH_SIZE = 500; 
 const WIPE_LOOPS_PER_CALL = 3;
@@ -20,8 +20,7 @@ const WIPE_LOOPS_PER_CALL = 3;
 export async function runGlobalEmergencyRepair() {
   await authenticateAsSystem();
   const { firestore: db } = initializeFirebase();
-  const info = getGlobalSeasonInfo();
-  const seasonNum = info.activeSeasonNumber;
+  const seasonNum = await getActiveSeasonNumber(db);
   const leagueId = "ALPHA";
 
   const repairStatusRef = doc(db, 'system_v1', `repair_v140_S${seasonNum}_L${leagueId}`);

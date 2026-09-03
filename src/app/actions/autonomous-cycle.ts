@@ -1,7 +1,7 @@
 'use server';
 
 /**
- * @fileOverview ГЛОБАЛЬНЫЙ АВТОНОМНЫЙ ДВИГАТЕЛЬ v147 (Error Resilience).
+ * @fileOverview ГЛОБАЛЬНЫЙ АВТОНОМНЫЙ ДВИГАТЕЛЬ v148 (Season Config Sync).
  */
 
 import { 
@@ -14,7 +14,7 @@ import { authenticateAsSystem } from '@/firebase/system-auth';
 import { getMatchResult, getTableId } from '@/app/lib/leagues-data';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 import { logger } from '@/app/lib/logger';
-import { initializeLeagueWorld } from './world-engine';
+import { getActiveSeasonNumber } from './season-cycle';
 
 class FirestoreBatcher {
   private count = 0;
@@ -47,7 +47,9 @@ export async function resolveDailyMatches() {
 
   await authenticateAsSystem();
   const { firestore: db } = initializeFirebase();
-  const currentSeason = info.activeSeasonNumber;
+  
+  // Получаем реальный активный сезон из конфига
+  const currentSeason = await getActiveSeasonNumber(db);
   const nowIso = new Date().toISOString();
 
   const q = query(
@@ -75,7 +77,7 @@ export async function resolveDailyMatches() {
 
     try {
       const [sA, sB] = getMatchResult(
-        m.homeRank, m.awayRank, m.level, m.groupId, m.season, m.tour, m.resultSeed || 0
+        m.homeRank, m.awayRank, m.level, m.groupId, currentSeason, m.tour, m.resultSeed || 0
       );
       
       const winnerId = sA > sB ? (m.homeId || null) : (sB > sA ? (m.awayId || null) : null);
@@ -106,7 +108,7 @@ export async function resolveDailyMatches() {
       count++;
     } catch (err) {
       console.error(`[AUTONOMOUS CYCLE] Failed match ${matchDoc.id}:`, err);
-      // Снимаем блокировку при ошибке
+      // Снимаем блокировку при ошибке (пакетно)
       await batcher.update(matchDoc.ref, { isProcessing: false });
     }
   }
@@ -123,36 +125,4 @@ export async function resolveDailyMatches() {
   await batcher.commit();
   logger.info(`Resolved ${count} matches via autonomous cycle`);
   return { success: true, count, progress: `Resolved ${count} matches` };
-}
-
-export async function performSeasonTransition() {
-  const info = getGlobalSeasonInfo();
-  if (!info.isTransitionDay) return { success: false, error: "LOCKED" };
-  
-  await authenticateAsSystem();
-  const { firestore: db } = initializeFirebase();
-  
-  // 1. Завершаем "зависшие" матчи как отмененные
-  const q = query(
-    collection(db, 'matches_v2'),
-    where('season', '==', info.activeSeasonNumber),
-    where('isFinished', '==', false),
-    limit(500)
-  );
-  
-  const snap = await getDocs(q);
-  if (!snap.empty) {
-    const batch = writeBatch(db);
-    snap.docs.forEach(d => batch.update(d.ref, { 
-      status: 'cancelled', 
-      isFinished: true, 
-      resolvedAt: serverTimestamp() 
-    }));
-    await batch.commit();
-  }
-
-  // 2. Инициализируем мир для следующего сезона
-  await initializeLeagueWorld('ALPHA', info.activeSeasonNumber + 1);
-
-  return { success: true, status: "COMPLETED", msg: "Season transition finalized. World for S" + (info.activeSeasonNumber + 1) + " is being built." };
 }
