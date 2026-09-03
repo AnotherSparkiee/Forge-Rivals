@@ -1,7 +1,7 @@
 'use server';
 
 /**
- * @fileOverview Серверный модуль для работы с Email v1.9 (Production Only).
+ * @fileOverview Серверный модуль для работы с Email v2.0 (Security Refined).
  */
 
 import { doc, setDoc, getDoc, deleteDoc, Timestamp } from 'firebase/firestore';
@@ -27,8 +27,9 @@ export async function sendVerificationEmail(email: string) {
   // Авторизуемся как система для работы с закрытой коллекцией
   const authRes = await authenticateAsSystem();
   if (!authRes.success) {
-    logger.error("System Auth failed in sendVerificationEmail", authRes.error);
-    return { success: false, error: authRes.error || "SYSTEM_AUTH_FAILED" };
+    logger.error("System Auth failed in sendVerificationEmail", { error: authRes.error });
+    // Не возвращаем пользователю детали системной ошибки
+    return { success: false, error: "SERVICE_UNAVAILABLE" };
   }
 
   const { firestore: db } = initializeFirebase();
@@ -44,7 +45,7 @@ export async function sendVerificationEmail(email: string) {
       }
     }
 
-    // Генерация исключительно случайного кода
+    // Генерация случайного кода
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     const expiresAt = new Date(Date.now() + 15 * 60000);
 
@@ -88,7 +89,10 @@ export async function verifyEmailCode(email: string, inputCode: string) {
   if (!validation.success) return { success: false, error: "INVALID_INPUT" };
 
   const authRes = await authenticateAsSystem();
-  if (!authRes.success) return { success: false, error: authRes.error || "SYSTEM_AUTH_FAILED" };
+  if (!authRes.success) {
+    logger.error("System Auth failed in verifyEmailCode", { error: authRes.error });
+    return { success: false, error: "SERVICE_UNAVAILABLE" };
+  }
 
   const { firestore: db } = initializeFirebase();
   try {

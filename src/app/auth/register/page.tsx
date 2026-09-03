@@ -114,7 +114,9 @@ export default function RegisterPage() {
         toast({ 
           variant: "destructive", 
           title: "System Error", 
-          description: res.error || "Could not initialize verification process." 
+          description: res.error === "SERVICE_UNAVAILABLE" 
+            ? "Tactical link frequency jammed. Please try again in a few moments."
+            : (res.error || "Could not initialize verification process.")
         });
       }
     } finally {
