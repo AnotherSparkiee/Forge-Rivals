@@ -1,6 +1,6 @@
 /**
  * @fileOverview Серверные задачи и API ядра (Cloud Functions v1).
- * Использовано расширенное логирование для отладки.
+ * Оптимизировано для стабильности и корректной сериализации JSON.
  */
 
 const functions = require('firebase-functions');
@@ -80,7 +80,7 @@ function generateSeasonCalendar(teams, seasonNumber, leagueId) {
  * Инициализация клуба (Callable v1).
  */
 exports.initializeClub = functions.https.onCall(async (data, context) => {
-  console.log('[INIT CLUB] Called by UID:', context.auth ? context.auth.uid : 'NO AUTH');
+  console.log('[INIT CLUB] Received request from UID:', context.auth ? context.auth.uid : 'NO AUTH');
 
   if (!context.auth) {
     throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated.');
@@ -101,7 +101,7 @@ exports.initializeClub = functions.https.onCall(async (data, context) => {
   const leagueId = "ALPHA";
 
   try {
-    console.log('[INIT CLUB] Scanning for free slot...');
+    console.log('[INIT CLUB] Finding available slot...');
     const playersSnap = await db.collection('players_v14').where('selectedLeagueId', '==', leagueId).get();
     const occupied = new Set();
     playersSnap.forEach(d => {
@@ -124,7 +124,7 @@ exports.initializeClub = functions.https.onCall(async (data, context) => {
       }
       if (found) break;
     }
-    console.log('[INIT CLUB] Strategic placement:', placement);
+    console.log('[INIT CLUB] Strategized placement:', placement);
 
     const configSnap = await db.collection('system_v1').doc('season_config').get();
     const seasonNum = configSnap.exists ? (configSnap.data().activeSeasonNumber || 1) : 1;
@@ -133,21 +133,28 @@ exports.initializeClub = functions.https.onCall(async (data, context) => {
     const tableId = getTableId(seasonNum, leagueId, placement.tier, placement.group);
     const tableRef = db.collection('league_tables_v2').doc(tableId);
 
-    console.log('[INIT CLUB] Running transaction...');
+    console.log('[INIT CLUB] Executing transaction for Table:', tableId);
     const transactionResult = await db.runTransaction(async (t) => {
       const [pSnap, tSnap, cSnap] = await Promise.all([
         t.get(playerRef), t.get(tableRef), t.get(db.collection('system_v1').doc('global_stats'))
       ]);
 
       if (pSnap.exists) {
-        console.log('[INIT CLUB] Profile already exists, returning data');
-        const existing = pSnap.data();
-        return { success: true, ...existing, createdAt: null }; // Clear FieldValue
+        console.log('[INIT CLUB] Profile exists. Returning serializable data.');
+        const p = pSnap.data();
+        return { 
+          success: true, 
+          id: p.id,
+          clubName: p.clubName,
+          leagueLevel: p.leagueLevel,
+          groupId: p.groupId,
+          rank: p.rank
+        };
       }
 
       let stats;
       if (!tSnap.exists) {
-        console.log('[INIT CLUB] Provisioning new league table:', tableId);
+        console.log('[INIT CLUB] Provisioning new league sector...');
         stats = {};
         const teamsForCal = [];
         for (let r = 1; r <= TEAMS_PER_GROUP; r++) {
@@ -202,8 +209,8 @@ exports.initializeClub = functions.https.onCall(async (data, context) => {
       };
     });
 
-    console.log('[INIT CLUB] Transaction finished, updating matches...');
     if (transactionResult.success && transactionResult.botId) {
+      console.log('[INIT CLUB] Patching scheduled matches...');
       const matchesSnap = await db.collection('matches_v2')
         .where('season', '==', seasonNum)
         .where('groupId', '==', placement.group)
@@ -220,7 +227,6 @@ exports.initializeClub = functions.https.onCall(async (data, context) => {
         if (Object.keys(up).length > 0) batch.update(doc.ref, up);
       });
       await batch.commit();
-      console.log('[INIT CLUB] Match update batch committed');
     }
 
     return transactionResult;
@@ -240,8 +246,8 @@ exports.resolveMatchesCron = functions.pubsub.schedule('every 5 minutes').onRun(
     const response = await fetch(`${APP_URL}/api/cron/resolve-matches`, {
       headers: { 'Authorization': `Bearer ${CRON_SECRET}` }
     });
-    console.log('[CRON] Match resolution status:', response.status);
+    console.log('[CRON] Status:', response.status);
   } catch (error) {
-    console.error("[CRON] Match resolution failed:", error);
+    console.error("[CRON] Error:", error);
   }
 });
