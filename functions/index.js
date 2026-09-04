@@ -14,7 +14,6 @@ const FieldValue = admin.firestore.FieldValue;
 // ============ КОНСТАНТЫ ЛИГИ (v140) ============
 const MAX_LEVELS = 4;
 const TEAMS_PER_GROUP = 8;
-const TOTAL_GROUPS = 15; 
 const GLOBAL_EPOCH_ISO = '2026-08-30T21:00:00Z';
 
 function getGroupsCountInLevel(level) {
@@ -40,7 +39,6 @@ function generateSeasonCalendar(teams, seasonNumber, leagueId) {
   const rounds = n - 1; 
   const matches = [];
   const hh = 18; // 18:00 MSK
-  const mm = 0;
   
   const epochUtc = new Date(GLOBAL_EPOCH_ISO);
   const cycleDuration = 17; 
@@ -56,15 +54,18 @@ function generateSeasonCalendar(teams, seasonNumber, leagueId) {
       const away = teams[aIdx];
 
       const createMatch = (day, h, a, tour) => {
-        const startTime = new Date(seasonStartMs + (day - 1) * dayMs + (hh - 3) * 3600000 + mm * 60000);
-        const mId = `match_v140_S${seasonNumber}_L${leagueId}_T${tour}_H${h.rank}_A${a.rank}`;
+        const startTime = new Date(seasonStartMs + (day - 1) * dayMs + (hh - 3) * 3600000);
+        const mId = `match_v140_S${seasonNumber}_L${leagueId}_V${h.level}_G${h.group}_T${tour}_H${h.rank}_A${a.rank}`;
+        
         let seed = 0;
         for (let j = 0; j < mId.length; j++) { seed = ((seed << 5) - seed) + mId.charCodeAt(j); seed |= 0; }
+        
         return {
           day, tour, season: seasonNumber,
           homeId: h.id, homeName: h.name, homeRank: Number(h.rank),
           awayId: a.id, awayName: a.name, awayRank: Number(a.rank),
-          startTime: startTime.toISOString(), type: 'league', resultSeed: Math.abs(seed) % 1000, version: 140
+          startTime: startTime.toISOString(), type: 'league', 
+          resultSeed: Math.abs(seed) % 1000, version: 140
         };
       };
       matches.push(createMatch(round + 1, home, away, round + 1));
@@ -77,7 +78,7 @@ function generateSeasonCalendar(teams, seasonNumber, leagueId) {
 }
 
 /**
- * Инициализация клуба (Https Callable).
+ * Инициализация клуба (Callable v2).
  */
 exports.initializeClub = onCall({ region: "us-central1" }, async (request) => {
   const { userId, email, clubName: requestedName } = request.data;
@@ -122,7 +123,7 @@ exports.initializeClub = onCall({ region: "us-central1" }, async (request) => {
 
     // 2. Текущий сезон
     const configSnap = await db.collection('system_v1').doc('season_config').get();
-    const seasonNum = configSnap.exists ? configSnap.data().activeSeasonNumber : 1;
+    const seasonNum = configSnap.exists ? (configSnap.data().activeSeasonNumber || 1) : 1;
 
     const playerRef = db.collection('players_v14').doc(userId);
     const tableId = getTableId(seasonNum, leagueId, placement.tier, placement.group);
@@ -138,14 +139,13 @@ exports.initializeClub = onCall({ region: "us-central1" }, async (request) => {
 
       let stats;
       if (!tSnap.exists) {
-        // Создаем новую группу (только боты)
         stats = {};
         const teamsForCal = [];
         for (let r = 1; r <= TEAMS_PER_GROUP; r++) {
           const bId = getBotId(leagueId, placement.tier, placement.group, r);
           const bName = getBotName(placement.tier, placement.group, r);
           stats[bId] = { id: bId, name: bName, rank: r, matchesPlayed: 0, wins: 0, draws: 0, losses: 0, points: 0, diff: 0, isBot: true, clubLogo: null };
-          teamsForCal.push({ id: bId, name: bName, rank: r });
+          teamsForCal.push({ id: bId, name: bName, rank: r, level: placement.tier, group: placement.group });
         }
         t.set(tableRef, { id: tableId, leagueId, level: placement.tier, group: placement.group, season: seasonNum, stats, createdAt: FieldValue.serverTimestamp(), version: 140 });
         
@@ -167,7 +167,7 @@ exports.initializeClub = onCall({ region: "us-central1" }, async (request) => {
 
       t.update(tableRef, { stats: finalStats, updatedAt: FieldValue.serverTimestamp() });
       
-      const totalPlayers = (cSnap.exists ? cSnap.data().totalPlayers : 1000) + 1;
+      const totalPlayers = (cSnap.exists ? (cSnap.data().totalPlayers || 1000) : 1000) + 1;
       t.set(db.collection('system_v1').doc('global_stats'), { totalPlayers, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
 
       const playerData = {
@@ -182,22 +182,25 @@ exports.initializeClub = onCall({ region: "us-central1" }, async (request) => {
       return { success: true, ...playerData, botId: botToReplaceId };
     });
 
-    // 4. Пассивное обновление матчей (вне транзакции для скорости)
-    const matchesSnap = await db.collection('matches_v2')
-      .where('season', '==', seasonNum)
-      .where('groupId', '==', placement.group)
-      .where('level', '==', placement.tier)
-      .get();
-    
-    const batch = db.batch();
-    matchesSnap.forEach(doc => {
-      const m = doc.data();
-      const up = {};
-      if (m.homeId === result.botId) { up.homeId = userId; up.homeName = clubName; }
-      if (m.awayId === result.botId) { up.awayId = userId; up.awayName = clubName; }
-      if (Object.keys(up).length > 0) batch.update(doc.ref, up);
-    });
-    await batch.commit();
+    // 4. Пассивное обновление матчей
+    if (result.success && result.botId) {
+      const matchesSnap = await db.collection('matches_v2')
+        .where('season', '==', seasonNum)
+        .where('groupId', '==', placement.group)
+        .where('level', '==', placement.tier)
+        .where('version', '==', 140)
+        .get();
+      
+      const batch = db.batch();
+      matchesSnap.forEach(doc => {
+        const m = doc.data();
+        const up = {};
+        if (m.homeId === result.botId) { up.homeId = userId; up.homeName = clubName; }
+        if (m.awayId === result.botId) { up.awayId = userId; up.awayName = clubName; }
+        if (Object.keys(up).length > 0) batch.update(doc.ref, up);
+      });
+      await batch.commit();
+    }
 
     return result;
   } catch (e) {
@@ -207,12 +210,13 @@ exports.initializeClub = onCall({ region: "us-central1" }, async (request) => {
 });
 
 /**
- * 1. РАСЧЕТ МАТЧЕЙ (Каждые 5 минут)
+ * РАСЧЕТ МАТЧЕЙ (Каждые 5 минут)
  */
 exports.resolveMatchesCron = onSchedule("every 5 minutes", async (event) => {
-  const APP_URL = process.env.APP_URL || "https://studio-2788872209.web.app"; 
-  const CRON_SECRET = process.env.CRON_SECRET;
+  const APP_URL = "https://studio-2788872209.web.app"; 
+  const CRON_SECRET = process.env.CRON_SECRET || 'lote_secure_cron_token_2026';
   try {
+    const fetch = (await import("node-fetch")).default;
     await fetch(`${APP_URL}/api/cron/resolve-matches`, {
       headers: { 'Authorization': `Bearer ${CRON_SECRET}` }
     });

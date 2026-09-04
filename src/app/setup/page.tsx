@@ -32,7 +32,6 @@ export default function SetupPage() {
     setIsUpdating(true);
     
     try {
-      // Вызываем облачную функцию для безопасной инициализации через Admin SDK
       const functions = getFunctions(firebaseApp);
       const initializeClubFn = httpsCallable(functions, 'initializeClub');
       
@@ -62,7 +61,6 @@ export default function SetupPage() {
         res1: null, res2: null, res3: null, res4: null, res5: null, res6: null, res7: null, res8: null
       };
 
-      // Сохраняем полученные данные в локальное состояние
       saveToLocal({
         id: user.uid,
         numericId: Number(result.numericId),
@@ -90,7 +88,6 @@ export default function SetupPage() {
         title: language === 'ru' ? "Ошибка развертывания" : "Deployment Error",
         description: e.message 
       });
-    } finally {
       setIsUpdating(false);
     }
   };
