@@ -1,7 +1,6 @@
-
 {
   "name": "functions",
-  "description": "Cloud Functions for Firebase (Cron Scheduler)",
+  "description": "Cloud Functions for Firebase (Cron Scheduler & Core Logic)",
   "scripts": {
     "serve": "firebase serve --only functions",
     "shell": "firebase functions:shell",

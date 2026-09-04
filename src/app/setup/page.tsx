@@ -5,20 +5,19 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { 
-  Loader2, ChevronLeft, Shield, 
-  ArrowRight, Sparkles, Rocket
+  Loader2, ArrowRight, Rocket
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useGameState, LineupSlot } from '@/app/lib/store';
 import { getRandomStartingSquad } from '@/app/lib/moba-data';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
-import { initializeClubComplete } from '@/app/actions/season-init';
-import { useUser } from '@/firebase';
-import { cn } from '@/lib/utils';
+import { useUser, useFirebase } from '@/firebase';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 
 export default function SetupPage() {
   const router = useRouter();
   const { user, isUserLoading } = useUser();
+  const { firebaseApp } = useFirebase();
   const { toast } = useToast();
   const { language, isLoaded, saveToLocal } = useGameState();
   
@@ -29,23 +28,23 @@ export default function SetupPage() {
   }, [user, isUserLoading, router]);
 
   const handleCompleteSetup = async () => {
-    if (isUpdating || !user) return;
+    if (isUpdating || !user || !firebaseApp) return;
     setIsUpdating(true);
     
     try {
-      const targetLeagueId = "ALPHA";
+      // Вызываем облачную функцию для безопасной инициализации через Admin SDK
+      const functions = getFunctions(firebaseApp);
+      const initializeClubFn = httpsCallable(functions, 'initializeClub');
       
-      // 1. Атомарная серверная инициализация (v14) через Admin SDK
-      const result = await initializeClubComplete(user.uid, user.email || '');
+      const response = await initializeClubFn({
+        userId: user.uid,
+        email: user.email,
+      });
+
+      const result = response.data as any;
 
       if (!result.success) {
-        toast({ 
-          variant: "destructive", 
-          title: language === 'ru' ? "Ошибка инициализации" : "Init Error",
-          description: result.error || "SERVER_REJECTED_TRANSACTION"
-        });
-        setIsUpdating(false);
-        return;
+        throw new Error(result.error || "SERVER_TRANSACTION_FAILED");
       }
 
       const startingSquad = getRandomStartingSquad();
@@ -63,13 +62,13 @@ export default function SetupPage() {
         res1: null, res2: null, res3: null, res4: null, res5: null, res6: null, res7: null, res8: null
       };
 
-      // 2. Сохранение в локальный стор для мгновенного доступа
+      // Сохраняем полученные данные в локальное состояние
       saveToLocal({
         id: user.uid,
         numericId: Number(result.numericId),
-        selectedLeagueId: targetLeagueId,
-        leagueLevel: Number(result.tier),
-        groupId: Number(result.group),
+        selectedLeagueId: "ALPHA",
+        leagueLevel: Number(result.leagueLevel),
+        groupId: Number(result.groupId),
         rank: Number(result.rank),
         country: result.country || 'International',
         clubName: result.clubName,
@@ -148,7 +147,7 @@ export default function SetupPage() {
             onClick={handleCompleteSetup}
             className="w-full max-w-[280px] h-16 hero-gradient font-black text-sm tracking-[0.2em] uppercase shadow-2xl active:scale-95 transition-all mx-auto"
           >
-            {isUpdating ? <Loader2 className="animate-spin" /> : <>{t.finalize} <ArrowRight className="ml-2 w-5 h-5" /></>}
+            {isUpdating ? <Loader2 className="animate-spin" /> : <>{t.finalize} <ArrowRight className="ml-2 w-4 h-4" /></>}
           </Button>
         </div>
 
