@@ -81,14 +81,17 @@ function generateSeasonCalendar(teams, seasonNumber, leagueId) {
  * Инициализация клуба (Callable v2).
  */
 exports.initializeClub = onCall({ region: "us-central1" }, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'The function must be called while authenticated.');
+  }
+
   const { userId, email, clubName: requestedName } = request.data;
   
   if (!userId || !email) {
     throw new HttpsError('invalid-argument', 'Missing credentials');
   }
 
-  // Защита: пользователь может создавать только свой профиль
-  if (request.auth && request.auth.uid !== userId) {
+  if (request.auth.uid !== userId) {
      throw new HttpsError('permission-denied', 'Unauthorized access');
   }
 
@@ -97,7 +100,7 @@ exports.initializeClub = onCall({ region: "us-central1" }, async (request) => {
   const leagueId = "ALPHA";
 
   try {
-    // 1. Находим свободный слот
+    // 1. Находим свободный слот (вне транзакции для скорости, транзакция проверит статус бота)
     const playersSnap = await db.collection('players_v14').where('selectedLeagueId', '==', leagueId).get();
     const occupied = new Set();
     playersSnap.forEach(d => {
@@ -130,12 +133,15 @@ exports.initializeClub = onCall({ region: "us-central1" }, async (request) => {
     const tableRef = db.collection('league_tables_v2').doc(tableId);
 
     // 3. Атомарная транзакция
-    const result = await db.runTransaction(async (t) => {
+    const transactionResult = await db.runTransaction(async (t) => {
       const [pSnap, tSnap, cSnap] = await Promise.all([
         t.get(playerRef), t.get(tableRef), t.get(db.collection('system_v1').doc('global_stats'))
       ]);
 
-      if (pSnap.exists) return { success: true, ...pSnap.data() };
+      if (pSnap.exists) {
+        const existing = pSnap.data();
+        return { success: true, ...existing, createdAt: existing.createdAt?.toDate?.().toISOString() };
+      }
 
       let stats;
       if (!tSnap.exists) {
@@ -179,11 +185,23 @@ exports.initializeClub = onCall({ region: "us-central1" }, async (request) => {
       };
       t.set(playerRef, playerData);
 
-      return { success: true, ...playerData, botId: botToReplaceId };
+      // Возвращаем только сериализуемые данные
+      return { 
+        success: true, 
+        id: userId,
+        numericId: totalPlayers,
+        leagueLevel: placement.tier,
+        groupId: placement.group,
+        rank: placement.rank,
+        clubName: clubName,
+        clubLogo: clubLogo,
+        country: "International",
+        botId: botToReplaceId 
+      };
     });
 
     // 4. Пассивное обновление матчей
-    if (result.success && result.botId) {
+    if (transactionResult.success && transactionResult.botId) {
       const matchesSnap = await db.collection('matches_v2')
         .where('season', '==', seasonNum)
         .where('groupId', '==', placement.group)
@@ -195,14 +213,14 @@ exports.initializeClub = onCall({ region: "us-central1" }, async (request) => {
       matchesSnap.forEach(doc => {
         const m = doc.data();
         const up = {};
-        if (m.homeId === result.botId) { up.homeId = userId; up.homeName = clubName; }
-        if (m.awayId === result.botId) { up.awayId = userId; up.awayName = clubName; }
+        if (m.homeId === transactionResult.botId) { up.homeId = userId; up.homeName = clubName; }
+        if (m.awayId === transactionResult.botId) { up.awayId = userId; up.awayName = clubName; }
         if (Object.keys(up).length > 0) batch.update(doc.ref, up);
       });
       await batch.commit();
     }
 
-    return result;
+    return transactionResult;
   } catch (e) {
     logger.error("Initialization Failed", e);
     throw new HttpsError('internal', e.message);
