@@ -1,26 +1,28 @@
+
 /**
- * @fileOverview Ядро лиг v78: Reduced to 4 levels.
+ * @fileOverview Ядро данных лиг v141.
+ * Централизованные константы и правила распределения.
  */
 
-import { GLOBAL_EPOCH_ISO } from './time-utils';
-
-export interface LeagueOption {
-  id: string;
-  startTime: string; // "HH:mm" in MSK
-  description: string;
-}
-
-export const MAX_LEVELS = 4; // Reduced from 9
+export const MAX_LEVELS = 4;
 export const TEAMS_PER_GROUP = 8;
-export const TOTAL_GROUPS = 15; // 1 + 2 + 4 + 8
 export const SEASON_DURATION_DAYS = 14;
+export const OFFSEASON_DURATION_DAYS = 3;
+export const TOTAL_CYCLE_DAYS = SEASON_DURATION_DAYS + OFFSEASON_DURATION_DAYS;
 
-export const LEAGUES: LeagueOption[] = [
-  { id: 'ALPHA', startTime: '18:00', description: 'Main Operational League.' },
+export const PROMOTION_SLOTS = 2; // Топ-2 выходят выше
+export const RELEGATION_SLOTS = 2; // Последние 2 падают ниже
+
+export const LEAGUES = [
+  { id: 'ALPHA', startTime: '18:00', description: 'Main League' }
 ];
 
+export function getGroupsCountInLevel(level: number): number {
+  return Math.pow(2, level - 1);
+}
+
 export function getTableId(season: number, leagueId: string, level: number, group: number): string {
-  return `table_v140_S${season}_L${leagueId}_V${level}_G${group}`;
+  return `table_S${season}_L${leagueId}_V${level}_G${group}`;
 }
 
 export function getBotId(leagueId: string, level: number, group: number, rank: number): string {
@@ -28,101 +30,53 @@ export function getBotId(leagueId: string, level: number, group: number, rank: n
 }
 
 export function getBotName(level: number, group: number, rank: number): string {
-  const leagueIdx = "01";
   const gStr = String(group).padStart(3, '0');
   const rStr = String(rank).padStart(2, '0');
-  return `Bot${leagueIdx}${level}${gStr}${rStr}`;
+  return `Bot_${level}${gStr}${rStr}`;
 }
 
-export function getGroupsCountInLevel(level: number): number {
-  return Math.pow(2, level - 1);
-}
-
-export function generateSeasonCalendar(teams: any[], seasonNumber: number, leagueId: string) {
-  const n = TEAMS_PER_GROUP; 
-  const rounds = n - 1; 
+export function generateSeasonCalendar(teams: any[], seasonNumber: number, leagueId: string, startDate: Date) {
+  const n = TEAMS_PER_GROUP;
   const matches = [];
-  
-  const league = LEAGUES.find(l => l.id === leagueId) || LEAGUES[0];
-  const [hh, mm] = league.startTime.split(':').map(Number);
-  
-  const epochUtc = new Date(GLOBAL_EPOCH_ISO);
-  const cycleDuration = 17; 
   const dayMs = 24 * 60 * 60 * 1000;
-  const seasonStartMs = epochUtc.getTime() + (seasonNumber - 1) * cycleDuration * dayMs;
-
+  
+  // Генерация круговой системы (Round Robin)
   const pool = Array.from({ length: n }, (_, i) => i);
-
-  for (let round = 0; round < rounds; round++) {
+  
+  for (let round = 0; round < n - 1; round++) {
     for (let i = 0; i < n / 2; i++) {
       const hIdx = pool[i];
       const aIdx = pool[n - 1 - i];
-
       const home = teams[hIdx];
       const away = teams[aIdx];
 
-      const createMatch = (day: number, h: any, a: any, tour: number) => {
-        // Конвертация MSK (UTC+3) в UTC: вычитаем 3 часа
-        const startTime = new Date(seasonStartMs + (day - 1) * dayMs + (hh - 3) * 3600000 + mm * 60000);
-        const mId = `match_v140_S${seasonNumber}_L${leagueId}_T${tour}_H${h.rank}_A${a.rank}`;
-        
-        // Генерация детерминированного сида на основе ID матча
-        let seed = 0;
-        for (let j = 0; j < mId.length; j++) {
-          seed = ((seed << 5) - seed) + mId.charCodeAt(j);
-          seed |= 0;
-        }
+      // Первый круг (туры 1-7)
+      const day1 = round + 1;
+      const start1 = new Date(startDate.getTime() + (day1 - 1) * dayMs);
+      start1.setHours(18, 0, 0, 0); // 18:00 MSK
 
-        return {
-          day,
-          tour,
-          season: seasonNumber,
-          homeId: h.id,
-          homeName: h.name,
-          homeRank: Number(h.rank),
-          awayId: a.id,
-          awayName: a.name,
-          awayRank: Number(a.rank),
-          startTime: startTime.toISOString(),
-          type: 'league',
-          resultSeed: Math.abs(seed) % 1000
-        };
-      };
+      matches.push({
+        day: day1, tour: day1, season: seasonNumber, leagueId,
+        homeId: home.id, homeName: home.name, homeRank: Number(home.rank),
+        awayId: away.id, awayName: away.name, awayRank: Number(away.rank),
+        startTime: start1.toISOString(), status: 'scheduled', version: 140
+      });
 
-      matches.push(createMatch(round + 1, home, away, round + 1));
-      matches.push(createMatch(round + 8, away, home, round + 8));
+      // Второй круг (туры 8-14, смена сторон)
+      const day2 = round + 8;
+      const start2 = new Date(startDate.getTime() + (day2 - 1) * dayMs);
+      start2.setHours(18, 0, 0, 0);
+
+      matches.push({
+        day: day2, tour: day2, season: seasonNumber, leagueId,
+        homeId: away.id, homeName: away.name, homeRank: Number(away.rank),
+        awayId: home.id, awayName: home.name, awayRank: Number(home.rank),
+        startTime: start2.toISOString(), status: 'scheduled', version: 140
+      });
     }
+    // Сдвиг пула для следующего тура
     const last = pool.pop()!;
     pool.splice(1, 0, last);
   }
-
-  return matches.sort((a, b) => a.tour - b.tour);
-}
-
-export function getMatchResult(
-  rankA: number, 
-  rankB: number, 
-  level: number, 
-  group: number, 
-  season: number, 
-  tour: number,
-  resultSeed: number = 0
-): [number, number] {
-  const combinedKey = `v140-L${level}-G${group}-S${season}-T${tour}-R${rankA}-vs-R${rankB}`;
-  let hash = 0;
-  for (let i = 0; i < combinedKey.length; i++) {
-    hash = ((hash << 5) - hash) + combinedKey.charCodeAt(i);
-    hash |= 0;
-  }
-  
-  // Используем переданный resultSeed + hash
-  const absHash = Math.abs(hash + resultSeed);
-  
-  const rankDiff = rankB - rankA;
-  const baseChance = 35 + (rankDiff * 2);
-  const roll = absHash % 100;
-  
-  if (roll < baseChance) return [2, 0];
-  if (roll > (100 - (baseChance / 2))) return [0, 2];
-  return [1, 1];
+  return matches;
 }
