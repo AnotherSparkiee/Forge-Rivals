@@ -3,12 +3,15 @@
 
 import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminDb } from '@/lib/firebase-admin';
-import { MAX_LEVELS, getGroupsCountInLevel, TEAMS_PER_GROUP, getTableId, getBotId, getBotName, generateSeasonCalendar } from '@/app/lib/leagues-data';
-import { getMoscowTime, getGlobalSeasonInfo } from '@/app/lib/time-utils';
+import { 
+  MAX_LEVELS, getGroupsCountInLevel, TEAMS_PER_GROUP, 
+  getTableId, getBotId, getBotName, generateSeasonCalendar 
+} from '@/app/lib/leagues-data';
+import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 import { logger } from '@/app/lib/logger';
 
 /**
- * @fileOverview Глобальный оркестратор сезона v142.
+ * @fileOverview Глобальный оркестратор сезона v150.
  * Реализует State Machine игрового мира.
  */
 
@@ -19,35 +22,35 @@ export async function runSeasonOrchestrator() {
   try {
     const result = await db.runTransaction(async (t) => {
       const snap = await t.get(configRef);
-      const config = snap.data() || { activeSeasonNumber: 1, phase: 'REGULAR_SEASON', worldReady: false };
+      const config = snap.data() || { 
+        activeSeasonNumber: 1, 
+        phase: 'REGULAR_SEASON', 
+        worldReady: false 
+      };
+      
       const info = getGlobalSeasonInfo();
 
-      // ШАГ 1: Инициализация нового мира
+      // ШАГ 1: Инициализация мира (если не готов)
       if (!config.worldReady) {
         return { action: 'INITIALIZE_WORLD', season: config.activeSeasonNumber };
       }
 
-      // ШАГ 2: Переход в финальную стадию (День 15)
-      if (info.dayOfCycle >= 15 && config.phase === 'REGULAR_SEASON') {
-        t.update(configRef, { phase: 'FINALIZING', updatedAt: FieldValue.serverTimestamp() });
-        return { action: 'START_FINALIZATION' };
+      // ШАГ 2: Регулярный сезон (Расчет матчей)
+      if (config.phase === 'REGULAR_SEASON') {
+        if (info.dayOfCycle >= 15) {
+          t.update(configRef, { phase: 'FINALIZING', updatedAt: FieldValue.serverTimestamp() });
+          return { action: 'START_FINALIZATION' };
+        }
+        return { action: 'RESOLVE_MATCHES' };
       }
 
-      // ШАГ 3: Генерация следующего сезона
+      // ШАГ 3: Финализация и генерация следующего сезона
       if (config.phase === 'FINALIZING') {
-        t.update(configRef, { phase: 'GENERATING_NEXT', nextSeasonNumber: config.activeSeasonNumber + 1 });
-        return { action: 'START_GENERATION' };
-      }
-
-      // ШАГ 4: Активация (День 1 или День 17 поздно вечером)
-      if (config.phase === 'READY_TO_ACTIVATE' && (info.dayOfCycle === 1 || info.dayOfCycle === 17)) {
         t.update(configRef, { 
-          phase: 'REGULAR_SEASON', 
-          activeSeasonNumber: config.nextSeasonNumber,
-          worldReady: true,
-          updatedAt: FieldValue.serverTimestamp() 
+          phase: 'GENERATING_NEXT', 
+          nextSeasonNumber: config.activeSeasonNumber + 1 
         });
-        return { action: 'SEASON_ACTIVATED', newSeason: config.nextSeasonNumber };
+        return { action: 'START_GENERATION' };
       }
 
       return { action: 'IDLE', phase: config.phase };
@@ -59,40 +62,48 @@ export async function runSeasonOrchestrator() {
 
     return result;
   } catch (e: any) {
-    logger.error("Orchestrator transaction failed", e);
+    logger.error("Orchestrator failed", e);
     return { action: 'ERROR', error: e.message };
   }
 }
 
+/**
+ * Инициализирует структуру лиги: таблицы, слоты и матчи.
+ */
 async function initializeWorldJob(season: number) {
   const db = getAdminDb();
   const statusRef = db.collection('system_v1').doc(`world_gen_S${season}`);
   const statusSnap = await statusRef.get();
-  const currentIndex = statusSnap.exists ? (statusSnap.data()?.currentIndex || 0) : 0;
+  const completedGroups = statusSnap.exists ? (statusSnap.data()?.completedGroups || 0) : 0;
 
   const totalToBuild = 15; // 1+2+4+8 групп
-  if (currentIndex >= totalToBuild) {
+  if (completedGroups >= totalToBuild) {
     await db.collection('system_v1').doc('season_config').update({ worldReady: true });
     return;
   }
 
   const batch = db.batch();
-  let nextIndex = currentIndex;
+  let builtInThisJob = 0;
   
   // Строим по 4 группы за запуск для стабильности
-  for (let i = 0; i < 4 && nextIndex < totalToBuild; i++) {
-    nextIndex++;
-    const coords = getGroupCoordinates(nextIndex);
+  for (let i = 1; i <= totalToBuild; i++) {
+    if (i <= completedGroups) continue;
+    if (builtInThisJob >= 4) break;
+
+    const coords = getGroupCoordinates(i);
     await provisionGroup(batch, season, "ALPHA", coords.tier, coords.group);
+    builtInThisJob++;
   }
 
+  const newTotal = completedGroups + builtInThisJob;
   batch.set(statusRef, { 
-    currentIndex: nextIndex, 
-    status: nextIndex >= totalToBuild ? 'completed' : 'processing',
+    completedGroups: newTotal, 
+    status: newTotal >= totalToBuild ? 'completed' : 'processing',
     updatedAt: FieldValue.serverTimestamp() 
   }, { merge: true });
   
   await batch.commit();
+  logger.info(`World generation progress: ${newTotal}/${totalToBuild}`);
 }
 
 function getGroupCoordinates(index: number) {
@@ -128,6 +139,7 @@ async function provisionGroup(batch: any, season: number, leagueId: string, tier
     // Создаем атомарный слот для регистрации
     const slotId = `S${season}_L${leagueId}_D${tier}_G${group}_R${r}`;
     batch.set(db.collection('league_slots_v1').doc(slotId), {
+      season, leagueId, division: tier, group, rank: r,
       status: 'FREE', occupantId: null, updatedAt: FieldValue.serverTimestamp()
     });
   }
@@ -137,9 +149,10 @@ async function provisionGroup(batch: any, season: number, leagueId: string, tier
     stats: initialStats, version: 140, createdAt: FieldValue.serverTimestamp()
   });
 
-  const calendar = generateSeasonCalendar(teams, season, leagueId, getMoscowTime());
+  const calendar = generateSeasonCalendar(teams, season, leagueId);
   calendar.forEach(m => {
     const mId = `match_S${season}_V${tier}_G${group}_T${m.tour}_R${m.homeRank}_vs_R${m.awayRank}`;
+    // Оркестратор позже установит startTime на основе даты активации сезона
     batch.set(db.collection('matches_v2').doc(mId), { ...m, id: mId, isFinished: false, isProcessing: false });
   });
 }

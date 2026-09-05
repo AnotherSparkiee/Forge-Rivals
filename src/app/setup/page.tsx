@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Loader2, Rocket, ShieldAlert } from 'lucide-react';
+import { Loader2, Rocket, ShieldAlert, CheckCircle2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useGameState } from '@/app/lib/store';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
@@ -13,7 +13,7 @@ import { useUser, useFirebase } from '@/firebase';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 
 /**
- * СТРАНИЦА ИНИЦИАЛИЗАЦИИ v141.
+ * СТРАНИЦА ИНИЦИАЛИЗАЦИИ v150.
  * Вызывает Cloud Function для атомарного создания клуба.
  */
 export default function SetupPage() {
@@ -21,18 +21,23 @@ export default function SetupPage() {
   const { user, isUserLoading } = useUser();
   const { firebaseApp } = useFirebase();
   const { toast } = useToast();
-  const { language, isLoaded } = useGameState();
+  const { language, isLoaded, isTeamLoaded, isInitialSyncDone } = useGameState();
   
   const [isUpdating, setIsUpdating] = useState(false);
+  const [step, setStep] = useState<'IDLE' | 'PROVISIONING' | 'SUCCESS'>('IDLE');
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isUserLoading && !user) router.push('/auth/login');
-  }, [user, isUserLoading, router]);
+    if (isInitialSyncDone && isTeamLoaded) {
+      router.replace('/');
+    }
+  }, [isInitialSyncDone, isTeamLoaded, router]);
 
   const handleCompleteSetup = async () => {
     if (isUpdating || !user || !firebaseApp) return;
+    
     setIsUpdating(true);
+    setStep('PROVISIONING');
     setError(null);
     
     try {
@@ -48,17 +53,19 @@ export default function SetupPage() {
         throw new Error(result.error || "REGISTRATION_FAILED");
       }
 
-      toast({ title: language === 'ru' ? "Клуб развернут!" : "Club Deployed!" });
+      setStep('SUCCESS');
+      toast({ title: language === 'ru' ? "Штаб развернут!" : "HQ Fully Operational!" });
       
-      // Даем время на синхронизацию snapshot профиля
+      // Даем время на snapshot синхронизацию в store.tsx
       setTimeout(() => {
         router.replace('/');
-      }, 1500);
+      }, 2000);
 
     } catch (e: any) {
       console.error("[SETUP ERROR]:", e);
       setError(e.message || "INITIALIZATION_FAILED");
       setIsUpdating(false);
+      setStep('IDLE');
     }
   };
 
@@ -67,15 +74,19 @@ export default function SetupPage() {
   const t = {
     ru: {
       title: 'РАЗВЕРТЫВАНИЕ БАЗЫ',
-      subtitle: 'Система подготавливает ваш штаб и ростер',
+      subtitle: 'Подготовка систем и личного состава',
       finalize: 'ПОЛУЧИТЬ ДОПУСК',
-      desc: 'Ваш профиль создается на сервере. Вы получите стартовый состав и место в лиге.'
+      desc: 'Ваш профиль создается в защищенном облаке. Вы получите стартовый состав и место в Division 4.',
+      loading: 'Идет синхронизация с лигой...',
+      success: 'ДОСТУП РАЗРЕШЕН'
     },
     en: {
       title: 'BASE DEPLOYMENT',
-      subtitle: 'System is provisioning your HQ and roster',
+      subtitle: 'Provisioning systems and personnel',
       finalize: 'AUTHORIZE ACCESS',
-      desc: 'Your profile is being created on the server. You will receive a starting squad and a league slot.'
+      desc: 'Your profile is being created in the secure cloud. You will receive a starting squad and a slot in Division 4.',
+      loading: 'Syncing with league server...',
+      success: 'ACCESS AUTHORIZED'
     }
   }[language === 'ru' ? 'ru' : 'en'];
 
@@ -87,19 +98,34 @@ export default function SetupPage() {
         <div className="text-center space-y-8 animate-in fade-in zoom-in duration-700">
           <div className="relative mx-auto w-32 h-32">
              <div className="absolute inset-0 bg-primary/20 blur-3xl rounded-full animate-pulse" />
-             <div className="relative w-full h-full bg-secondary/30 rounded-3xl border-2 border-primary/50 flex items-center justify-center">
-                <Rocket className="w-16 h-16 text-primary" />
+             <div className="relative w-full h-full bg-secondary/30 rounded-3xl border-2 border-primary/50 flex items-center justify-center overflow-hidden">
+                {step === 'SUCCESS' ? (
+                  <CheckCircle2 className="w-16 h-16 text-green-400 animate-in zoom-in" />
+                ) : step === 'PROVISIONING' ? (
+                  <Loader2 className="w-16 h-16 text-primary animate-spin" />
+                ) : (
+                  <Rocket className="w-16 h-16 text-primary" />
+                )}
              </div>
           </div>
 
           <div className="space-y-2">
-            <h1 className="text-3xl font-headline font-bold text-white uppercase tracking-tighter">{t.title}</h1>
+            <h1 className="text-3xl font-headline font-bold text-white uppercase tracking-tighter">
+              {step === 'SUCCESS' ? t.success : t.title}
+            </h1>
             <p className="text-muted-foreground text-xs uppercase tracking-widest font-black opacity-80">{t.subtitle}</p>
           </div>
 
           <Card className="glass-card border-white/5 bg-secondary/10 mx-4">
             <CardContent className="p-6">
-               <p className="text-[10px] text-muted-foreground leading-relaxed italic uppercase font-bold">"{t.desc}"</p>
+               {step === 'PROVISIONING' ? (
+                 <div className="space-y-4">
+                   <p className="text-[10px] text-primary font-black uppercase animate-pulse">{t.loading}</p>
+                   <Progress value={66} className="h-1" />
+                 </div>
+               ) : (
+                 <p className="text-[10px] text-muted-foreground leading-relaxed italic uppercase font-bold">"{t.desc}"</p>
+               )}
                {error && (
                  <div className="mt-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg flex items-center gap-3 text-red-400">
                     <ShieldAlert className="w-4 h-4 shrink-0" />
@@ -109,13 +135,15 @@ export default function SetupPage() {
             </CardContent>
           </Card>
 
-          <Button 
-            disabled={isUpdating} 
-            onClick={handleCompleteSetup}
-            className="w-full max-w-[280px] h-16 hero-gradient font-black text-sm tracking-[0.2em] uppercase shadow-2xl mx-auto"
-          >
-            {isUpdating ? <Loader2 className="animate-spin" /> : t.finalize}
-          </Button>
+          {step === 'IDLE' && (
+            <Button 
+              disabled={isUpdating} 
+              onClick={handleCompleteSetup}
+              className="w-full max-w-[280px] h-16 hero-gradient font-black text-sm tracking-[0.2em] uppercase shadow-2xl mx-auto"
+            >
+              {t.finalize}
+            </Button>
+          )}
         </div>
       </div>
     </div>
