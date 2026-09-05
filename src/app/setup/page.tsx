@@ -13,8 +13,8 @@ import { useUser, useFirebase } from '@/firebase';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 
 /**
- * СТРАНИЦА ИНИЦИАЛИЗАЦИИ v150.
- * Вызывает Cloud Function для атомарного создания клуба.
+ * СТРАНИЦА ИНИЦИАЛИЗАЦИИ v160.
+ * Использует защищенную Cloud Function для создания клуба.
  */
 export default function SetupPage() {
   const router = useRouter();
@@ -44,7 +44,7 @@ export default function SetupPage() {
       const functions = getFunctions(firebaseApp);
       const initializeClubFn = httpsCallable(functions, 'initializeClub');
       
-      const clubName = localStorage.getItem('pending_club_name') || `Manager_${Math.floor(Math.random()*9000)}`;
+      const clubName = localStorage.getItem('pending_club_name') || "";
       
       const response = await initializeClubFn({ clubName });
       const result = response.data as any;
@@ -56,10 +56,9 @@ export default function SetupPage() {
       setStep('SUCCESS');
       toast({ title: language === 'ru' ? "Штаб развернут!" : "HQ Fully Operational!" });
       
-      // Даем время на snapshot синхронизацию в store.tsx
       setTimeout(() => {
         router.replace('/');
-      }, 2000);
+      }, 1500);
 
     } catch (e: any) {
       console.error("[SETUP ERROR]:", e);
@@ -76,7 +75,7 @@ export default function SetupPage() {
       title: 'РАЗВЕРТЫВАНИЕ БАЗЫ',
       subtitle: 'Подготовка систем и личного состава',
       finalize: 'ПОЛУЧИТЬ ДОПУСК',
-      desc: 'Ваш профиль создается в защищенном облаке. Вы получите стартовый состав и место в Division 4.',
+      desc: 'Ваш профиль создается на сервере. Вы получите стартовый состав и место в Дивизионе 4.',
       loading: 'Идет синхронизация с лигой...',
       success: 'ДОСТУП РАЗРЕШЕН'
     },
@@ -84,7 +83,7 @@ export default function SetupPage() {
       title: 'BASE DEPLOYMENT',
       subtitle: 'Provisioning systems and personnel',
       finalize: 'AUTHORIZE ACCESS',
-      desc: 'Your profile is being created in the secure cloud. You will receive a starting squad and a slot in Division 4.',
+      desc: 'Your profile is being created on the server. You will receive a starting squad and a slot in Division 4.',
       loading: 'Syncing with league server...',
       success: 'ACCESS AUTHORIZED'
     }

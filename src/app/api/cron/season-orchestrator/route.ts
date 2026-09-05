@@ -1,10 +1,9 @@
-
 import { NextResponse } from 'next/server';
 import { runSeasonOrchestrator } from '@/app/actions/season-cycle';
 
 /**
- * @fileOverview Единственная точка входа для управления игровым миром.
- * Вызывается Cloud Scheduler или внешним Cron-сервисом.
+ * @fileOverview Единая точка входа для автономного управления миром.
+ * Запуск: каждые 5 минут.
  */
 
 export const maxDuration = 300; 

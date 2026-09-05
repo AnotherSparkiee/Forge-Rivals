@@ -1,18 +1,17 @@
-
 'use server';
 
 import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { 
-  MAX_LEVELS, getGroupsCountInLevel, TEAMS_PER_GROUP, 
+  MAX_LEVELS, TEAMS_PER_GROUP, TOTAL_GROUPS,
   getTableId, getBotId, getBotName, generateSeasonCalendar 
 } from '@/app/lib/leagues-data';
 import { getGlobalSeasonInfo } from '@/app/lib/time-utils';
 import { logger } from '@/app/lib/logger';
 
 /**
- * @fileOverview Глобальный оркестратор сезона v150.
- * Реализует State Machine игрового мира.
+ * @fileOverview Глобальный оркестратор сезона v160.
+ * Единственная точка входа для управления циклом мира.
  */
 
 export async function runSeasonOrchestrator() {
@@ -30,13 +29,14 @@ export async function runSeasonOrchestrator() {
       
       const info = getGlobalSeasonInfo();
 
-      // ШАГ 1: Инициализация мира (если не готов)
+      // ШАГ 1: Если мир текущего сезона не готов
       if (!config.worldReady) {
         return { action: 'INITIALIZE_WORLD', season: config.activeSeasonNumber };
       }
 
-      // ШАГ 2: Регулярный сезон (Расчет матчей)
-      if (config.phase === 'REGULAR_SEASON') {
+      // ШАГ 2: Регулярный сезон
+      if (config.phase === 'REGULAR_SEASON' || config.phase === 'ACTIVE') {
+        // Переход к финализации после 14 туров
         if (info.dayOfCycle >= 15) {
           t.update(configRef, { phase: 'FINALIZING', updatedAt: FieldValue.serverTimestamp() });
           return { action: 'START_FINALIZATION' };
@@ -44,13 +44,13 @@ export async function runSeasonOrchestrator() {
         return { action: 'RESOLVE_MATCHES' };
       }
 
-      // ШАГ 3: Финализация и генерация следующего сезона
+      // ШАГ 3: Подготовка следующего сезона
       if (config.phase === 'FINALIZING') {
         t.update(configRef, { 
           phase: 'GENERATING_NEXT', 
           nextSeasonNumber: config.activeSeasonNumber + 1 
         });
-        return { action: 'START_GENERATION' };
+        return { action: 'GENERATE_NEXT' };
       }
 
       return { action: 'IDLE', phase: config.phase };
@@ -67,17 +67,13 @@ export async function runSeasonOrchestrator() {
   }
 }
 
-/**
- * Инициализирует структуру лиги: таблицы, слоты и матчи.
- */
 async function initializeWorldJob(season: number) {
   const db = getAdminDb();
   const statusRef = db.collection('system_v1').doc(`world_gen_S${season}`);
   const statusSnap = await statusRef.get();
   const completedGroups = statusSnap.exists ? (statusSnap.data()?.completedGroups || 0) : 0;
 
-  const totalToBuild = 15; // 1+2+4+8 групп
-  if (completedGroups >= totalToBuild) {
+  if (completedGroups >= TOTAL_GROUPS) {
     await db.collection('system_v1').doc('season_config').update({ worldReady: true });
     return;
   }
@@ -85,8 +81,8 @@ async function initializeWorldJob(season: number) {
   const batch = db.batch();
   let builtInThisJob = 0;
   
-  // Строим по 4 группы за запуск для стабильности
-  for (let i = 1; i <= totalToBuild; i++) {
+  // Строим по 4 группы за запуск для стабильности (Cloud Run timeouts)
+  for (let i = 1; i <= TOTAL_GROUPS; i++) {
     if (i <= completedGroups) continue;
     if (builtInThisJob >= 4) break;
 
@@ -98,18 +94,17 @@ async function initializeWorldJob(season: number) {
   const newTotal = completedGroups + builtInThisJob;
   batch.set(statusRef, { 
     completedGroups: newTotal, 
-    status: newTotal >= totalToBuild ? 'completed' : 'processing',
+    status: newTotal >= TOTAL_GROUPS ? 'completed' : 'processing',
     updatedAt: FieldValue.serverTimestamp() 
   }, { merge: true });
   
   await batch.commit();
-  logger.info(`World generation progress: ${newTotal}/${totalToBuild}`);
 }
 
 function getGroupCoordinates(index: number) {
   let tier = 1;
   let runningTotal = 0;
-  while (tier <= 4) {
+  while (tier <= MAX_LEVELS) {
     const groupsInTier = Math.pow(2, tier - 1);
     if (index <= runningTotal + groupsInTier) {
       return { tier, group: index - runningTotal };
@@ -123,6 +118,7 @@ function getGroupCoordinates(index: number) {
 async function provisionGroup(batch: any, season: number, leagueId: string, tier: number, group: number) {
   const db = getAdminDb();
   const tableId = getTableId(season, leagueId, tier, group);
+  const info = getGlobalSeasonInfo();
   
   const initialStats: any = {};
   const teams = [];
@@ -136,7 +132,6 @@ async function provisionGroup(batch: any, season: number, leagueId: string, tier
     };
     teams.push({ id: bId, name: bName, rank: r });
     
-    // Создаем атомарный слот для регистрации
     const slotId = `S${season}_L${leagueId}_D${tier}_G${group}_R${r}`;
     batch.set(db.collection('league_slots_v1').doc(slotId), {
       season, leagueId, division: tier, group, rank: r,
@@ -149,10 +144,9 @@ async function provisionGroup(batch: any, season: number, leagueId: string, tier
     stats: initialStats, version: 140, createdAt: FieldValue.serverTimestamp()
   });
 
-  const calendar = generateSeasonCalendar(teams, season, leagueId);
+  const calendar = generateSeasonCalendar(teams, season, leagueId, info.currentSeasonStart);
   calendar.forEach(m => {
-    const mId = `match_S${season}_V${tier}_G${group}_T${m.tour}_R${m.homeRank}_vs_R${m.awayRank}`;
-    // Оркестратор позже установит startTime на основе даты активации сезона
-    batch.set(db.collection('matches_v2').doc(mId), { ...m, id: mId, isFinished: false, isProcessing: false });
+    const mId = `match_v140_S${season}_L${leagueId}_V${tier}_G${group}_T${m.tour}_R${m.homeRank}_vs_R${m.awayRank}`;
+    batch.set(db.collection('matches_v2').doc(mId), { ...m, id: mId });
   });
 }

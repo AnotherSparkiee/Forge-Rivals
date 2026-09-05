@@ -1,6 +1,5 @@
-
 /**
- * @fileOverview Ядро данных лиг v150.
+ * @fileOverview Ядро данных лиг v160.
  * Централизованные константы и правила распределения.
  */
 
@@ -36,16 +35,19 @@ export function getBotName(level: number, group: number, rank: number): string {
   return `Bot01${level}${gStr}${rStr}`;
 }
 
+export function getMatchStartUtc(seasonStart: Date, day: number): string {
+  const date = new Date(seasonStart.getTime());
+  date.setUTCDate(date.getUTCDate() + (day - 1));
+  date.setUTCHours(15, 0, 0, 0); // 18:00 MSK = 15:00 UTC
+  return date.toISOString();
+}
+
 /**
  * Генерирует детерминированный календарь матчей (Round Robin).
- * Все матчи привязаны к UTC времени (18:00 MSK = 15:00 UTC).
  */
-export function generateSeasonCalendar(teams: any[], seasonNumber: number, leagueId: string) {
+export function generateSeasonCalendar(teams: any[], seasonNumber: number, leagueId: string, seasonStart: Date) {
   const n = TEAMS_PER_GROUP;
   const matches = [];
-  
-  // Базовая дата - будет установлена оркестратором при активации сезона
-  // Здесь мы генерируем структуру, которую оркестратор наполнит реальными датами
   const pool = Array.from({ length: n }, (_, i) => i);
   
   for (let round = 0; round < n - 1; round++) {
@@ -56,9 +58,10 @@ export function generateSeasonCalendar(teams: any[], seasonNumber: number, leagu
       const away = teams[aIdx];
 
       // Первый круг (туры 1-7)
+      const day1 = round + 1;
       matches.push({
-        day: round + 1,
-        tour: round + 1,
+        tour: day1,
+        day: day1,
         season: seasonNumber,
         leagueId,
         homeId: home.id,
@@ -67,14 +70,20 @@ export function generateSeasonCalendar(teams: any[], seasonNumber: number, leagu
         awayId: away.id,
         awayName: away.name,
         awayRank: Number(away.rank),
+        startTime: getMatchStartUtc(seasonStart, day1),
         type: 'league',
-        version: 140
+        version: 140,
+        isFinished: false,
+        isProcessing: false,
+        scoreA: 0,
+        scoreB: 0
       });
 
-      // Второй круг (туры 8-14, смена сторон)
+      // Второй круг (туры 8-14)
+      const day2 = round + 8;
       matches.push({
-        day: round + 8,
-        tour: round + 8,
+        tour: day2,
+        day: day2,
         season: seasonNumber,
         leagueId,
         homeId: away.id,
@@ -83,8 +92,13 @@ export function generateSeasonCalendar(teams: any[], seasonNumber: number, leagu
         awayId: home.id,
         awayName: home.name,
         awayRank: Number(home.rank),
+        startTime: getMatchStartUtc(seasonStart, day2),
         type: 'league',
-        version: 140
+        version: 140,
+        isFinished: false,
+        isProcessing: false,
+        scoreA: 0,
+        scoreB: 0
       });
     }
     const last = pool.pop()!;

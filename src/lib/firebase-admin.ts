@@ -1,16 +1,14 @@
-
 import { initializeApp, getApps, cert, type App } from 'firebase-admin/app';
 import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 
 /**
- * @fileOverview Инициализация Firebase Admin SDK v3.0.
+ * @fileOverview Инициализация Firebase Admin SDK v3.1.
  * Единственный источник истины для серверного доступа.
  */
 
-let adminApp: App | null = null;
-
 export function getAdminDb(): Firestore {
   try {
+    let adminApp: App;
     if (getApps().length === 0) {
       const serviceAccountJson = process.env.FIREBASE_ADMIN_SDK;
       
@@ -26,7 +24,7 @@ export function getAdminDb(): Firestore {
       adminApp = getApps()[0];
     }
     
-    return getFirestore(adminApp!);
+    return getFirestore(adminApp);
   } catch (error: any) {
     console.error("[FIREBASE ADMIN] Initialization Failure:", error.message);
     throw new Error("SERVER_DATABASE_UNAVAILABLE");
