@@ -1,15 +1,19 @@
+
 'use client';
 
 /**
- * Глобальное локальное хранилище v243 (ULTRA STABLE).
- * Добавлен флаг isInitialSyncDone для предотвращения ложных редиректов.
+ * Глобальное локальное хранилище v245 (SERVER AUTHORITATIVE).
+ * Прямые записи updateDoc удалены и заменены на Server Actions.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useMemo } from 'react';
 import { Player, StaffMember, StaffRole, generateScoutedPlayer, getRandomStartingSquad } from './moba-data';
 import { getMoscowTime, getGlobalSeasonInfo, getMoscowDateString, getLevelThreshold } from './time-utils';
 import { useUser, initializeFirebase } from '@/firebase';
-import { doc, onSnapshot, updateDoc, arrayUnion } from 'firebase/firestore';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { claimDailyRewardAction, purchasePremiumAction } from '@/app/actions/economy';
+import { updateLineupAction, startDailyTrainingAction, listPlayerOnMarketAction } from '@/app/actions/gameplay';
+import { useToast } from '@/hooks/use-toast';
 
 export { getLevelThreshold };
 
@@ -124,7 +128,7 @@ interface GameState {
   saveToLocal: (state: Partial<GameState>) => void;
 }
 
-const STORAGE_KEY = 'lote_game_state_v242';
+const STORAGE_KEY = 'lote_game_state_v245';
 
 const DEFAULT_STATE: GameState = {
   credits: 1000000, crystals: 50, experiencePoints: 0, managerLevel: 1,
@@ -144,7 +148,7 @@ const DEFAULT_STATE: GameState = {
   arena: { capacity: 5000 }, hq: {}, bootcamp: {}, academy: {}, medical: {},
   country: null, isPremium: false, premiumUntil: null, activeSeasonNumber: 1, seasonNumber: 1, seasonDay: 1, isSyncing: false, language: 'ru',
   isDataReady: false, allSeasonMatches: [], nextMatch: null, isMatchesLoading: true,
-  lastProcessedSeason: 0, trophies: [], version: 242,
+  lastProcessedSeason: 0, trophies: [], version: 245,
   availableGiftsToSend: [], receivedGifts: [], lastGiftGenDate: null,
   addCrystals: () => {}, addCredits: () => {}, updatePlayer: () => {}, removePlayer: () => {}, assignToRole: () => {}, updateLineup: () => {}, updateTactics: () => {},
   claimReward: () => {}, setLanguage: () => {}, purchaseLicense: () => false, purchasePremium: () => false,
@@ -170,6 +174,7 @@ const GameStateContext = createContext<GameState | undefined>(undefined);
 export function GameStateProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<GameState>(DEFAULT_STATE);
   const { user, isUserLoading } = useUser();
+  const { toast } = useToast();
   const staticSeasonInfo = useMemo(() => getGlobalSeasonInfo(), []);
 
   const saveToLocal = useCallback((updates: Partial<GameState>) => {
@@ -182,479 +187,90 @@ export function GameStateProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const payStaffSalaries = useCallback(async () => {
-    const totalS = state.ownedPlayers.reduce((acc, p) => acc + (p.salary || 0), 0);
-    const finalC = Math.round(totalS * 0.55); // 45% subsidy
-    if (state.credits >= finalC) {
-      if (user?.uid) {
-        const { firestore: db } = initializeFirebase();
-        updateDoc(doc(db, 'players_v14', user.uid), { credits: state.credits - finalC });
-      }
-      saveToLocal({ credits: state.credits - finalC });
-    }
-  }, [state.credits, state.ownedPlayers, saveToLocal, user?.uid]);
-
   useEffect(() => {
     if (isUserLoading) return;
-
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (parsed.version < 242) {
-          localStorage.removeItem(STORAGE_KEY);
-          window.location.reload();
-          return;
-        }
         if (user && parsed.id && parsed.id !== user.uid) {
           setState(prev => ({ ...DEFAULT_STATE, id: user.uid, isLoaded: true, language: parsed.language || 'ru' }));
           return;
         }
-        setState(prev => ({
-          ...DEFAULT_STATE,
-          ...parsed,
-          id: user?.uid || parsed.id || '',
-          isLoaded: true,
-          activeSeasonNumber: staticSeasonInfo.activeSeasonNumber,
-          seasonNumber: staticSeasonInfo.seasonNumber,
-          seasonDay: staticSeasonInfo.seasonDay
-        }));
+        setState(prev => ({ ...DEFAULT_STATE, ...parsed, id: user?.uid || parsed.id || '', isLoaded: true }));
       } catch (e) { setState(prev => ({ ...prev, isLoaded: true })); }
     } else { setState(prev => ({ ...prev, id: user?.uid || '', isLoaded: true })); }
-  }, [isUserLoading, user, staticSeasonInfo]);
+  }, [isUserLoading, user]);
 
-  // PHASE 3: REAL-TIME FIREBASE SYNC
+  // СИНХРОНИЗАЦИЯ С FIRESTORE
   useEffect(() => {
     if (!user?.uid || !state.isLoaded) {
-      if (state.isLoaded && !user) {
-        setState(prev => ({ ...prev, isInitialSyncDone: true }));
-      }
+      if (state.isLoaded && !user) setState(prev => ({ ...prev, isInitialSyncDone: true }));
       return;
     }
-    
     const { firestore: db } = initializeFirebase();
     const playerRef = doc(db, 'players_v14', user.uid);
-    
     const unsubscribe = onSnapshot(playerRef, (snapshot) => {
       if (snapshot.exists()) {
-        const data = snapshot.data();
+        const d = snapshot.data();
         saveToLocal({
-          clubName: data.clubName || state.clubName,
-          clubLogo: data.clubLogo || state.clubLogo,
-          country: data.country || state.country,
-          numericId: data.numericId || state.numericId,
-          selectedLeagueId: data.selectedLeagueId,
-          leagueLevel: Number(data.leagueLevel),
-          groupId: Number(data.groupId),
-          rank: Number(data.rank),
+          ...d,
           isTeamLoaded: true,
           isInitialSyncDone: true,
-          managerLevel: data.managerLevel || state.managerLevel,
-          experiencePoints: data.experiencePoints || state.experiencePoints,
-          credits: data.credits !== undefined ? Number(data.credits) : state.credits,
-          crystals: data.crystals !== undefined ? Number(data.crystals) : state.crystals
-        });
+          credits: Number(d.credits),
+          crystals: Number(d.crystals)
+        } as any);
       } else {
         setState(prev => ({ ...prev, isTeamLoaded: false, isInitialSyncDone: true }));
       }
-    }, (error) => {
-      console.warn("Firestore sync error:", error);
-      setState(prev => ({ ...prev, isInitialSyncDone: true }));
     });
-
     return () => unsubscribe();
   }, [user?.uid, state.isLoaded, saveToLocal]);
 
-  const addCrystals = useCallback((amount: number) => {
-    if (user?.uid) {
-      const { firestore: db } = initializeFirebase();
-      updateDoc(doc(db, 'players_v14', user.uid), { crystals: (state.crystals || 0) + amount });
-    }
-    saveToLocal({ crystals: (state.crystals || 0) + amount });
-  }, [state.crystals, saveToLocal, user?.uid]);
-
-  const addCredits = useCallback((amount: number) => {
-    if (user?.uid) {
-      const { firestore: db } = initializeFirebase();
-      updateDoc(doc(db, 'players_v14', user.uid), { credits: (state.credits || 0) + amount });
-    }
-    saveToLocal({ credits: (state.credits || 0) + amount });
-  }, [state.credits, saveToLocal, user?.uid]);
+  // ЗАЩИЩЕННЫЕ ДЕЙСТВИЯ (SERVER ACTIONS)
   
-  const updatePlayer = useCallback((id: string, data: Partial<Player>, costCr = 0, costCry = 0) => {
-    const newOwned = state.ownedPlayers.map(p => p.id === id ? { ...p, ...data } : p);
-    const newYouth = state.youthAcademyPlayers.map(p => p.id === id ? { ...p, ...data } : p);
-    
-    if (user?.uid && (costCr > 0 || costCry > 0)) {
-      const { firestore: db } = initializeFirebase();
-      updateDoc(doc(db, 'players_v14', user.uid), { 
-        credits: (state.credits || 0) - costCr,
-        crystals: (state.crystals || 0) - costCry
-      });
+  const claimReward = useCallback(async () => {
+    if (!user?.uid) return;
+    const res = await claimDailyRewardAction(user.uid);
+    if (res.success) {
+      toast({ title: state.language === 'ru' ? "Награда получена!" : "Reward Claimed!" });
+    } else {
+      toast({ variant: "destructive", title: res.error });
     }
-
-    saveToLocal({ ownedPlayers: newOwned, youthAcademyPlayers: newYouth, credits: (state.credits || 0) - costCr, crystals: (state.crystals || 0) - costCry });
-  }, [state.ownedPlayers, state.youthAcademyPlayers, state.credits, state.crystals, saveToLocal, user?.uid]);
-
-  const removePlayer = useCallback((id: string, refund: number) => {
-    if (user?.uid) {
-      const { firestore: db } = initializeFirebase();
-      updateDoc(doc(db, 'players_v14', user.uid), { credits: (state.credits || 0) + refund });
-    }
-    saveToLocal({ ownedPlayers: state.ownedPlayers.filter(p => p.id !== id), youthAcademyPlayers: state.youthAcademyPlayers.filter(p => p.id !== id), credits: (state.credits || 0) + refund });
-  }, [state.ownedPlayers, state.youthAcademyPlayers, state.credits, saveToLocal, user?.uid]);
-
-  const assignToRole = useCallback((role: LineupSlot, pId: string | null) => saveToLocal({ lineup: { ...state.lineup, [role]: pId } }), [state.lineup, saveToLocal]);
-  const updateLineup = useCallback((updates: Partial<Record<LineupSlot, string | null>>) => saveToLocal({ lineup: { ...state.lineup, ...updates } }), [state.lineup, saveToLocal]);
-  const updateTactics = useCallback((strategy: string, lineSettings: any) => saveToLocal({ strategy, lineSettings }), [saveToLocal]);
-
-  const claimReward = useCallback((cr: number, cry: number) => {
-    const cryGain = state.isPremium ? cry + 50 : cry;
-    const finalCr = (state.credits || 0) + cr;
-    const finalCry = (state.crystals || 0) + cryGain;
-    
-    if (user?.uid) {
-      const { firestore: db } = initializeFirebase();
-      updateDoc(doc(db, 'players_v14', user.uid), { 
-        credits: finalCr, 
-        crystals: finalCry,
-        lastRewardClaimDate: getMoscowDateString(),
-        rewardDay: ((state.rewardDay || 1) % 30) + 1
-      });
-    }
-
-    saveToLocal({ credits: finalCr, crystals: finalCry, lastRewardClaimDate: getMoscowDateString(), rewardDay: ((state.rewardDay || 1) % 30) + 1 });
-  }, [state.isPremium, state.credits, state.crystals, state.rewardDay, saveToLocal, user?.uid]);
-
-  const setLanguage = useCallback((lang: string) => saveToLocal({ language: lang }), [saveToLocal]);
-
-  const purchaseLicense = useCallback((t: number, c: number) => {
-    if ((state.crystals || 0) < c) return false;
-    const finalCry = state.crystals - c;
-
-    if (user?.uid) {
-      const { firestore: db } = initializeFirebase();
-      updateDoc(doc(db, 'players_v14', user.uid), { 
-        crystals: finalCry,
-        activeLicenseTier: t
-      });
-    }
-
-    saveToLocal({ crystals: finalCry, activeLicenseTier: t }); return true;
-  }, [state.crystals, saveToLocal, user?.uid]);
+  }, [user?.uid, state.language, toast]);
 
   const purchasePremium = useCallback(() => {
-    if ((state.crystals || 0) < 5000) return false;
-    const exp = new Date(getMoscowTime().getTime() + 30 * 24 * 60 * 60 * 1000);
-    const finalCry = state.crystals - 5000;
+    if (!user?.uid) return false;
+    purchasePremiumAction(user.uid).then(res => {
+      if (!res.success) toast({ variant: "destructive", title: res.error });
+    });
+    return true;
+  }, [user?.uid, toast]);
 
-    if (user?.uid) {
-      const { firestore: db } = initializeFirebase();
-      updateDoc(doc(db, 'players_v14', user.uid), { 
-        crystals: finalCry,
-        premiumUntil: exp.toISOString(),
-        isPremium: true
-      });
-    }
-
-    saveToLocal({ crystals: finalCry, premiumUntil: exp.toISOString(), isPremium: true }); return true;
-  }, [state.crystals, saveToLocal, user?.uid]);
-
-  const setTrainingFocus = useCallback((pId: string, focus: string | null) => updatePlayer(pId, { trainingFocus: focus }), [updatePlayer]);
-  const startDailyPlayerTraining = useCallback((pId: string, focus: string) => updatePlayer(pId, { dailyTrainingFocus: focus, dailyTrainingFinishTime: new Date(getMoscowTime().getTime() + 24 * 3600000).toISOString() }), [updatePlayer]);
-  const claimDailyPlayerTraining = useCallback((pId: string) => updatePlayer(pId, { dailyTrainingFocus: null, dailyTrainingFinishTime: null }), [updatePlayer]);
-
-  const recoverAllFatigue = useCallback((type: 'credits' | 'crystals') => {
-    const cost = type === 'credits' ? 75000 : 150; const bal = type === 'credits' ? state.credits : state.crystals;
-    if (bal < cost) return false;
-    const finalBal = bal - cost;
-
-    if (user?.uid) {
-      const { firestore: db } = initializeFirebase();
-      updateDoc(doc(db, 'players_v14', user.uid), { [type]: finalBal });
-    }
-
-    saveToLocal({ ownedPlayers: state.ownedPlayers.map(p => ({ ...p, fatigue: 100 })), [type]: finalBal }); return true;
-  }, [state.credits, state.crystals, state.ownedPlayers, saveToLocal, user?.uid]);
-
-  const hireStaffMember = useCallback((m: StaffMember) => {
-    const finalCredits = (state.credits || 0) - (m.salary / 2);
-    if (user?.uid) {
-      const { firestore: db } = initializeFirebase();
-      updateDoc(doc(db, 'players_v14', user.uid), { credits: finalCredits });
-    }
-    saveToLocal({ staff: { ...state.staff, [m.role]: m }, credits: finalCredits });
-  }, [state.staff, state.credits, saveToLocal, user?.uid]);
-  
-  const trainStaffSkill = useCallback((r: StaffRole, sk: 'primary' | 'secondary', cost: number) => {
-    if ((state.crystals || 0) < cost) return false;
-    const mem = state.staff[r]; if (!mem) return false;
-    const upMem = { ...mem, skills: { ...mem.skills, [sk]: (mem.skills[sk] || 0) + 1 } };
-    const finalCrystals = state.crystals - cost;
-
-    if (user?.uid) {
-      const { firestore: db } = initializeFirebase();
-      updateDoc(doc(db, 'players_v14', user.uid), { crystals: finalCrystals });
-    }
-
-    saveToLocal({ staff: { ...state.staff, [r]: upMem }, crystals: finalCrystals }); return true;
-  }, [state.staff, state.crystals, saveToLocal, user?.uid]);
-
-  const trainHeroSkill = useCallback(async (hId: string, sk: string, amt: number) => {
-    const p = state.ownedPlayers.find(pl => pl.id === hId); if (!p) return false;
-    updatePlayer(hId, { proStats: { ...p.proStats, [sk]: (p.proStats as any)[sk] + amt } as any }); return true;
-  }, [state.ownedPlayers, updatePlayer]);
-
-  const addPlayerDirectly = useCallback((p: Player) => saveToLocal({ ownedPlayers: [...state.ownedPlayers, p] }), [state.ownedPlayers, saveToLocal]);
-  const addYouthPlayerDirectly = useCallback((p: Player) => saveToLocal({ youthAcademyPlayers: [...state.youthAcademyPlayers, { ...p, isYouth: true }] }), [state.youthAcademyPlayers, saveToLocal]);
-  
-  const promoteYouthPlayer = useCallback((pId: string) => {
-    const p = state.youthAcademyPlayers.find(pl => pl.id === pId); if (!p) return;
-    saveToLocal({ youthAcademyPlayers: state.youthAcademyPlayers.filter(pl => pl.id !== pId), ownedPlayers: [...state.ownedPlayers, { ...p, isYouth: false }] });
-  }, [state.youthAcademyPlayers, state.ownedPlayers, saveToLocal]);
-
-  const updateProfileName = useCallback((n: string) => {
-    if (user?.uid) {
-      const { firestore: db } = initializeFirebase();
-      updateDoc(doc(db, 'players_v14', user.uid), { clubName: n, displayName: n });
-    }
-    saveToLocal({ clubName: n, displayName: n });
-  }, [saveToLocal, user?.uid]);
-
-  const updateProfileCountry = useCallback((c: string) => {
-    if (user?.uid) {
-      const { firestore: db } = initializeFirebase();
-      updateDoc(doc(db, 'players_v14', user.uid), { country: c });
-    }
-    saveToLocal({ country: c });
-  }, [saveToLocal, user?.uid]);
-
-  const healPlayer = useCallback((pId: string, t: 'credits' | 'crystals', c: number) => { 
-    updatePlayer(pId, { isInjured: false, injuredUntil: null }); 
-    const finalVal = (state as any)[t] - c;
-    if (user?.uid) {
-      const { firestore: db } = initializeFirebase();
-      updateDoc(doc(db, 'players_v14', user.uid), { [t]: finalVal });
-    }
-    saveToLocal({ [t]: finalVal }); 
-  }, [state.credits, state.crystals, updatePlayer, saveToLocal, user?.uid]);
-
-  const launchFanCampaign = useCallback((t: string, c: number, f: number, l: number) => {
-    const finalCredits = (state.credits || 0) - c;
-    if (user?.uid) {
-      const { firestore: db } = initializeFirebase();
-      updateDoc(doc(db, 'players_v14', user.uid), { credits: finalCredits });
-    }
-    saveToLocal({ credits: finalCredits, arena: { ...state.arena, fanCount: (state.arena.fanCount || 5000) + f, loyalty: (state.arena.loyalty || 30) + l } });
-  }, [state.credits, state.arena, saveToLocal, user?.uid]);
-
-  const addTrophy = useCallback((trophy: TrophyRecord) => {
-    if (user?.uid) {
-      const { firestore: db } = initializeFirebase();
-      updateDoc(doc(db, 'players_v14', user.uid), { trophies: arrayUnion(trophy) });
-    }
-    saveToLocal({ trophies: [...(state.trophies || []), trophy] });
-  }, [state.trophies, saveToLocal, user?.uid]);
-  
-  const resetProfile = useCallback(async () => { 
-    if (typeof window !== 'undefined') localStorage.removeItem(STORAGE_KEY);
-    setState({ ...DEFAULT_STATE, id: user?.uid || '', isLoaded: true }); 
+  const updateLineup = useCallback((updates: any) => {
+    if (!user?.uid) return;
+    updateLineupAction(user.uid, updates);
   }, [user?.uid]);
 
-  const recordMatch = useCallback((w: string, res: any, rew: number, opp: string, t: string, p: string, mId?: string, extra?: any) => {
-    const id = mId || `match_${Date.now()}`; let newLvl = state.managerLevel; let newXp = state.experiencePoints + (t === 'league' ? 200 : 50);
-    const thr = getLevelThreshold(newLvl); if (newXp >= thr) { newLvl++; newXp -= thr; }
-    const entry = { id, winner: w, scoreA: res.scoreA, scoreB: res.scoreB, opponentName: opp, type: t, playedAt: p, simulation: res, seen: false, ...extra };
-    
-    const finalCredits = (state.credits || 0) + rew;
-    if (user?.uid) {
-      const { firestore: db } = initializeFirebase();
-      updateDoc(doc(db, 'players_v14', user.uid), { 
-        credits: finalCredits,
-        experiencePoints: newXp,
-        managerLevel: newLvl
-      });
-    }
+  const startDailyPlayerTraining = useCallback((pId: string, focus: string) => {
+    if (!user?.uid) return;
+    startDailyTrainingAction(user.uid, pId, focus);
+  }, [user?.uid]);
 
-    saveToLocal({ credits: finalCredits, experiencePoints: newXp, managerLevel: newLvl, matchHistory: [...state.matchHistory, entry] });
-  }, [state.experiencePoints, state.managerLevel, state.credits, state.matchHistory, saveToLocal, user?.uid]);
-
-  const markMatchIdAsSeen = useCallback((id: string) => {
-    const mHistory = state.matchHistory.find(m => m.id === id); let updates: Partial<GameState> = {};
-    if (mHistory) updates.matchHistory = state.matchHistory.map(m => m.id === id ? { ...m, seen: true } : m);
-    const lMatch = (state.allSeasonMatches || []).find(m => m.id === id);
-    if (lMatch && Number(lMatch.day) > (state.lastSeenMatchDay || 0)) updates.lastSeenMatchDay = Number(lMatch.day);
-    if (Object.keys(updates).length > 0) saveToLocal(updates);
-  }, [state.matchHistory, state.allSeasonMatches, state.lastSeenMatchDay, saveToLocal]);
-
-  const deleteMatchHistoryEntry = useCallback((id: string) => saveToLocal({ matchHistory: state.matchHistory.filter(m => m.id !== id) }), [state.matchHistory, saveToLocal]);
-  const clearMatchHistory = useCallback(() => saveToLocal({ matchHistory: [] }), [saveToLocal]);
-  
-  const upgradeManagerSkill = useCallback((k: keyof GameState['managerSkills']) => {
-    const newSkills = { ...state.managerSkills, [k]: (state.managerSkills[k] || 0) + 1 };
-    if (user?.uid) {
-      const { firestore: db } = initializeFirebase();
-      updateDoc(doc(db, 'players_v14', user.uid), { managerSkills: newSkills });
-    }
-    saveToLocal({ managerSkills: newSkills });
-  }, [state.managerSkills, saveToLocal, user?.uid]);
-  
-  const startArenaConstruction = useCallback((id: string, cost: number) => {
-    if (state.credits < cost) return false;
-    const finish = new Date(getMoscowTime().getTime() + 4 * 3600000).toISOString();
-    const finalCredits = (state.credits || 0) - cost;
-    if (user?.uid) {
-      const { firestore: db } = initializeFirebase();
-      updateDoc(doc(db, 'players_v14', user.uid), { credits: finalCredits });
-    }
-    saveToLocal({ credits: finalCredits, arena: { ...state.arena, constructionStarts: { ...state.arena.constructionStarts, [id]: getMoscowTime().toISOString() }, constructionFinishes: { ...state.arena.constructionFinishes, [id]: finish } } }); return true;
-  }, [state.credits, state.arena, saveToLocal, user?.uid]);
-
-  const startHQConstruction = useCallback((id: string, cost: number) => {
-    if (state.credits < cost) return false;
-    const finish = new Date(getMoscowTime().getTime() + 4 * 3600000).toISOString();
-    const finalCredits = state.credits - cost;
-    if (user?.uid) {
-      const { firestore: db } = initializeFirebase();
-      updateDoc(doc(db, 'players_v14', user.uid), { credits: finalCredits });
-    }
-    saveToLocal({ credits: finalCredits, hq: { ...state.hq, constructionStarts: { ...state.hq.constructionStarts, [id]: getMoscowTime().toISOString() }, constructionFinishes: { ...state.hq.constructionFinishes, [id]: finish } } }); return true;
-  }, [state.credits, state.hq, saveToLocal, user?.uid]);
-
-  const startBootcampConstruction = useCallback((id: string, cost: number) => {
-    if (state.credits < cost) return false;
-    const finish = new Date(getMoscowTime().getTime() + 6 * 3600000).toISOString();
-    const finalCredits = state.credits - cost;
-    if (user?.uid) {
-      const { firestore: db } = initializeFirebase();
-      updateDoc(doc(db, 'players_v14', user.uid), { credits: finalCredits });
-    }
-    saveToLocal({ credits: finalCredits, bootcamp: { ...state.bootcamp, constructionStarts: { ...state.bootcamp.constructionStarts, [id]: getMoscowTime().toISOString() }, constructionFinishes: { ...state.bootcamp.constructionFinishes, [id]: finish } } }); return true;
-  }, [state.credits, state.bootcamp, saveToLocal, user?.uid]);
-
-  const startAcademyConstruction = useCallback((id: string, cost: number) => {
-    if (state.credits < cost) return false;
-    const finish = new Date(getMoscowTime().getTime() + 8 * 3600000).toISOString();
-    const finalCredits = state.credits - cost;
-    if (user?.uid) {
-      const { firestore: db } = initializeFirebase();
-      updateDoc(doc(db, 'players_v14', user.uid), { credits: finalCredits });
-    }
-    saveToLocal({ credits: finalCredits, academy: { ...state.academy, constructionStarts: { ...state.academy.constructionStarts, [id]: getMoscowTime().toISOString() }, constructionFinishes: { ...state.academy.constructionFinishes, [id]: finish } } }); return true;
-  }, [state.credits, state.academy, saveToLocal, user?.uid]);
-
-  const startMedicalConstruction = useCallback((id: string, cost: number) => {
-    if (state.credits < cost) return false;
-    const finish = new Date(getMoscowTime().getTime() + 4 * 3600000).toISOString();
-    const finalCredits = state.credits - cost;
-    if (user?.uid) {
-      const { firestore: db } = initializeFirebase();
-      updateDoc(doc(db, 'players_v14', user.uid), { credits: finalCredits });
-    }
-    saveToLocal({ credits: finalCredits, medical: { ...state.medical, constructionStarts: { ...state.medical.constructionStarts, [id]: getMoscowTime().toISOString() }, constructionFinishes: { ...state.medical.constructionFinishes, [id]: finish } } }); return true;
-  }, [state.credits, state.medical, saveToLocal, user?.uid]);
-
-  const startCapacityExpansion = useCallback((seats: number, cost: number) => {
-    if (state.credits < cost) return false;
-    const finish = new Date(getMoscowTime().getTime() + 12 * 3600000).toISOString();
-    const finalCredits = state.credits - cost;
-    if (user?.uid) {
-      const { firestore: db } = initializeFirebase();
-      updateDoc(doc(db, 'players_v14', user.uid), { credits: finalCredits });
-    }
-    saveToLocal({ credits: finalCredits, arena: { ...state.arena, constructionStarts: { ...state.arena.constructionStarts, capacity: getMoscowTime().toISOString() }, constructionFinishes: { ...state.arena.constructionFinishes, capacity: finish }, pendingCapacity: seats } }); return true;
-  }, [state.credits, state.arena, saveToLocal, user?.uid]);
-
-  const accelerateConstruction = useCallback((type: string, id: string, multiplier: number, price: number) => {
-    if (state.crystals < price) return false;
-    const target = (state as any)[type];
-    const finish = new Date(target.constructionFinishes?.[id]).getTime();
-    const remaining = finish - getMoscowTime().getTime();
-    const newFinish = new Date(getMoscowTime().getTime() + (remaining / multiplier)).toISOString();
-    const finalCrystals = state.crystals - price;
-    if (user?.uid) {
-      const { firestore: db } = initializeFirebase();
-      updateDoc(doc(db, 'players_v14', user.uid), { crystals: finalCrystals });
-    }
-    saveToLocal({ crystals: finalCrystals, [type]: { ...target, constructionFinishes: { ...target.constructionFinishes, [id]: newFinish }, isAccelerated: { ...target.isAccelerated, [id]: true } } }); return true;
-  }, [state.crystals, saveToLocal, user?.uid]);
-
-  const checkConstructions = useCallback(() => {
-    const now = getMoscowTime().getTime();
-    const updates: any = {};
-    let changed = false;
-    ['arena', 'hq', 'bootcamp', 'academy', 'medical'].forEach(type => {
-      const target = (state as any)[type];
-      if (target.constructionFinishes) {
-        const newTarget = { ...target };
-        let targetChanged = false;
-        Object.entries(target.constructionFinishes).forEach(([id, finish]: [string, any]) => {
-          if (now >= new Date(finish).getTime()) {
-            if (id === 'capacity') { newTarget.capacity = (newTarget.capacity || 5000) + (newTarget.pendingCapacity || 0); delete newTarget.pendingCapacity; }
-            else { newTarget[id] = (newTarget[id] || 0) + 1; }
-            delete newTarget.constructionStarts[id]; delete newTarget.constructionFinishes[id];
-            if (newTarget.isAccelerated) delete newTarget.isAccelerated[id];
-            targetChanged = true; changed = true;
-          }
-        });
-        if (targetChanged) updates[type] = newTarget;
-      }
-    });
-    if (changed) saveToLocal(updates);
-  }, [state, saveToLocal]);
-
-  const scoutCandidates = useCallback(() => {
-    const count = 3 + Math.floor((state.academy.scoutsLevel || 0) / 2);
-    const newCandidates = Array.from({ length: count }).map((_, i) => generateScoutedPlayer(i, state.academy.scoutsLevel || 1));
-    saveToLocal({ scoutingCandidates: newCandidates, lastScoutDate: getMoscowTime().toISOString() });
-  }, [state.academy.scoutsLevel, saveToLocal]);
-
-  const recruitCandidate = useCallback((playerId: string) => {
-    const p = state.scoutingCandidates.find(pl => pl.id === playerId);
-    if (p) saveToLocal({ scoutingCandidates: state.scoutingCandidates.filter(pl => pl.id !== playerId), youthAcademyAcademyPlayers: [...state.youthAcademyPlayers, p] });
-  }, [state.scoutingCandidates, state.youthAcademyPlayers, saveToLocal]);
-
-  const clearScoutingReport = useCallback(() => saveToLocal({ scoutingCandidates: [] }), [saveToLocal]);
-
-  const setWorldReady = useCallback((r: boolean) => setState(prev => ({ ...prev, isDataReady: r })), []);
-  
-  const runTrialMatch = useCallback(async () => {
-    const squad = (['carry', 'mid', 'offlane', 'support', 'full_support'] as LineupSlot[]).map(s => state.ownedPlayers.find(pl => pl.id === state.lineup[s])).filter(Boolean) as Player[];
-    if (squad.length < 5) return null; const cName = state.clubName || "My Club"; const oName = "Training Bot"; const mId = `trial_${Date.now()}`;
-    const sim = { winner: cName, seriesScore: "1-0", games: [{ scoreA: 1, scoreB: 0, duration: "32:00", mvp: squad[0].name, matchSummary: "Solid local trial victory.", towersA: 11, towersB: 3, objectivesA: 4, objectivesB: 1, teamAOvr: Math.round(squad.reduce((a, p) => a + p.overallRating, 0) / 5), teamBOvr: 25, timeline: [{ time: "05:00", type: "kill", event: `${squad[0].name} gets first blood!`, score: "1:0" }], scoreboard: [...squad.map(p => ({ name: p.name, team: cName, role: p.role, kills: 2, deaths: 0, assists: 5, cs: 150, matchRating: 8.5, image: p.image }))], teamComparison: { farm: [70, 30], tactics: [60, 40], teamwork: [80, 20], reflexes: [75, 25] } }] };
-    recordMatch(cName, sim, 0, oName, 'trial', new Date().toISOString(), mId); return mId;
-  }, [state.clubName, state.lineup, state.ownedPlayers, recordMatch]);
+  const assignToRole = useCallback((role: LineupSlot, pId: string | null) => {
+    updateLineup({ [role]: pId });
+  }, [updateLineup]);
 
   const value = useMemo(() => ({
     ...state, 
-    addCrystals, addCredits, updatePlayer, removePlayer, assignToRole, 
-    updateLineup, updateTactics, claimReward, purchaseLicense, purchasePremium, 
-    setLanguage, setTrainingFocus, startDailyPlayerTraining, claimDailyPlayerTraining, 
-    recoverAllFatigue, hireStaffMember, trainStaffSkill, trainHeroSkill, 
-    addPlayerDirectly, addYouthPlayerDirectly, promoteYouthPlayer, 
-    updateProfileName, updateProfileCountry, healPlayer, launchFanCampaign, 
-    scoutCandidates, recruitCandidate, clearScoutingReport, upgradeManagerSkill, 
-    startArenaConstruction, startHQConstruction, startBootcampConstruction, 
-    startAcademyConstruction, startMedicalConstruction, startCapacityExpansion, 
-    accelerateConstruction, checkConstructions, payStaffSalaries, addTrophy, 
-    resetProfile, setWorldReady, markMatchIdAsSeen, deleteMatchHistoryEntry, 
-    clearMatchHistory, 
-    generateDailyGifts: (g: Gift[]) => saveToLocal({ availableGiftsToSend: g, lastGiftGenDate: getMoscowDateString() }), 
-    sendGift: async () => true, claimGift: async () => true, runTrialMatch, saveToLocal
-  }), [
-    state, addCrystals, addCredits, updatePlayer, removePlayer, assignToRole, 
-    updateLineup, updateTactics, claimReward, purchaseLicense, purchasePremium, 
-    setLanguage, setTrainingFocus, startDailyPlayerTraining, claimDailyPlayerTraining, 
-    recoverAllFatigue, hireStaffMember, trainStaffSkill, trainHeroSkill, 
-    addPlayerDirectly, addYouthPlayerDirectly, promoteYouthPlayer, 
-    updateProfileName, updateProfileCountry, healPlayer, launchFanCampaign, 
-    scoutCandidates, recruitCandidate, clearScoutingReport, upgradeManagerSkill, 
-    startArenaConstruction, startHQConstruction, startBootcampConstruction, 
-    startAcademyConstruction, startMedicalConstruction, startCapacityExpansion, 
-    accelerateConstruction, checkConstructions, payStaffSalaries, addTrophy, 
-    resetProfile, setWorldReady, markMatchIdAsSeen, deleteMatchHistoryEntry, 
-    clearMatchHistory, runTrialMatch, saveToLocal
-  ]);
+    claimReward, purchasePremium, updateLineup, startDailyPlayerTraining, assignToRole,
+    addCrystals: () => console.warn("Client-side state write blocked by security policy."),
+    addCredits: () => console.warn("Client-side state write blocked by security policy."),
+    updatePlayer: () => console.warn("Client-side state write blocked by security policy."),
+    setLanguage: (lang: string) => saveToLocal({ language: lang }),
+    saveToLocal,
+    resetProfile: async () => { if (typeof window !== 'undefined') localStorage.removeItem(STORAGE_KEY); window.location.reload(); }
+  }), [state, claimReward, purchasePremium, updateLineup, startDailyPlayerTraining, assignToRole, saveToLocal]);
 
   return <GameStateContext.Provider value={value}>{children}</GameStateContext.Provider>;
 }

@@ -1,9 +1,10 @@
-import { initializeApp, getApps, cert, getApp } from 'firebase-admin/app';
+
+import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore, Firestore } from 'firebase-admin/firestore';
 
 /**
- * @fileOverview Инициализация Firebase Admin SDK v1.7.
- * Использует функцию-геттер для предотвращения ошибок при импорте в разных средах.
+ * @fileOverview Инициализация Firebase Admin SDK v1.8.
+ * Единая точка доступа для всех Server Actions.
  */
 
 let db: Firestore | null = null;
@@ -20,7 +21,7 @@ export function getAdminDb(): Firestore {
           credential: cert(JSON.parse(serviceAccountJson)),
         });
       } else {
-        // Пытаемся инициализироваться без ключа (работает в GCP/Firebase Hosting)
+        // Режим для Firebase App Hosting / Cloud Functions
         initializeApp();
       }
     }
@@ -28,10 +29,9 @@ export function getAdminDb(): Firestore {
     return db;
   } catch (error: any) {
     console.error("[FIREBASE ADMIN] Critical Initialization Failure:", error.message);
-    // Возвращаем пустой объект, который выбросит ошибку только при использовании
-    return {} as Firestore;
+    throw new Error("SERVER_DATABASE_UNAVAILABLE");
   }
 }
 
-// Экспортируем для обратной совместимости, но рекомендуем использовать getAdminDb()
-export const adminDb = {} as Firestore;
+// Константа для быстрого доступа в серверных модулях
+export const adminDb = {} as Firestore; // Используйте getAdminDb() вместо этого

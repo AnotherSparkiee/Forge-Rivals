@@ -1,22 +1,19 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Хелпер для проверки системного доступа (Custom Claim admin)
+    // Хелпер для проверки системного доступа (только для ручных правок в консоли)
     function isSystem() {
       return request.auth != null && request.auth.token.admin == true;
     }
 
-    // 0. ПУБЛИЧНЫЕ КОДЫ ВЕРИФИКАЦИИ
-    match /verification_codes/{email} {
-      allow read, write: if false; // Только Admin SDK
-    }
-
     // 1. ПРОФИЛИ ИГРОКОВ (v14)
+    // КЛИЕНТ МОЖЕТ ТОЛЬКО ЧИТАТЬ СВОЙ ПРОФИЛЬ.
+    // ВСЕ ЗАПИСИ ИДУТ ЧЕРЕЗ SERVER ACTIONS (ADMIN SDK).
     match /players_v14/{userId} {
-      allow read: if true;
-      allow write: if (request.auth != null && request.auth.uid == userId) || isSystem();
-      allow delete: if (request.auth != null && request.auth.uid == userId) || isSystem();
+      allow read: if request.auth != null && (request.auth.uid == userId || isSystem());
+      allow write: if isSystem(); // Полный запрет прямой записи для клиента
     }
 
     // 2. СИСТЕМНЫЕ ДАННЫЕ (Лига и Матчи)
@@ -30,48 +27,48 @@ service cloud.firestore {
       allow write: if isSystem();
     }
 
+    // 3. РЫНОК (Market)
+    // Клиент не может создавать лоты или менять цены напрямую.
     match /market_v7/{agentId} {
       allow read: if true;
-      allow create: if request.auth != null && request.resource.data.sellerId == request.auth.uid;
-      allow update, delete: if (request.auth != null && resource.data.sellerId == request.auth.uid) || isSystem(); 
+      allow write: if isSystem();
     }
     
-    // 3. СОЦИАЛЬНЫЕ ФУНКЦИИ
+    // 4. СОЦИАЛЬНЫЕ ФУНКЦИИ (Частично разрешены записи)
     match /global_chat_v2/{msgId} {
       allow read: if true;
       allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isSystem();
     }
     
     match /friend_requests_v4/{reqId} {
       allow read: if request.auth != null && (resource.data.fromId == request.auth.uid || resource.data.toId == request.auth.uid);
       allow create: if request.auth != null && request.resource.data.fromId == request.auth.uid;
-      allow update, delete: if (request.auth != null && (resource.data.fromId == request.auth.uid || resource.data.toId == request.auth.uid)) || isSystem();
+      allow update: if request.auth != null && (resource.data.toId == request.auth.uid || isSystem());
+      allow delete: if request.auth != null && (resource.data.fromId == request.auth.uid || resource.data.toId == request.auth.uid || isSystem());
     }
     
     match /private_messages_v3/{msgId} {
       allow read: if request.auth != null && (request.auth.uid in resource.data.participants);
       allow create: if request.auth != null && request.resource.data.senderId == request.auth.uid;
+      allow update: if request.auth != null && request.auth.uid == resource.data.receiverId;
+      allow delete: if isSystem();
     }
 
-    // 4. ТЕХНИЧЕСКИЕ КОЛЛЕКЦИИ
+    // 5. ТЕХНИЧЕСКИЕ КОЛЛЕКЦИИ
     match /system_v1/{docId} {
       allow read: if request.auth != null;
       allow write: if isSystem();
     }
-    
-    match /cw_basket_v2/{userId} {
-      allow read: if true;
-      allow write: if request.auth != null && (request.auth.uid == userId || isSystem());
-    }
 
-    match /associations_v4/{assocId} {
-      allow read: if true;
-      allow write: if request.auth != null || isSystem();
+    match /notifications_v7/{notifId} {
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow write: if isSystem();
     }
 
     // БЕЗОПАСНЫЙ CATCH-ALL
     match /{allPaths=**} {
-      allow read, write: if false;
+      allow read, write: if isSystem();
     }
   }
 }
