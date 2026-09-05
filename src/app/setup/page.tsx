@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Loader2, ArrowRight, Rocket, ShieldAlert } from 'lucide-react';
+import { Loader2, Rocket, ShieldAlert } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useGameState } from '@/app/lib/store';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
@@ -13,8 +13,8 @@ import { useUser, useFirebase } from '@/firebase';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 
 /**
- * СТРАНИЦА ИНИЦИАЛИЗАЦИИ v140.
- * Использует единственную Cloud Function для создания клуба.
+ * СТРАНИЦА ИНИЦИАЛИЗАЦИИ v141.
+ * Вызывает Cloud Function для атомарного создания клуба.
  */
 export default function SetupPage() {
   const router = useRouter();
@@ -50,19 +50,14 @@ export default function SetupPage() {
 
       toast({ title: language === 'ru' ? "Клуб развернут!" : "Club Deployed!" });
       
-      // Даем время на синхронизацию snapshot
+      // Даем время на синхронизацию snapshot профиля
       setTimeout(() => {
         router.replace('/');
-      }, 1000);
+      }, 1500);
 
     } catch (e: any) {
       console.error("[SETUP ERROR]:", e);
-      const msg = e.message === 'NO_FREE_SLOTS' 
-        ? (language === 'ru' ? "Нет свободных мест в лиге" : "League is full")
-        : (language === 'ru' ? "Ошибка связи с центром" : "HQ Connection Error");
-      
-      setError(msg);
-      toast({ variant: "destructive", title: "Deployment Failed", description: msg });
+      setError(e.message || "INITIALIZATION_FAILED");
       setIsUpdating(false);
     }
   };
@@ -74,13 +69,13 @@ export default function SetupPage() {
       title: 'РАЗВЕРТЫВАНИЕ БАЗЫ',
       subtitle: 'Система подготавливает ваш штаб и ростер',
       finalize: 'ПОЛУЧИТЬ ДОПУСК',
-      desc: 'Ваш профиль будет создан на сервере. Вы получите стартовый состав из 10 героев и место в 4-м дивизионе.'
+      desc: 'Ваш профиль создается на сервере. Вы получите стартовый состав и место в лиге.'
     },
     en: {
       title: 'BASE DEPLOYMENT',
       subtitle: 'System is provisioning your HQ and roster',
       finalize: 'AUTHORIZE ACCESS',
-      desc: 'Your profile will be created on the server. You will receive a starting squad of 10 heroes and a slot in Division 4.'
+      desc: 'Your profile is being created on the server. You will receive a starting squad and a league slot.'
     }
   }[language === 'ru' ? 'ru' : 'en'];
 

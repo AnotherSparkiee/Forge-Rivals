@@ -3,8 +3,8 @@ import { initializeApp, getApps, cert, type App } from 'firebase-admin/app';
 import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 
 /**
- * @fileOverview Инициализация Firebase Admin SDK v2.0.
- * Гарантирует единственный инстанс и безопасный доступ к БД на сервере.
+ * @fileOverview Инициализация Firebase Admin SDK v2.1.
+ * Единственный источник истины для серверного доступа.
  */
 
 let adminApp: App | null = null;
@@ -32,9 +32,7 @@ export function getAdminDb(): Firestore {
     db = getFirestore(adminApp!);
     return db;
   } catch (error: any) {
-    console.error("[FIREBASE ADMIN] Critical Initialization Failure:", error.message);
+    console.error("[FIREBASE ADMIN] Initialization Failure:", error.message);
     throw new Error("SERVER_DATABASE_UNAVAILABLE");
   }
 }
-
-// Удаляем пустой экспорт adminDb для предотвращения ошибок импорта

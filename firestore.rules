@@ -3,20 +3,16 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Хелпер для проверки системного доступа (только для ручных правок в консоли)
     function isSystem() {
       return request.auth != null && request.auth.token.admin == true;
     }
 
-    // 1. ПРОФИЛИ ИГРОКОВ (v14)
-    // КЛИЕНТ МОЖЕТ ТОЛЬКО ЧИТАТЬ СВОЙ ПРОФИЛЬ.
-    // ВСЕ ЗАПИСИ ИДУТ ЧЕРЕЗ SERVER ACTIONS (ADMIN SDK).
+    // БЛОКИРОВКА ПРЯМОЙ ЗАПИСИ ДЛЯ КЛИЕНТОВ (Server-Authoritative Only)
     match /players_v14/{userId} {
       allow read: if request.auth != null && (request.auth.uid == userId || isSystem());
-      allow write: if isSystem(); // Полный запрет прямой записи для клиента
+      allow write: if isSystem(); 
     }
 
-    // 2. СИСТЕМНЫЕ ДАННЫЕ (Лига и Матчи)
     match /matches_v2/{matchId} {
       allow read: if request.auth != null;
       allow write: if isSystem();
@@ -27,42 +23,18 @@ service cloud.firestore {
       allow write: if isSystem();
     }
 
-    // 3. РЫНОК (Market)
-    // Клиент не может создавать лоты или менять цены напрямую.
+    match /league_slots_v1/{slotId} {
+      allow read: if isSystem();
+      allow write: if isSystem();
+    }
+
     match /market_v7/{agentId} {
       allow read: if true;
       allow write: if isSystem();
     }
     
-    // 4. СОЦИАЛЬНЫЕ ФУНКЦИИ (Частично разрешены записи)
-    match /global_chat_v2/{msgId} {
-      allow read: if true;
-      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
-      allow update, delete: if isSystem();
-    }
-    
-    match /friend_requests_v4/{reqId} {
-      allow read: if request.auth != null && (resource.data.fromId == request.auth.uid || resource.data.toId == request.auth.uid);
-      allow create: if request.auth != null && request.resource.data.fromId == request.auth.uid;
-      allow update: if request.auth != null && (resource.data.toId == request.auth.uid || isSystem());
-      allow delete: if request.auth != null && (resource.data.fromId == request.auth.uid || resource.data.toId == request.auth.uid || isSystem());
-    }
-    
-    match /private_messages_v3/{msgId} {
-      allow read: if request.auth != null && (request.auth.uid in resource.data.participants);
-      allow create: if request.auth != null && request.resource.data.senderId == request.auth.uid;
-      allow update: if request.auth != null && request.auth.uid == resource.data.receiverId;
-      allow delete: if isSystem();
-    }
-
-    // 5. ТЕХНИЧЕСКИЕ КОЛЛЕКЦИИ
     match /system_v1/{docId} {
       allow read: if request.auth != null;
-      allow write: if isSystem();
-    }
-
-    match /notifications_v7/{notifId} {
-      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
       allow write: if isSystem();
     }
 
