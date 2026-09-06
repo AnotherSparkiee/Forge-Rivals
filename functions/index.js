@@ -2,15 +2,15 @@ const functions = require('firebase-functions');
 const admin = require('firebase-admin');
 
 /**
- * @fileOverview Единое серверное ядро регистрации v164.
- * Реализует атомарную регистрацию, серверную генерацию состава и диагностику.
+ * @fileOverview Единое серверное ядро регистрации v165.
+ * Реализует атомарную регистрацию, серверную генерацию состава и глубокую диагностику.
  */
 
 admin.initializeApp();
 const db = admin.firestore();
 const FieldValue = admin.firestore.FieldValue;
 
-const REGISTRATION_VERSION = 'v164';
+const REGISTRATION_VERSION = '165';
 
 // ============ ГЕНЕРАЦИЯ СОСТАВА (SERVER-SIDE) ============
 
@@ -58,21 +58,22 @@ function generateStartingSquad() {
   });
 }
 
-// ============ РЕГИСТРАЦИЯ (CALLABLE v164) ============
+// ============ РЕГИСТРАЦИЯ (CALLABLE v165) ============
 
 exports.initializeClub = functions.region('us-central1').https.onCall(async (data, context) => {
-  console.log(`[INIT] Start v${REGISTRATION_VERSION}. Auth UID:`, context?.auth?.uid);
+  console.log('[INIT] Start v' + REGISTRATION_VERSION);
   
   if (!context.auth) {
-    console.error('[INIT] Unauthenticated request');
+    console.error('[INIT] AUTH FAILED: No context');
     throw new functions.https.HttpsError('unauthenticated', 'AUTHENTICATION_REQUIRED');
   }
 
   const userId = context.auth.uid;
   const email = context.auth.token.email;
+  console.log('[INIT] AUTH OK. UID:', userId);
   
   if (!email) {
-    console.error('[INIT] Email missing in token');
+    console.error('[INIT] EMAIL FAILED: Missing in token');
     throw new functions.https.HttpsError('failed-precondition', 'EMAIL_REQUIRED');
   }
 
@@ -93,10 +94,10 @@ exports.initializeClub = functions.region('us-central1').https.onCall(async (dat
       const pSnap = await t.get(playerRef);
       if (pSnap.exists) {
         const d = pSnap.data();
-        console.log('[INIT] Player already exists, returning existing data');
+        console.log('[INIT] SUCCESS: Player already exists');
         return { 
           success: true, 
-          version: REGISTRATION_VERSION,
+          version: 'v' + REGISTRATION_VERSION,
           clubName: d.clubName, 
           tier: d.leagueLevel, 
           group: d.groupId, 
@@ -107,19 +108,23 @@ exports.initializeClub = functions.region('us-central1').https.onCall(async (dat
 
       const configSnap = await t.get(configRef);
       if (!configSnap.exists) {
-        console.error('[INIT] season_config missing');
+        console.error('[INIT] CONFIG READ FAILED: season_config missing');
         throw new functions.https.HttpsError('failed-precondition', 'SEASON_CONFIG_MISSING');
       }
       const config = configSnap.data();
+      const seasonNum = Number(config.activeSeasonNumber || 1);
+      const phase = config.phase || 'UNKNOWN';
+      console.log('[INIT] CONFIG READ OK. Season:', seasonNum, 'Phase:', phase);
 
-      if (config.phase !== 'REGULAR_SEASON' && config.phase !== 'ACTIVE') {
-        console.warn('[INIT] Season phase restricted:', config.phase);
+      if (phase !== 'REGULAR_SEASON' && phase !== 'ACTIVE') {
+        console.warn('[INIT] PHASE RESTRICTED:', phase);
         throw new functions.https.HttpsError('failed-precondition', 'SEASON_TRANSITION_IN_PROGRESS');
       }
-      const seasonNum = config.activeSeasonNumber || 1;
 
+      console.log('[INIT] GLOBAL STATS READ...');
       const globalStatsSnap = await t.get(statsRef);
 
+      console.log('[INIT] SLOT QUERY...');
       const slotsQuery = db.collection('league_slots_v1')
         .where('season', '==', seasonNum)
         .where('division', '==', 4)
@@ -128,28 +133,35 @@ exports.initializeClub = functions.region('us-central1').https.onCall(async (dat
       
       const slotsSnap = await t.get(slotsQuery);
       if (slotsSnap.empty) {
-        console.error('[INIT] No free slots in division 4');
+        console.error('[INIT] SLOT FAILED: No free slots in D4');
         throw new functions.https.HttpsError('resource-exhausted', 'NO_FREE_SLOTS_IN_STARTING_DIVISION');
       }
 
       const slotDoc = slotsSnap.docs[0];
       const slot = slotDoc.data();
-      console.log('[INIT] Found slot:', slotDoc.id, 'Group:', slot.group, 'Rank:', slot.rank);
+      console.log('[INIT] SLOT FOUND:', slotDoc.id, 'Group:', slot.group, 'Rank:', slot.rank);
+
+      // Валидация слота
+      if (slot.status !== 'FREE' || slot.occupantId || Number(slot.season) !== seasonNum) {
+         console.error('[INIT] SLOT INVALID:', slot);
+         throw new functions.https.HttpsError('failed-precondition', 'INVALID_LEAGUE_SLOT');
+      }
 
       const tableId = `table_v140_S${seasonNum}_L${leagueId}_V${slot.division}_G${slot.group}`;
+      console.log('[INIT] TABLE READ:', tableId);
       const tableRef = db.collection('league_tables_v2').doc(tableId);
       const tableSnap = await t.get(tableRef);
 
       if (!tableSnap.exists) {
-        console.error('[INIT] League table missing:', tableId);
+        console.error('[INIT] TABLE FAILED: Table missing', tableId);
         throw new functions.https.HttpsError('failed-precondition', 'LEAGUE_TABLE_MISSING');
       }
 
       const tableData = tableSnap.data();
       
       // Проверка консистентности таблицы
-      if (tableData.level !== slot.division || tableData.group !== slot.group || tableData.season !== seasonNum) {
-        console.error('[INIT] Table metadata mismatch');
+      if (Number(tableData.level) !== Number(slot.division) || Number(tableData.group) !== Number(slot.group) || Number(tableData.season) !== seasonNum) {
+        console.error('[INIT] TABLE MISMATCH:', { table: tableData, slot: slot });
         throw new functions.https.HttpsError('failed-precondition', 'LEAGUE_TABLE_MISMATCH');
       }
 
@@ -160,9 +172,10 @@ exports.initializeClub = functions.region('us-central1').https.onCall(async (dat
       });
 
       if (!botId) {
-        console.error('[INIT] Bot not found at rank:', slot.rank);
+        console.error('[INIT] BOT FAILED: No bot at rank', slot.rank);
         throw new functions.https.HttpsError('failed-precondition', 'BOT_NOT_FOUND_IN_SLOT');
       }
+      console.log('[INIT] BOT FOUND:', botId);
 
       // --- 2. ВСЕ ЗАПИСИ (WRITES) ---
       console.log('[INIT] Transaction: Proceeding to WRITES');
@@ -210,11 +223,11 @@ exports.initializeClub = functions.region('us-central1').https.onCall(async (dat
       
       t.set(playerRef, initialState);
 
-      console.log('[INIT] Transaction SUCCESS for UID:', userId);
+      console.log('[INIT] SUCCESS for UID:', userId);
 
       return { 
         success: true, 
-        version: REGISTRATION_VERSION,
+        version: 'v' + REGISTRATION_VERSION,
         clubName, 
         tier: slot.division, 
         group: slot.group, 
@@ -228,14 +241,16 @@ exports.initializeClub = functions.region('us-central1').https.onCall(async (dat
       name: e.name,
       message: e.message,
       code: e.code,
+      details: e.details,
       stack: e.stack,
-      userId
+      userId,
+      version: REGISTRATION_VERSION
     });
 
     if (e instanceof functions.https.HttpsError) {
       throw e;
     }
 
-    throw new functions.https.HttpsError('internal', 'CLUB_INITIALIZATION_FAILED');
+    throw new functions.https.HttpsError('internal', 'CLUB_INITIALIZATION_FAILED', e.message);
   }
 });

@@ -13,8 +13,9 @@ import { useUser, useFirebase } from '@/firebase';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 
 /**
- * СТРАНИЦА ИНИЦИАЛИЗАЦИИ v164.
+ * СТРАНИЦА ИНИЦИАЛИЗАЦИИ v165.
  * Вызывает Cloud Function initializeClub в регионе us-central1.
+ * Осуществляет строгую проверку версии и детальную диагностику ошибок.
  */
 export default function SetupPage() {
   const router = useRouter();
@@ -50,8 +51,11 @@ export default function SetupPage() {
       const response = await initializeClubFn({ clubName });
       const result = response.data as any;
 
+      console.log("[SETUP] Server response:", result);
+
       // Проверка версии функции
-      if (result.version !== 'v164') {
+      if (result.version !== 'v165') {
+        console.error("[SETUP] Outdated function version detected:", result.version);
         throw new Error("REGISTRATION_FUNCTION_OUTDATED");
       }
 
@@ -71,22 +75,24 @@ export default function SetupPage() {
         code: e.code,
         message: e.message,
         details: e.details,
-        name: e.name
+        name: e.name,
+        stack: e.stack
       });
       
       let errorMsg = "CLUB_INITIALIZATION_FAILED";
-      
-      // Анализ кода ошибки или сообщения
       const msg = e.message || "";
       
+      // Анализ диагностических сообщений от HttpsError
       if (msg.includes('SEASON_CONFIG_MISSING')) errorMsg = "SEASON_CONFIG_MISSING";
       else if (msg.includes('SEASON_TRANSITION_IN_PROGRESS')) errorMsg = "SEASON_TRANSITION_IN_PROGRESS";
       else if (msg.includes('LEAGUE_TABLE_MISSING')) errorMsg = "LEAGUE_TABLE_MISSING";
       else if (msg.includes('LEAGUE_TABLE_MISMATCH')) errorMsg = "LEAGUE_TABLE_MISMATCH";
       else if (msg.includes('BOT_NOT_FOUND_IN_SLOT')) errorMsg = "BOT_NOT_FOUND_IN_SLOT";
+      else if (msg.includes('INVALID_LEAGUE_SLOT')) errorMsg = "INVALID_LEAGUE_SLOT";
       else if (msg.includes('NO_FREE_SLOTS_IN_STARTING_DIVISION')) errorMsg = "NO_FREE_SLOTS_IN_STARTING_DIVISION";
       else if (msg.includes('REGISTRATION_FUNCTION_OUTDATED')) errorMsg = "REGISTRATION_FUNCTION_OUTDATED";
-      else if (e.code === 'functions/unauthenticated') errorMsg = "AUTHENTICATION_REQUIRED";
+      else if (msg.includes('AUTHENTICATION_REQUIRED') || e.code === 'functions/unauthenticated') errorMsg = "AUTHENTICATION_REQUIRED";
+      else if (msg.includes('EMAIL_REQUIRED')) errorMsg = "EMAIL_REQUIRED";
       
       setError(errorMsg);
       setIsUpdating(false);
@@ -94,7 +100,7 @@ export default function SetupPage() {
       
       toast({ 
         variant: "destructive", 
-        title: language === 'ru' ? "Ошибка регистрации" : "Registration Error",
+        title: language === 'ru' ? "Ошибка инициализации" : "Initialization Error",
         description: errorMsg
       });
     }
