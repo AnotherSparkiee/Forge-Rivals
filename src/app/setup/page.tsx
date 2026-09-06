@@ -14,7 +14,7 @@ import { getFunctions, httpsCallable } from 'firebase/functions';
 
 /**
  * СТРАНИЦА ИНИЦИАЛИЗАЦИИ v164.
- * Вызывает Cloud Function для создания клуба с расширенной диагностикой.
+ * Вызывает Cloud Function initializeClub в регионе us-central1.
  */
 export default function SetupPage() {
   const router = useRouter();
@@ -41,13 +41,19 @@ export default function SetupPage() {
     setError(null);
     
     try {
-      const functions = getFunctions(firebaseApp);
+      // Явно указываем регион us-central1
+      const functions = getFunctions(firebaseApp, 'us-central1');
       const initializeClubFn = httpsCallable(functions, 'initializeClub');
       
       const clubName = localStorage.getItem('pending_club_name') || "";
       
       const response = await initializeClubFn({ clubName });
       const result = response.data as any;
+
+      // Проверка версии функции
+      if (result.version !== 'v164') {
+        throw new Error("REGISTRATION_FUNCTION_OUTDATED");
+      }
 
       if (!result.success) {
         throw new Error(result.error || "REGISTRATION_FAILED");
@@ -65,24 +71,23 @@ export default function SetupPage() {
         code: e.code,
         message: e.message,
         details: e.details,
-        name: e.name,
-        stack: e.stack
+        name: e.name
       });
       
       let errorMsg = "CLUB_INITIALIZATION_FAILED";
       
-      if (e.code) {
-        const codeMap: Record<string, string> = {
-          'functions/failed-precondition': "SEASON_TRANSITION_IN_PROGRESS",
-          'functions/resource-exhausted': "NO_FREE_SLOTS_IN_STARTING_DIVISION",
-          'functions/unauthenticated': "AUTHENTICATION_REQUIRED",
-          'functions/already-exists': "PLAYER_ALREADY_EXISTS"
-        };
-        errorMsg = codeMap[e.code] || e.message || errorMsg;
-      } else {
-        errorMsg = e.message || errorMsg;
-      }
-
+      // Анализ кода ошибки или сообщения
+      const msg = e.message || "";
+      
+      if (msg.includes('SEASON_CONFIG_MISSING')) errorMsg = "SEASON_CONFIG_MISSING";
+      else if (msg.includes('SEASON_TRANSITION_IN_PROGRESS')) errorMsg = "SEASON_TRANSITION_IN_PROGRESS";
+      else if (msg.includes('LEAGUE_TABLE_MISSING')) errorMsg = "LEAGUE_TABLE_MISSING";
+      else if (msg.includes('LEAGUE_TABLE_MISMATCH')) errorMsg = "LEAGUE_TABLE_MISMATCH";
+      else if (msg.includes('BOT_NOT_FOUND_IN_SLOT')) errorMsg = "BOT_NOT_FOUND_IN_SLOT";
+      else if (msg.includes('NO_FREE_SLOTS_IN_STARTING_DIVISION')) errorMsg = "NO_FREE_SLOTS_IN_STARTING_DIVISION";
+      else if (msg.includes('REGISTRATION_FUNCTION_OUTDATED')) errorMsg = "REGISTRATION_FUNCTION_OUTDATED";
+      else if (e.code === 'functions/unauthenticated') errorMsg = "AUTHENTICATION_REQUIRED";
+      
       setError(errorMsg);
       setIsUpdating(false);
       setStep('IDLE');

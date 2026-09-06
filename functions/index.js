@@ -58,9 +58,9 @@ function generateStartingSquad() {
   });
 }
 
-// ============ РЕГИСТРАЦИЯ (CALLABLE) ============
+// ============ РЕГИСТРАЦИЯ (CALLABLE v164) ============
 
-exports.initializeClub = functions.https.onCall(async (data, context) => {
+exports.initializeClub = functions.region('us-central1').https.onCall(async (data, context) => {
   console.log(`[INIT] Start v${REGISTRATION_VERSION}. Auth UID:`, context?.auth?.uid);
   
   if (!context.auth) {
@@ -107,11 +107,13 @@ exports.initializeClub = functions.https.onCall(async (data, context) => {
 
       const configSnap = await t.get(configRef);
       if (!configSnap.exists) {
+        console.error('[INIT] season_config missing');
         throw new functions.https.HttpsError('failed-precondition', 'SEASON_CONFIG_MISSING');
       }
       const config = configSnap.data();
 
       if (config.phase !== 'REGULAR_SEASON' && config.phase !== 'ACTIVE') {
+        console.warn('[INIT] Season phase restricted:', config.phase);
         throw new functions.https.HttpsError('failed-precondition', 'SEASON_TRANSITION_IN_PROGRESS');
       }
       const seasonNum = config.activeSeasonNumber || 1;
@@ -126,25 +128,31 @@ exports.initializeClub = functions.https.onCall(async (data, context) => {
       
       const slotsSnap = await t.get(slotsQuery);
       if (slotsSnap.empty) {
+        console.error('[INIT] No free slots in division 4');
         throw new functions.https.HttpsError('resource-exhausted', 'NO_FREE_SLOTS_IN_STARTING_DIVISION');
       }
 
       const slotDoc = slotsSnap.docs[0];
       const slot = slotDoc.data();
-      
-      if (!slot || slot.status !== 'FREE' || slot.occupantId) {
-        throw new functions.https.HttpsError('failed-precondition', 'INVALID_LEAGUE_SLOT');
-      }
+      console.log('[INIT] Found slot:', slotDoc.id, 'Group:', slot.group, 'Rank:', slot.rank);
 
       const tableId = `table_v140_S${seasonNum}_L${leagueId}_V${slot.division}_G${slot.group}`;
       const tableRef = db.collection('league_tables_v2').doc(tableId);
       const tableSnap = await t.get(tableRef);
 
       if (!tableSnap.exists) {
+        console.error('[INIT] League table missing:', tableId);
         throw new functions.https.HttpsError('failed-precondition', 'LEAGUE_TABLE_MISSING');
       }
 
       const tableData = tableSnap.data();
+      
+      // Проверка консистентности таблицы
+      if (tableData.level !== slot.division || tableData.group !== slot.group || tableData.season !== seasonNum) {
+        console.error('[INIT] Table metadata mismatch');
+        throw new functions.https.HttpsError('failed-precondition', 'LEAGUE_TABLE_MISMATCH');
+      }
+
       const stats = tableData.stats || {};
       const botId = Object.keys(stats).find(id => {
         const team = stats[id];
@@ -152,6 +160,7 @@ exports.initializeClub = functions.https.onCall(async (data, context) => {
       });
 
       if (!botId) {
+        console.error('[INIT] Bot not found at rank:', slot.rank);
         throw new functions.https.HttpsError('failed-precondition', 'BOT_NOT_FOUND_IN_SLOT');
       }
 
