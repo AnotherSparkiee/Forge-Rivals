@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -8,11 +8,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, UserPlus, Mail, ShieldCheck, ArrowRight, ChevronLeft, Shield, KeyRound, Info } from 'lucide-react';
+import { Loader2, ArrowRight, Shield, KeyRound, Mail } from 'lucide-react';
 import { useGameState } from '@/app/lib/store';
 import { useAuth, initiateEmailSignUp } from '@/firebase';
 import { LoadingScreen } from '@/components/game/LoadingScreen';
-import { cn } from '@/lib/utils';
 
 export default function RegisterPage() {
   const [email, setEmail] = useState('');
@@ -64,14 +63,6 @@ export default function RegisterPage() {
       toast({ variant: "destructive", title: t.errorShort });
       return;
     }
-    if (!email.includes('@')) {
-      toast({ variant: "destructive", title: t.errorEmail });
-      return;
-    }
-    if (password.length < 6) {
-      toast({ variant: "destructive", title: t.errorPass });
-      return;
-    }
 
     setIsProcessing(true);
     try {
@@ -82,10 +73,20 @@ export default function RegisterPage() {
       router.push('/setup');
     } catch (error: any) {
       setIsProcessing(false);
+      let errorMsg = error.message;
+      
+      if (error.code === 'auth/email-already-in-use') {
+        errorMsg = language === 'ru' ? "Этот Email уже используется" : "Email already in use";
+      } else if (error.code === 'auth/weak-password') {
+        errorMsg = language === 'ru' ? "Пароль слишком простой" : "Password too weak";
+      } else if (error.code === 'auth/invalid-email') {
+        errorMsg = language === 'ru' ? "Некорректный Email" : "Invalid email";
+      }
+
       toast({ 
         variant: "destructive", 
         title: "Registration Failed", 
-        description: error.message
+        description: errorMsg
       });
     }
   };

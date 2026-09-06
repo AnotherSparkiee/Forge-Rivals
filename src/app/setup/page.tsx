@@ -13,7 +13,7 @@ import { useUser, useFirebase } from '@/firebase';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 
 /**
- * СТРАНИЦА ИНИЦИАЛИЗАЦИИ v163.
+ * СТРАНИЦА ИНИЦИАЛИЗАЦИИ v164.
  * Вызывает Cloud Function для создания клуба с расширенной диагностикой.
  */
 export default function SetupPage() {
@@ -61,33 +61,26 @@ export default function SetupPage() {
       }, 1500);
 
     } catch (e: any) {
-      console.error("[SETUP ERROR DETAILS]:", {
-        code: e?.code,
-        message: e?.message,
-        details: e?.details,
-        name: e?.name,
-        stack: e?.stack
+      console.error("[SETUP ERROR DETAILS]", {
+        code: e.code,
+        message: e.message,
+        details: e.details,
+        name: e.name,
+        stack: e.stack
       });
       
       let errorMsg = "CLUB_INITIALIZATION_FAILED";
       
-      if (e?.code) {
-        if (e.code === 'functions/failed-precondition') {
-          if (e.message?.includes('SEASON_CONFIG_MISSING')) errorMsg = "SEASON_CONFIG_MISSING";
-          else if (e.message?.includes('SEASON_TRANSITION_IN_PROGRESS')) errorMsg = "SEASON_TRANSITION_IN_PROGRESS";
-          else if (e.message?.includes('LEAGUE_TABLE_MISSING')) errorMsg = "LEAGUE_TABLE_MISSING";
-          else if (e.message?.includes('LEAGUE_TABLE_MISMATCH')) errorMsg = "LEAGUE_TABLE_MISMATCH";
-          else if (e.message?.includes('BOT_NOT_FOUND_IN_SLOT')) errorMsg = "BOT_NOT_FOUND_IN_SLOT";
-          else if (e.message?.includes('INVALID_LEAGUE_SLOT')) errorMsg = "INVALID_LEAGUE_SLOT";
-        } else if (e.code === 'functions/resource-exhausted') {
-          errorMsg = "NO_FREE_SLOTS_IN_STARTING_DIVISION";
-        } else if (e.code === 'functions/unauthenticated') {
-          errorMsg = "AUTHENTICATION_REQUIRED";
-        } else {
-          errorMsg = e.message || errorMsg;
-        }
-      } else if (e instanceof Error) {
-        errorMsg = e.message;
+      if (e.code) {
+        const codeMap: Record<string, string> = {
+          'functions/failed-precondition': "SEASON_TRANSITION_IN_PROGRESS",
+          'functions/resource-exhausted': "NO_FREE_SLOTS_IN_STARTING_DIVISION",
+          'functions/unauthenticated': "AUTHENTICATION_REQUIRED",
+          'functions/already-exists': "PLAYER_ALREADY_EXISTS"
+        };
+        errorMsg = codeMap[e.code] || e.message || errorMsg;
+      } else {
+        errorMsg = e.message || errorMsg;
       }
 
       setError(errorMsg);
