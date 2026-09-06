@@ -13,8 +13,8 @@ import { useUser, useFirebase } from '@/firebase';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 
 /**
- * СТРАНИЦА ИНИЦИАЛИЗАЦИИ v160.
- * Использует защищенную Cloud Function для создания клуба.
+ * СТРАНИЦА ИНИЦИАЛИЗАЦИИ v161.
+ * Вызывает Cloud Function для создания клуба с расширенной обработкой ошибок.
  */
 export default function SetupPage() {
   const router = useRouter();
@@ -61,10 +61,34 @@ export default function SetupPage() {
       }, 1500);
 
     } catch (e: any) {
-      console.error("[SETUP ERROR]:", e);
-      setError(e.message || "INITIALIZATION_FAILED");
+      console.error("[SETUP ERROR]:", {
+        code: e.code,
+        message: e.message,
+        details: e.details
+      });
+
+      let errorMessage = "CLUB_INITIALIZATION_FAILED";
+
+      // Диагностика на основе кодов ошибок Firebase Functions
+      if (e.code === 'functions/failed-precondition') {
+        if (e.message.includes('SEASON_CONFIG_MISSING')) errorMessage = "SEASON_CONFIG_MISSING";
+        else if (e.message.includes('SEASON_TRANSITION_IN_PROGRESS')) errorMessage = "SEASON_TRANSITION_IN_PROGRESS";
+        else if (e.message.includes('LEAGUE_TABLE_MISSING')) errorMessage = "LEAGUE_TABLE_MISSING";
+      } else if (e.code === 'functions/resource-exhausted') {
+        errorMessage = "NO_FREE_SLOTS_IN_STARTING_DIVISION";
+      } else if (e.code === 'functions/unauthenticated') {
+        errorMessage = "AUTHENTICATION_REQUIRED";
+      }
+
+      setError(errorMessage);
       setIsUpdating(false);
       setStep('IDLE');
+      
+      toast({ 
+        variant: "destructive", 
+        title: language === 'ru' ? "Ошибка регистрации" : "Registration Error",
+        description: errorMessage
+      });
     }
   };
 
