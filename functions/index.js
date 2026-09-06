@@ -2,8 +2,8 @@ const functions = require('firebase-functions');
 const admin = require('firebase-admin');
 
 /**
- * @fileOverview Единое серверное ядро v161.
- * Реализует атомарную регистрацию и защиту данных через Admin SDK.
+ * @fileOverview Единое серверное ядро v162.
+ * Реализует атомарную регистрацию и расширенную диагностику.
  */
 
 admin.initializeApp();
@@ -13,7 +13,7 @@ const FieldValue = admin.firestore.FieldValue;
 // ============ РЕГИСТРАЦИЯ (CALLABLE) ============
 
 exports.initializeClub = functions.https.onCall(async (data, context) => {
-  console.log('[INIT] Start');
+  console.log('[INIT] Start. Auth UID:', context?.auth?.uid);
   
   // 1. Проверка аутентификации
   if (!context.auth) {
@@ -37,12 +37,13 @@ exports.initializeClub = functions.https.onCall(async (data, context) => {
 
     return await db.runTransaction(async (t) => {
       // --- ВСЕ ЧТЕНИЯ (READS) ---
+      console.log('[INIT] Transaction: Starting READS');
       
-      // Чтение 1: Проверка существующего игрока (Идемпотентность)
+      // Чтение 1: Идемпотентность
       const pSnap = await t.get(playerRef);
       if (pSnap.exists) {
         const d = pSnap.data();
-        console.log('[INIT] Player already exists, returning data');
+        console.log('[INIT] Player already exists, returning existing data');
         return { 
           success: true, 
           clubName: d.clubName, 
@@ -60,8 +61,10 @@ exports.initializeClub = functions.https.onCall(async (data, context) => {
         throw new functions.https.HttpsError('failed-precondition', 'SEASON_CONFIG_MISSING');
       }
       const config = configSnap.data();
+      console.log('[INIT] Season Info:', { season: config.activeSeasonNumber, phase: config.phase });
+
       if (config.phase !== 'REGULAR_SEASON' && config.phase !== 'ACTIVE') {
-        console.warn('[INIT] Season in transition phase:', config.phase);
+        console.warn('[INIT] Registration blocked by phase:', config.phase);
         throw new functions.https.HttpsError('failed-precondition', 'SEASON_TRANSITION_IN_PROGRESS');
       }
       const seasonNum = config.activeSeasonNumber || 1;
@@ -69,23 +72,28 @@ exports.initializeClub = functions.https.onCall(async (data, context) => {
       // Чтение 3: Глобальная статистика
       const globalStatsSnap = await t.get(statsRef);
 
-      // Чтение 4: Поиск свободного слота в Division 4
+      // Чтение 4: Поиск свободного слота
       const slotsQuery = db.collection('league_slots_v1')
         .where('season', '==', seasonNum)
         .where('division', '==', 4)
         .where('status', '==', 'FREE')
         .limit(1);
       
-      // В Admin SDK можно делать get(query) внутри транзакции
       const slotsSnap = await t.get(slotsQuery);
 
       if (slotsSnap.empty) {
-        console.error('[INIT] No free slots in division 4');
+        console.error('[INIT] No free slots in division 4. Season:', seasonNum);
         throw new functions.https.HttpsError('resource-exhausted', 'NO_FREE_SLOTS_IN_STARTING_DIVISION');
       }
 
       const slotDoc = slotsSnap.docs[0];
       const slot = slotDoc.data();
+      
+      // Валидация слота
+      if (!slot || slot.status !== 'FREE' || slot.occupantId) {
+        console.error('[INIT] Selected slot is invalid:', slotDoc.id, slot);
+        throw new functions.https.HttpsError('failed-precondition', 'INVALID_LEAGUE_SLOT');
+      }
 
       // Чтение 5: Турнирная таблица
       const tableId = `table_v140_S${seasonNum}_L${leagueId}_V${slot.division}_G${slot.group}`;
@@ -98,17 +106,26 @@ exports.initializeClub = functions.https.onCall(async (data, context) => {
       }
 
       const tableData = tableSnap.data();
+      
+      // Валидация таблицы
+      if (Number(tableData.season) !== Number(seasonNum) || Number(tableData.level) !== Number(slot.division) || Number(tableData.group) !== Number(slot.group)) {
+        console.error('[INIT] League table mismatch:', { tableId, tableData, slot });
+        throw new functions.https.HttpsError('failed-precondition', 'LEAGUE_TABLE_MISMATCH');
+      }
+
       const stats = tableData.stats || {};
-      const botId = Object.keys(stats).find(id => Number(stats[id].rank) === slot.rank && stats[id].isBot);
+      const botId = Object.keys(stats).find(id => {
+        const team = stats[id];
+        return Number(team.rank) === Number(slot.rank) && team.isBot === true;
+      });
 
       if (!botId) {
-        console.error('[INIT] Bot not found for rank:', slot.rank);
+        console.error('[INIT] Bot not found for rank:', slot.rank, 'in table:', tableId);
         throw new functions.https.HttpsError('failed-precondition', 'BOT_NOT_FOUND_IN_SLOT');
       }
 
       // --- ВСЕ ЗАПИСИ (WRITES) ---
-      
-      console.log('[INIT] Proceeding to writes');
+      console.log('[INIT] Transaction: Proceeding to WRITES');
 
       // 1. Обновляем слот
       t.update(slotDoc.ref, { 
@@ -134,7 +151,7 @@ exports.initializeClub = functions.https.onCall(async (data, context) => {
 
       // 3. Обновляем счетчик игроков
       const totalPlayers = (globalStatsSnap.exists ? (globalStatsSnap.data().totalPlayers || 1000) : 1000) + 1;
-      t.set(statsRef, { totalPlayers }, { merge: true });
+      t.set(statsRef, { totalPlayers, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
 
       // 4. Создаем профиль игрока
       const initialState = {
@@ -149,6 +166,8 @@ exports.initializeClub = functions.https.onCall(async (data, context) => {
       };
       t.set(playerRef, initialState);
 
+      console.log('[INIT] Transaction SUCCESS for UID:', userId);
+
       return { 
         success: true, 
         clubName, 
@@ -160,14 +179,17 @@ exports.initializeClub = functions.https.onCall(async (data, context) => {
     });
 
   } catch (e) {
-    console.error('[INIT CRITICAL ERROR]:', e);
+    console.error('[INIT CRITICAL ERROR]:', {
+      message: e.message,
+      code: e.code,
+      stack: e.stack,
+      userId
+    });
 
-    // Если это уже HttpsError — пробрасываем как есть
     if (e instanceof functions.https.HttpsError) {
       throw e;
     }
 
-    // В противном случае — скрываем детали реализации, но даем понять, что это ошибка инициализации
     throw new functions.https.HttpsError('internal', 'CLUB_INITIALIZATION_FAILED');
   }
 });

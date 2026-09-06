@@ -13,8 +13,8 @@ import { useUser, useFirebase } from '@/firebase';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 
 /**
- * СТРАНИЦА ИНИЦИАЛИЗАЦИИ v162.
- * Вызывает Cloud Function для создания клуба с расширенной обработкой ошибок.
+ * СТРАНИЦА ИНИЦИАЛИЗАЦИИ v163.
+ * Вызывает Cloud Function для создания клуба с расширенной диагностикой.
  */
 export default function SetupPage() {
   const router = useRouter();
@@ -61,17 +61,24 @@ export default function SetupPage() {
       }, 1500);
 
     } catch (e: any) {
-      // More robust error logging
-      console.error("[SETUP ERROR]:", e);
+      console.error("[SETUP ERROR DETAILS]:", {
+        code: e?.code,
+        message: e?.message,
+        details: e?.details,
+        name: e?.name,
+        stack: e?.stack
+      });
       
       let errorMsg = "CLUB_INITIALIZATION_FAILED";
       
       if (e?.code) {
-        // Handle Firebase HttpsError codes
         if (e.code === 'functions/failed-precondition') {
           if (e.message?.includes('SEASON_CONFIG_MISSING')) errorMsg = "SEASON_CONFIG_MISSING";
           else if (e.message?.includes('SEASON_TRANSITION_IN_PROGRESS')) errorMsg = "SEASON_TRANSITION_IN_PROGRESS";
           else if (e.message?.includes('LEAGUE_TABLE_MISSING')) errorMsg = "LEAGUE_TABLE_MISSING";
+          else if (e.message?.includes('LEAGUE_TABLE_MISMATCH')) errorMsg = "LEAGUE_TABLE_MISMATCH";
+          else if (e.message?.includes('BOT_NOT_FOUND_IN_SLOT')) errorMsg = "BOT_NOT_FOUND_IN_SLOT";
+          else if (e.message?.includes('INVALID_LEAGUE_SLOT')) errorMsg = "INVALID_LEAGUE_SLOT";
         } else if (e.code === 'functions/resource-exhausted') {
           errorMsg = "NO_FREE_SLOTS_IN_STARTING_DIVISION";
         } else if (e.code === 'functions/unauthenticated') {
