@@ -2,7 +2,7 @@ const functions = require('firebase-functions');
 const admin = require('firebase-admin');
 
 /**
- * @fileOverview Единое серверное ядро v160.
+ * @fileOverview Единое серверное ядро v161.
  * Реализует атомарную регистрацию и защиту данных через Admin SDK.
  */
 
@@ -17,6 +17,7 @@ exports.initializeClub = functions.https.onCall(async (data, context) => {
   
   // 1. Проверка аутентификации
   if (!context.auth) {
+    console.error('[INIT] Unauthenticated request');
     throw new functions.https.HttpsError('unauthenticated', 'AUTHENTICATION_REQUIRED');
   }
 
@@ -55,10 +56,12 @@ exports.initializeClub = functions.https.onCall(async (data, context) => {
       // Чтение 2: Конфигурация сезона
       const configSnap = await t.get(configRef);
       if (!configSnap.exists) {
+        console.error('[INIT] season_config missing');
         throw new functions.https.HttpsError('failed-precondition', 'SEASON_CONFIG_MISSING');
       }
       const config = configSnap.data();
       if (config.phase !== 'REGULAR_SEASON' && config.phase !== 'ACTIVE') {
+        console.warn('[INIT] Season in transition phase:', config.phase);
         throw new functions.https.HttpsError('failed-precondition', 'SEASON_TRANSITION_IN_PROGRESS');
       }
       const seasonNum = config.activeSeasonNumber || 1;
@@ -72,9 +75,12 @@ exports.initializeClub = functions.https.onCall(async (data, context) => {
         .where('division', '==', 4)
         .where('status', '==', 'FREE')
         .limit(1);
+      
+      // В Admin SDK можно делать get(query) внутри транзакции
       const slotsSnap = await t.get(slotsQuery);
 
       if (slotsSnap.empty) {
+        console.error('[INIT] No free slots in division 4');
         throw new functions.https.HttpsError('resource-exhausted', 'NO_FREE_SLOTS_IN_STARTING_DIVISION');
       }
 
@@ -87,6 +93,7 @@ exports.initializeClub = functions.https.onCall(async (data, context) => {
       const tableSnap = await t.get(tableRef);
 
       if (!tableSnap.exists) {
+        console.error('[INIT] League table missing:', tableId);
         throw new functions.https.HttpsError('failed-precondition', 'LEAGUE_TABLE_MISSING');
       }
 
@@ -95,6 +102,7 @@ exports.initializeClub = functions.https.onCall(async (data, context) => {
       const botId = Object.keys(stats).find(id => Number(stats[id].rank) === slot.rank && stats[id].isBot);
 
       if (!botId) {
+        console.error('[INIT] Bot not found for rank:', slot.rank);
         throw new functions.https.HttpsError('failed-precondition', 'BOT_NOT_FOUND_IN_SLOT');
       }
 
